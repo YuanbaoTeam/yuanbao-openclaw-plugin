@@ -1,0 +1,48 @@
+{
+  "id": "openclaw-plugin-yuanbao",
+  "name": "YuanBao",
+  "description": "YuanBao channel plugin",
+  "channels": [
+    "yuanbao"
+  ],
+  "channelEnvVars": {
+    "yuanbao": [
+      "YUANBAO_APP_KEY",
+      "YUANBAO_APP_SECRET"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "channelConfigs": {
+    "yuanbao": {
+      "label": "Yuanbao",
+      "description": "Tencent Yuanbao AI assistant channel.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "appKey": {
+            "type": "string",
+            "description": "YUANBAO_APP_KEY"
+          },
+          "appSecret": {
+            "type": "string",
+            "description": "YUANBAO_APP_SECRET"
+          }
+        }
+      },
+      "uiHints": {
+        "appSecret": {
+          "label": "App Secret",
+          "sensitive": true
+        },
+        "appKey": {
+          "label": "App Key"
+        }
+      }
+    }
+  }
+}
