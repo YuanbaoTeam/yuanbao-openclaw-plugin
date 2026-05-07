@@ -25,7 +25,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.12.2",
     "@types/ws": "^8.18.1",
     "eslint": "^9.0.0",
     "openclaw": ">=2026.4.27",
