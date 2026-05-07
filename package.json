@@ -1,26 +1,37 @@
 {
   "name": "openclaw-plugin-yuanbao",
-  "version": "2026.4.26",
-  "private": true,
-  "description": "OpenClaw YuanBao channel plugin",
+  "version": "2.12.1",
   "type": "module",
+  "private": true,
+  "description": "Tencent YuanBao intelligent bot channel plugin",
+  "license": "MIT",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "tencent-im",
+    "yuanbao",
+    "chatbot"
+  ],
+  "author": "Tencent YuanBao Team",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts"
+  },
   "dependencies": {
     "cos-nodejs-sdk-v5": "^2.15.4",
     "protobufjs": "^7.5.4",
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "@types/node": "^20.19.37",
+    "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
-    "openclaw": "workspace:*"
-  },
-  "peerDependencies": {
-    "openclaw": ">=2026.4.21"
-  },
-  "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    }
+    "eslint": "^9.0.0",
+    "openclaw": ">=2026.4.27",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0"
   },
   "openclaw": {
     "extensions": [
@@ -30,7 +41,7 @@
     "channel": {
       "id": "openclaw-plugin-yuanbao",
       "label": "Yuanbao",
-      "selectionLabel": "Yuanbao(元宝)",
+      "selectionLabel": "Yuanbao (元宝)",
       "detailLabel": "Yuanbao",
       "docsPath": "/plugins/community#yuanbao",
       "docsLabel": "yuanbao",
@@ -46,6 +57,12 @@
     },
     "bundle": {
       "stageRuntimeDependencies": true
+    },
+    "install": {
+      "npmSpec": "openclaw-plugin-yuanbao",
+      "localPath": "extensions/yuanbao",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.4.27"
     }
   }
 }
