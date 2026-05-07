@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.33.2",
   "description": "Tencent YuanBao intelligent bot channel plugin",
   "license": "MIT",
+  "main": "./dist/index.js",
   "keywords": [
     "openclaw",
     "openclaw-plugin",
