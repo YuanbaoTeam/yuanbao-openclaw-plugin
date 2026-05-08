@@ -14,6 +14,9 @@ importers:
       protobufjs:
         specifier: ^7.5.4
         version: 7.5.6
+      semver:
+        specifier: ^7.7.4
+        version: 7.7.4
       ws:
         specifier: ^8.20.0
         version: 8.20.0
@@ -21,6 +24,9 @@ importers:
       '@types/node':
         specifier: ^24.12.2
         version: 24.12.2
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.7.1
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -28,7 +34,7 @@ importers:
         specifier: ^9.0.0
         version: 9.39.4(jiti@2.7.0)
       openclaw:
-        specifier: '>=2026.4.27'
+        specifier: '>=2026.4.5'
         version: 2026.5.6(@types/express@5.0.6)
       tsx:
         specifier: ^4.19.0
@@ -1023,6 +1029,9 @@ packages:
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
+
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
 
   '@types/send@1.2.1':
     resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
@@ -4516,6 +4525,8 @@ snapshots:
   '@types/range-parser@1.2.7': {}
 
   '@types/retry@0.12.0': {}
+
+  '@types/semver@7.7.1': {}
 
   '@types/send@1.2.1':
     dependencies:

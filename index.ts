@@ -3,6 +3,7 @@ import {
   loadBundledEntryExportSync,
 } from "openclaw/plugin-sdk/channel-entry-contract";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/channel-entry-contract";
+import { YUANBAO_PLUGIN_ID } from "./src/channel-shared.js";
 
 /** 懒加载注册工具 */
 function registerTools(api: OpenClawPluginApi) {
@@ -61,7 +62,7 @@ function initLogger(api: OpenClawPluginApi) {
 }
 
 export default defineBundledChannelEntry({
-  id: "openclaw-plugin-yuanbao",
+  id: YUANBAO_PLUGIN_ID,
   name: "YuanBao",
   description: "YuanBao channel plugin",
   importMetaUrl: import.meta.url,

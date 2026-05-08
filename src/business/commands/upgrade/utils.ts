@@ -1,6 +1,8 @@
+import semver from "semver";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/matrix";
 import { createLog } from "../../../logger.js";
+import { getOpenclawVersion } from "../../../infra/env.js";
 import { makeEnv, nodeExecPath, resolveNpmBin, resolveOpenClawBin } from "./env.js";
 
 const log = createLog("upgrade");
@@ -194,6 +196,68 @@ function firstLine(e: unknown): string {
     return e.message.split("\n")[0] ?? String(e);
   }
   return String(e).split("\n")[0];
+}
+
+/**
+ * Pre-flight check: query the target version's minHostVersion from npm metadata
+ * and verify it is compatible with the current OpenClaw host version.
+ *
+ * @returns null if compatible or unable to determine; error message string if incompatible.
+ */
+export async function checkTargetVersionHostCompatibility(
+  targetVersion: string,
+): Promise<string | null> {
+  const hostVersion = getOpenclawVersion();
+  if (!hostVersion) {
+    // Cannot determine host version, skip check
+    return null;
+  }
+
+  const npmBin = await resolveNpmBin();
+  try {
+    const result = await runPluginCommandWithTimeout({
+      argv: [
+        npmBin,
+        "view",
+        `${PLUGIN_ID}@${targetVersion}`,
+        "openclaw.install.minHostVersion",
+      ],
+      timeoutMs: 15_000,
+      env: makeEnv(),
+    });
+    if (result.code !== 0) {
+      log.warn("Failed to query target version minHostVersion from npm", {
+        targetVersion,
+        stderr: result.stderr.trim(),
+      });
+      return null;
+    }
+
+    const constraint = result.stdout.trim();
+    if (!constraint) {
+      // Target version has no minHostVersion constraint
+      return null;
+    }
+
+    if (!semver.satisfies(hostVersion, constraint)) {
+      log.warn("Target version requires newer OpenClaw host", {
+        targetVersion,
+        constraint,
+        hostVersion,
+      });
+      return (
+        `❌ 目标版本 v${targetVersion} 要求 OpenClaw ${constraint}，` +
+        `但当前版本为 ${hostVersion}。请先升级 OpenClaw 后再更新插件。`
+      );
+    }
+  } catch (e: unknown) {
+    log.warn("Failed to check target version host compatibility", {
+      targetVersion,
+      error: firstLine(e),
+    });
+  }
+
+  return null;
 }
 
 /** Execute openclaw command and return unified result */

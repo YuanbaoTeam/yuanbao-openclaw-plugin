@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { createLog } from "../../../logger.js";
 import {
+  checkTargetVersionHostCompatibility,
   getLatestStableVersion,
   isPublishedVersionOnNpm,
   isValidVersion,
@@ -236,6 +237,14 @@ async function runRegularUpgradeFlow(params: {
     log.warn("未获取到 npm 最新正式版本，将直接执行 update");
   }
 
+  // Pre-flight: check if latest version is compatible with current host
+  if (latestStableVersion) {
+    const hostCheckError = await checkTargetVersionHostCompatibility(latestStableVersion);
+    if (hostCheckError) {
+      return { ok: false, message: hostCheckError };
+    }
+  }
+
   await onProgress?.(
     currentVersion && latestStableVersion
       ? `🔄 正在将**元宝 Bot 插件**从 **v${currentVersion}** 升级至 **v${latestStableVersion}** ，请稍等片刻。`
@@ -316,6 +325,11 @@ export async function performUpgrade(
     if (!isPublished) {
       log.error("指定版本在 npm 不存在，升级流程中止", { targetVersion });
       return `❌ 指定版本 \`${targetVersion}\` 不存在或暂不可用，请确认版本号后重试。`;
+    }
+    // Pre-flight: check if target version is compatible with current host
+    const hostCheckError = await checkTargetVersionHostCompatibility(requestedVersion);
+    if (hostCheckError) {
+      return hostCheckError;
     }
   }
 

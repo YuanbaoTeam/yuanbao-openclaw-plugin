@@ -1,0 +1,123 @@
+name: Upstream Compatibility Check
+
+on:
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  detect-new-version:
+    runs-on: ubuntu-latest
+    outputs:
+      has_update: ${{ steps.check.outputs.has_update }}
+      new_version: ${{ steps.check.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Restore last tested version from cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .last-tested-openclaw-version
+          key: openclaw-last-tested
+
+      - name: Check for new openclaw version
+        id: check
+        run: |
+          LATEST=$(npm view openclaw version)
+          LAST_TESTED=$(cat .last-tested-openclaw-version 2>/dev/null || echo "none")
+
+          echo "Latest openclaw version: $LATEST"
+          echo "Last tested version: $LAST_TESTED"
+
+          if [ "$LATEST" != "$LAST_TESTED" ]; then
+            echo "has_update=true" >> $GITHUB_OUTPUT
+            echo "new_version=$LATEST" >> $GITHUB_OUTPUT
+            echo "$LATEST" > .last-tested-openclaw-version
+          else
+            echo "has_update=false" >> $GITHUB_OUTPUT
+            echo "✅ No new version, skipping tests."
+          fi
+
+      - name: Save last tested version to cache
+        if: steps.check.outputs.has_update == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .last-tested-openclaw-version
+          key: openclaw-last-tested-${{ steps.check.outputs.new_version }}
+
+  test-compatibility:
+    needs: detect-new-version
+    if: needs.detect-new-version.outputs.has_update == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        openclaw-version: ['2026.4.5', 'latest']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Override openclaw to ${{ matrix.openclaw-version }}
+        run: pnpm add -D openclaw@${{ matrix.openclaw-version }}
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  update-cache:
+    needs: [detect-new-version, test-compatibility]
+    if: needs.detect-new-version.outputs.has_update == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write version file
+        run: echo "${{ needs.detect-new-version.outputs.new_version }}" > .last-tested-openclaw-version
+
+      - name: Delete old cache
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh cache delete openclaw-last-tested --repo ${{ github.repository }} || true
+
+      - name: Save updated cache
+        uses: actions/cache/save@v4
+        with:
+          path: .last-tested-openclaw-version
+          key: openclaw-last-tested
+
+  notify-on-failure:
+    needs: [detect-new-version, test-compatibility]
+    if: failure() && needs.detect-new-version.outputs.has_update == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send WeCom bot notification
+        env:
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          NEW_VERSION: ${{ needs.detect-new-version.outputs.new_version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "$WECOM_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"content\": \"🚨 **OpenClaw ${NEW_VERSION} 兼容性测试失败**\n> yuanbao 插件兼容性测试未通过，可能存在 breaking change。\n> [查看 CI 详情](${RUN_URL})\"
+              }
+            }"

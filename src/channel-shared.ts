@@ -24,7 +24,8 @@ import { yuanbaoSetupAdapter } from "./setup-core.js";
 import { yuanbaoSetupWizard } from "./setup-surface.js";
 import type { ResolvedYuanbaoAccount } from "./types.js";
 
-export const YUANBAO_CHANNEL_ID = "openclaw-plugin-yuanbao" as const;
+export const YUANBAO_PLUGIN_ID = "openclaw-plugin-yuanbao" as const;
+export const YUANBAO_CHANNEL_ID = "yuanbao" as const;
 
 export const yuanbaoMeta = {
   id: YUANBAO_CHANNEL_ID,

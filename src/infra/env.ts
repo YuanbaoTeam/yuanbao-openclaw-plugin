@@ -1,5 +1,6 @@
 import { createRequire } from "module";
 import os from "os";
+import semver from "semver";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
 /**
@@ -27,6 +28,36 @@ export const getOpenclawVersion = () => _openclawVersion;
 export const getOperationSystem = () => os.type();
 
 /**
+ * Read minHostVersion constraint from package.json (single source of truth).
+ */
+const getMinHostVersion = (): string | null => {
+  try {
+    const _require = createRequire(import.meta.url);
+    const pkg = _require("../../../package.json") as {
+      openclaw?: { install?: { minHostVersion?: string } };
+    };
+    return pkg.openclaw?.install?.minHostVersion ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Validate that the current OpenClaw host version satisfies the minHostVersion constraint.
+ * Throws if the host version is too old.
+ */
+function assertHostVersionCompatible(hostVersion: string): void {
+  const constraint = getMinHostVersion();
+  if (!constraint) return;
+
+  if (!semver.satisfies(hostVersion, constraint)) {
+    throw new Error(
+      `openclaw-plugin-yuanbao requires openclaw ${constraint}, but current version is ${hostVersion}. Please upgrade openclaw first.`,
+    );
+  }
+}
+
+/**
  * Initialize plugin and OpenClaw version numbers during plugin registration.
  */
 export const initEnv = (api: OpenClawPluginApi) => {
@@ -36,11 +67,17 @@ export const initEnv = (api: OpenClawPluginApi) => {
   if (!_pluginVersion || !_openclawVersion) {
     legacyInitEnv();
   }
+
+  // Runtime guard: reject incompatible host versions
+  if (_openclawVersion) {
+    assertHostVersionCompatible(_openclawVersion);
+  }
 };
 
 /**
  * Fallback: resolve versions from package.json relative to the install directory.
- */const legacyInitEnv = () => {
+ */
+const legacyInitEnv = () => {
   try {
     const _require = createRequire(import.meta.url);
     // Read plugin version (build output in dist/ws/get-env.js, two levels up to root)
