@@ -48,7 +48,7 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
     messaging: {
       normalizeTarget,
       targetResolver: {
-        looksLikeId: (raw) => Boolean(raw.trim()),
+        looksLikeId: raw => Boolean(raw.trim()),
         hint: "<userId> or group:<groupCode>",
       },
     },
@@ -134,7 +134,7 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
           abortSignal: ctx.abortSignal,
           log: ctx.log,
           runtime: getYuanbaoRuntime(),
-          statusSink: (patch) => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
+          statusSink: patch => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
         });
       },
       stopAccount: async (ctx) => {
@@ -152,10 +152,10 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
   security: {
     resolveDmPolicy: createScopedDmSecurityResolver<ResolvedYuanbaoAccount>({
       channelKey: YUANBAO_CHANNEL_ID,
-      resolvePolicy: (account) => account.config.dm?.policy,
-      resolveAllowFrom: (account) => account.config.dm?.allowFrom,
+      resolvePolicy: account => account.config.dm?.policy,
+      resolveAllowFrom: account => account.config.dm?.allowFrom,
       defaultPolicy: "open",
-      normalizeEntry: (raw) => raw.trim().toLowerCase(),
+      normalizeEntry: raw => raw.trim().toLowerCase(),
     }),
   },
 
@@ -169,8 +169,7 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
     deliveryMode: "direct",
     chunkerMode: "markdown",
     textChunkLimit: 3000,
-    chunker: (text, limit) =>
-      getYuanbaoRuntime()?.channel.text.chunkMarkdownText(text, limit) ?? [text],
+    chunker: (text, limit) => getYuanbaoRuntime()?.channel.text.chunkMarkdownText(text, limit) ?? [text],
     sendText: async (params) => {
       const slog = createLog("channel.outbound");
       const { accountId, to } = params;

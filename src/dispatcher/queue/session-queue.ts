@@ -42,9 +42,7 @@ export class SessionQueue {
         // Generation changed → superseded by a newer message, skip this task
         const currentGen = this.generations.get(sessionKey) ?? 0;
         if (currentGen !== enqueuedGen) {
-          this.log.info(
-            `[${sessionKey}] task skipped (superseded, enqueued=${enqueuedGen}, current=${currentGen})`,
-          );
+          this.log.info(`[${sessionKey}] task skipped (superseded, enqueued=${enqueuedGen}, current=${currentGen})`);
           return undefined;
         }
         return task();

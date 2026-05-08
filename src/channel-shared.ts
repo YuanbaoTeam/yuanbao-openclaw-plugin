@@ -61,8 +61,7 @@ export const yuanbaoReload: { configPrefixes: string[] } = {
  */
 export const yuanbaoConfigAdapter = {
   listAccountIds: (cfg: OpenClawConfig) => listYuanbaoAccountIds(cfg),
-  resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) =>
-    resolveYuanbaoAccount({ cfg, accountId: accountId ?? undefined }),
+  resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) => resolveYuanbaoAccount({ cfg, accountId: accountId ?? undefined }),
   defaultAccountId: (cfg: OpenClawConfig) => resolveDefaultYuanbaoAccountId(cfg),
   setAccountEnabled: ({
     cfg,
@@ -72,35 +71,32 @@ export const yuanbaoConfigAdapter = {
     cfg: OpenClawConfig;
     accountId: string;
     enabled: boolean;
-  }) =>
-    setAccountEnabledInConfigSection({
-      cfg,
-      sectionKey: YUANBAO_CHANNEL_ID,
-      accountId,
-      enabled,
-      allowTopLevel: true,
-    }),
-  deleteAccount: ({ cfg, accountId }: { cfg: OpenClawConfig; accountId: string }) =>
-    deleteAccountFromConfigSection({
-      cfg,
-      sectionKey: YUANBAO_CHANNEL_ID,
-      accountId,
-      clearBaseFields: [
-        "name",
-        "appKey",
-        "appSecret",
-        "token",
-        "overflowPolicy",
-        "replyToMode",
-        "outboundQueueStrategy",
-        "mediaMaxMb",
-        "historyLimit",
-        "disableBlockStreaming",
-        "fallbackReply",
-      ],
-    }),
-  isConfigured: (account: ResolvedYuanbaoAccount | undefined) =>
-    Boolean(account?.configured),
+  }) => setAccountEnabledInConfigSection({
+    cfg,
+    sectionKey: YUANBAO_CHANNEL_ID,
+    accountId,
+    enabled,
+    allowTopLevel: true,
+  }),
+  deleteAccount: ({ cfg, accountId }: { cfg: OpenClawConfig; accountId: string }) => deleteAccountFromConfigSection({
+    cfg,
+    sectionKey: YUANBAO_CHANNEL_ID,
+    accountId,
+    clearBaseFields: [
+      "name",
+      "appKey",
+      "appSecret",
+      "token",
+      "overflowPolicy",
+      "replyToMode",
+      "outboundQueueStrategy",
+      "mediaMaxMb",
+      "historyLimit",
+      "disableBlockStreaming",
+      "fallbackReply",
+    ],
+  }),
+  isConfigured: (account: ResolvedYuanbaoAccount | undefined) => Boolean(account?.configured),
   describeAccount: (account: ResolvedYuanbaoAccount | undefined) => ({
     accountId: account?.accountId ?? DEFAULT_ACCOUNT_ID,
     name: account?.name,
@@ -116,13 +112,12 @@ export const yuanbaoConfigAdapter = {
     accountId?: string | null;
   }) => {
     const account = resolveYuanbaoAccount({ cfg, accountId: accountId ?? undefined });
-    return (account.config.dm?.allowFrom ?? []).map((entry) => String(entry));
+    return (account.config.dm?.allowFrom ?? []).map(entry => String(entry));
   },
-  formatAllowFrom: ({ allowFrom }: { allowFrom: Array<string | number> | undefined | null }) =>
-    (allowFrom ?? [])
-      .map((entry) => String(entry).trim())
-      .filter(Boolean)
-      .map((entry) => entry.toLowerCase()),
+  formatAllowFrom: ({ allowFrom }: { allowFrom: Array<string | number> | undefined | null }) => (allowFrom ?? [])
+    .map(entry => String(entry).trim())
+    .filter(Boolean)
+    .map(entry => entry.toLowerCase()),
 };
 
 /** Re-export the shared setup adapter / wizard for call sites that pull them from one place. */

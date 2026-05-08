@@ -21,7 +21,7 @@ const handlerList: MessageElemHandler[] = [
   faceHandler,
 ];
 
-const handlerMap = new Map<string, MessageElemHandler>(handlerList.map((h) => [h.msgType, h]));
+const handlerMap = new Map<string, MessageElemHandler>(handlerList.map(h => [h.msgType, h]));
 
 const outboundTypeToMsgType: Record<string, string> = {
   text: "TIMTextElem",
@@ -69,8 +69,7 @@ function resolveAtMentions(
     }
 
     const nickName = match[1];
-    const userRecord =
-      groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
+    const userRecord = groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
 
     if (userRecord) {
       // User found, insert custom type @mention message

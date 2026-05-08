@@ -1,5 +1,5 @@
 import { dirname } from "node:path";
-import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/matrix";
+import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/run-command";
 
 /**
  * Build child process env: prepend Node.js bin directory to PATH.

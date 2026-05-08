@@ -45,7 +45,7 @@ export function createMessageSender(params: SendParams): MessageSender {
         fallbackText,
         core,
         dt,
-        sendTextFallback: (t) => sender.sendText(t),
+        sendTextFallback: t => sender.sendText(t),
       });
     },
 

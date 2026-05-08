@@ -42,24 +42,22 @@ export async function sendMedia(params: SendMediaParams): Promise<SendResult> {
     const mime = guessMimeType(uploadResult.filename);
     const msgBody = mime.startsWith("image/")
       ? buildImageMsgBody({
-          url: uploadResult.url,
-          filename: uploadResult.filename,
-          size: uploadResult.size,
-          uuid: uploadResult.uuid,
-          imageInfo: uploadResult.imageInfo,
-        })
+        url: uploadResult.url,
+        filename: uploadResult.filename,
+        size: uploadResult.size,
+        uuid: uploadResult.uuid,
+        imageInfo: uploadResult.imageInfo,
+      })
       : buildFileMsgBody({
-          url: uploadResult.url,
-          filename: uploadResult.filename,
-          size: uploadResult.size,
-          uuid: uploadResult.uuid,
-        });
+        url: uploadResult.url,
+        filename: uploadResult.filename,
+        size: uploadResult.size,
+        uuid: uploadResult.uuid,
+      });
     return deliver(dt, msgBody as YuanbaoMsgBodyElement[]);
   } catch (err) {
     // Media send failed, falling back to text link
-    log.error(
-      `media send failed, falling back to text: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    log.error(`media send failed, falling back to text: ${err instanceof Error ? err.message : String(err)}`);
     const fallback = fallbackText ? `${fallbackText}\n${mediaUrl}` : mediaUrl;
     return sendTextFallback(fallback);
   }

@@ -96,9 +96,8 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
 
   try {
     const { cfg, params } = input;
-    const action =
-      params?.action ?? ((input as Record<string, unknown>).action as string) ?? "send";
-    const accountId = input.accountId;
+    const action = params?.action ?? ((input as Record<string, unknown>).action as string) ?? "send";
+    const { accountId } = input;
 
     log.info("send info", { action, to: params?.to || params?.target });
 

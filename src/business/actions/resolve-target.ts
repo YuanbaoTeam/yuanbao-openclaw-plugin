@@ -98,9 +98,7 @@ export function resolveActionTarget(input: ActionParams): ResolvedTarget {
   }
 
   if (!rawTo) {
-    throw new Error(
-      "[resolveActionTarget] Unable to determine delivery target: to / params.to / toolContext.currentChannelId are all empty",
-    );
+    throw new Error("[resolveActionTarget] Unable to determine delivery target: to / params.to / toolContext.currentChannelId are all empty");
   }
 
   // Use parseTarget to uniformly parse user:xxx / direct:xxx / group:xxx / bare ID

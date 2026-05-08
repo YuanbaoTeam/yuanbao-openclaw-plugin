@@ -152,13 +152,13 @@ export class YuanbaoWsClient {
   private abortController: AbortController | null = null;
   private disposed = false;
   private pendingRequests = new Map<
-    string,
-    {
-      resolve: (resp: unknown) => void;
-      timer: ReturnType<typeof setTimeout>;
-      /** Custom decoder; falls back to decodeSendMessageRsp when absent */
-      decoder?: (data: Uint8Array | ArrayBuffer, msgId: string) => unknown;
-    }
+  string,
+  {
+    resolve: (resp: unknown) => void;
+    timer: ReturnType<typeof setTimeout>;
+    /** Custom decoder; falls back to decodeSendMessageRsp when absent */
+    decoder?: (data: Uint8Array | ArrayBuffer, msgId: string) => unknown;
+  }
   >();
 
   constructor(params: {
@@ -212,9 +212,7 @@ export class YuanbaoWsClient {
   /** Send raw binary data. */
   sendBinary(data: Uint8Array): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.log.error(
-        `send failed: connection unavailable (state=${this.state}, readyState=${this.ws?.readyState ?? "no socket"})`,
-      );
+      this.log.error(`send failed: connection unavailable (state=${this.state}, readyState=${this.ws?.readyState ?? "no socket"})`);
       return false;
     }
     this.ws.send(data);
@@ -434,9 +432,7 @@ export class YuanbaoWsClient {
           if (NO_RECONNECT_CLOSE_CODES.has(code)) {
             this.log.info(`received non-retryable close code=${code}, giving up reconnect`);
             this.setState("disconnected");
-            this.callbacks.onError?.(
-              new Error(`Connection closed with non-retryable code=${code}: ${reasonStr}`),
-            );
+            this.callbacks.onError?.(new Error(`Connection closed with non-retryable code=${code}: ${reasonStr}`));
           } else {
             this.scheduleReconnect();
           }
@@ -557,23 +553,17 @@ export class YuanbaoWsClient {
       return false;
     }
 
-    this.log.warn(
-      `[${source}] token invalid (code=${errorCode}), refreshing token then scheduleReconnect`,
-    );
+    this.log.warn(`[${source}] token invalid (code=${errorCode}), refreshing token then scheduleReconnect`);
     this.closeCurrentWs();
     this.callbacks
       .onAuthFailed(errorCode)
       .then((newAuth) => {
         if (newAuth && !this.disposed) {
-          this.log.info(
-            `[${source}] token refreshed, reconnecting with new token via scheduleReconnect`,
-          );
+          this.log.info(`[${source}] token refreshed, reconnecting with new token via scheduleReconnect`);
           this.updateAuth(newAuth);
           this.scheduleReconnect();
         } else {
-          this.log.warn(
-            `[${source}] token refresh returned empty or client disposed, giving up reconnect`,
-          );
+          this.log.warn(`[${source}] token refresh returned empty or client disposed, giving up reconnect`);
           this.setState("disconnected");
         }
       })
@@ -601,24 +591,16 @@ export class YuanbaoWsClient {
     }
 
     if (this.reconnectAttempts >= this.clientConfig.maxReconnectAttempts) {
-      this.log.error(
-        `[${source}] max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) reached, giving up token refresh`,
-      );
+      this.log.error(`[${source}] max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) reached, giving up token refresh`);
       this.setState("disconnected");
-      this.callbacks.onError?.(
-        new Error(
-          `Max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) exceeded during token refresh`,
-        ),
-      );
+      this.callbacks.onError?.(new Error(`Max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) exceeded during token refresh`));
       return;
     }
 
     const delay = this.getReconnectDelay();
     this.reconnectAttempts++;
     this.setState("reconnecting");
-    this.log.info(
-      `[${source}] will retry token refresh in ${delay}ms (attempt ${this.reconnectAttempts}/${this.clientConfig.maxReconnectAttempts})`,
-    );
+    this.log.info(`[${source}] will retry token refresh in ${delay}ms (attempt ${this.reconnectAttempts}/${this.clientConfig.maxReconnectAttempts})`);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -630,22 +612,16 @@ export class YuanbaoWsClient {
         .onAuthFailed(errorCode)
         .then((newAuth) => {
           if (newAuth && !this.disposed) {
-            this.log.info(
-              `[${source}] token retry succeeded, reconnecting with new token via scheduleReconnect`,
-            );
+            this.log.info(`[${source}] token retry succeeded, reconnecting with new token via scheduleReconnect`);
             this.updateAuth(newAuth);
             this.scheduleReconnect();
           } else {
-            this.log.warn(
-              `[${source}] token retry returned empty or client disposed, giving up reconnect`,
-            );
+            this.log.warn(`[${source}] token retry returned empty or client disposed, giving up reconnect`);
             this.setState("disconnected");
           }
         })
         .catch((err) => {
-          this.log.error(
-            `[${source}] token retry still failed: ${String(err)}, retrying after delay`,
-          );
+          this.log.error(`[${source}] token retry still failed: ${String(err)}, retrying after delay`);
           if (!this.disposed) {
             this.retryAuthRefreshAfterDelay(errorCode, source);
           } else {
@@ -661,9 +637,7 @@ export class YuanbaoWsClient {
 
     // Check head.status non-zero (transport layer failure)
     if (head.status && head.status !== 0) {
-      this.log.error(
-        `auth-bind head.status non-zero: status=${head.status}, rsp.code=${rsp?.code}, rsp.message=${rsp?.message}`,
-      );
+      this.log.error(`auth-bind head.status non-zero: status=${head.status}, rsp.code=${rsp?.code}, rsp.message=${rsp?.message}`);
 
       // Already authenticated — treat as success
       if (rsp?.code === AUTH_ALREADY_CODE) {
@@ -676,9 +650,7 @@ export class YuanbaoWsClient {
 
         // Transient server error — reconnect via scheduleReconnect
         if (rsp?.code && AUTH_RETRYABLE_CODES.has(rsp.code)) {
-          this.log.warn?.(
-            `auth retryable error (code=${rsp.code}), reconnecting via scheduleReconnect`,
-          );
+          this.log.warn?.(`auth retryable error (code=${rsp.code}), reconnecting via scheduleReconnect`);
           this.closeCurrentWs();
           this.scheduleReconnect();
           return;
@@ -694,9 +666,7 @@ export class YuanbaoWsClient {
 
     // Check business layer code non-zero
     if (!rsp || (rsp.code !== 0 && rsp.code !== AUTH_ALREADY_CODE)) {
-      this.log.error(
-        `auth-bind response error: rsp.code=${rsp?.code}, rsp.message=${rsp?.message}`,
-      );
+      this.log.error(`auth-bind response error: rsp.code=${rsp?.code}, rsp.message=${rsp?.message}`);
 
       if (rsp?.code && this.tryAuthFailedRefresh(rsp.code, "auth-rsp-code")) {
         return;
@@ -704,9 +674,7 @@ export class YuanbaoWsClient {
 
       // Transient server error — reconnect via scheduleReconnect
       if (rsp?.code && AUTH_RETRYABLE_CODES.has(rsp.code)) {
-        this.log.warn?.(
-          `auth retryable error (code=${rsp.code}), reconnecting via scheduleReconnect`,
-        );
+        this.log.warn?.(`auth retryable error (code=${rsp.code}), reconnecting via scheduleReconnect`);
         this.closeCurrentWs();
         this.scheduleReconnect();
         return;
@@ -770,17 +738,15 @@ export class YuanbaoWsClient {
       this.heartbeatTimeoutCount++;
       const elapsed = Date.now() - this.lastHeartbeatAt;
       if (this.heartbeatTimeoutCount >= HEARTBEAT_TIMEOUT_THRESHOLD) {
-        this.log.warn(
-          `heartbeat timeout ${this.heartbeatTimeoutCount} consecutive times (${elapsed}ms no ack), triggering reconnect`,
-        );
+        this.log.warn(`heartbeat timeout ${this.heartbeatTimeoutCount} consecutive times (${elapsed}ms no ack), triggering reconnect`);
         this.heartbeatTimeoutCount = 0;
         this.closeCurrentWs();
         this.scheduleReconnect();
         return;
       }
-      this.log.warn(
-        `heartbeat timeout (${elapsed}ms no ack), ${this.heartbeatTimeoutCount}/${HEARTBEAT_TIMEOUT_THRESHOLD}, ${HEARTBEAT_TIMEOUT_THRESHOLD - this.heartbeatTimeoutCount} more before reconnect`,
-      );
+      const remaining = HEARTBEAT_TIMEOUT_THRESHOLD - this.heartbeatTimeoutCount;
+      this.log.warn(`heartbeat timeout (${elapsed}ms no ack), `
+        + `${this.heartbeatTimeoutCount}/${HEARTBEAT_TIMEOUT_THRESHOLD}, ${remaining} more before reconnect`);
       // Only schedule next timeout check; don't reset ack so the next check still detects timeout
       this.scheduleNextPingCheck();
       return;
@@ -939,22 +905,16 @@ export class YuanbaoWsClient {
     }
 
     if (this.reconnectAttempts >= this.clientConfig.maxReconnectAttempts) {
-      this.log.error(
-        `max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) reached, giving up`,
-      );
+      this.log.error(`max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) reached, giving up`);
       this.setState("disconnected");
-      this.callbacks.onError?.(
-        new Error(`Max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) exceeded`),
-      );
+      this.callbacks.onError?.(new Error(`Max reconnect attempts (${this.clientConfig.maxReconnectAttempts}) exceeded`));
       return;
     }
 
     const delay = customDelay ?? this.getReconnectDelay();
     this.reconnectAttempts++;
     this.setState("reconnecting");
-    this.log.info(
-      `will reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.clientConfig.maxReconnectAttempts})`,
-    );
+    this.log.info(`will reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.clientConfig.maxReconnectAttempts})`);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;

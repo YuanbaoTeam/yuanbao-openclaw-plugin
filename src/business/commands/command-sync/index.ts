@@ -26,7 +26,7 @@ function getBotCommands(config?: OpenClawConfig): ChatCommandDefinition[] | null
     log.debug(`获取命令列表: ${commands.length} 个命令`);
     if (commands.length > 0) {
       log.debug("命令原始结构示例:", {
-        sample: commands.slice(0, 3).map((c) => ({
+        sample: commands.slice(0, 3).map(c => ({
           key: c.key,
           description: c.description,
           textAliases: c.textAliases,
@@ -80,7 +80,7 @@ const pluginCommands: CommandItem[] = [];
 export function registerPluginCommand(name: string, description: string): void {
   const fullName = name.startsWith("/") ? name : `/${name}`;
   // Deduplicate
-  if (!pluginCommands.some((c) => c.name === fullName)) {
+  if (!pluginCommands.some(c => c.name === fullName)) {
     pluginCommands.push({ name: fullName, description });
   }
 }
@@ -99,9 +99,7 @@ export type SyncInformationPayload = {
   };
 };
 
-export function buildSyncCommandsPayload(
-  config?: OpenClawConfig,
-): SyncInformationPayload {
+export function buildSyncCommandsPayload(config?: OpenClawConfig): SyncInformationPayload {
   const botVersion = getOpenclawVersion() || "0.0.0";
   const pluginVersion = getPluginVersion() || "0.0.0";
 
@@ -113,8 +111,8 @@ export function buildSyncCommandsPayload(
     botVersion,
     pluginVersion,
     commandData: {
-      botCommands: botCommands.map((c) => ({ name: c.name, description: c.description })),
-      pluginCommands: pluginCommands.map((c) => ({ name: c.name, description: c.description })),
+      botCommands: botCommands.map(c => ({ name: c.name, description: c.description })),
+      pluginCommands: pluginCommands.map(c => ({ name: c.name, description: c.description })),
     },
   };
 }

@@ -34,7 +34,7 @@ function maybeCleanupExpiredEntries(): void {
   }
   const now = Date.now();
   for (const [key, timestamps] of rateLimitMap) {
-    const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
+    const recent = timestamps.filter(t => now - t < RATE_WINDOW_MS);
     if (recent.length === 0) {
       rateLimitMap.delete(key);
     } else {
@@ -55,7 +55,7 @@ function isRateLimited(senderId: string, maxPerHour: number): boolean {
   const timestamps = rateLimitMap.get(senderId) ?? [];
 
   // Remove entries outside the rate window
-  const recent = timestamps.filter((t) => now - t < RATE_WINDOW_MS);
+  const recent = timestamps.filter(t => now - t < RATE_WINDOW_MS);
   rateLimitMap.set(senderId, recent);
 
   return recent.length >= maxPerHour;
@@ -94,7 +94,7 @@ const DEFAULT_SEND_ACCESS_POLICY: SendAccessPolicy = {
  */
 export const guardSendAccess: MiddlewareDescriptor = {
   name: "guard-send-access",
-  when: (ctx) => !ctx.isGroup,
+  when: ctx => !ctx.isGroup,
   handler: async (ctx, next) => {
     const policy: SendAccessPolicy = DEFAULT_SEND_ACCESS_POLICY;
     const senderId = ctx.fromAccount;
@@ -110,18 +110,14 @@ export const guardSendAccess: MiddlewareDescriptor = {
     // 2. Sender authorization
     if (policy.allowedSenders === "allowlist") {
       if (!policy.senderAllowlist?.includes(senderId)) {
-        ctx.log.info(
-          `[guard-send-access] send access denied: sender ${senderId} not in allow list`,
-        );
+        ctx.log.info(`[guard-send-access] send access denied: sender ${senderId} not in allow list`);
         return;
       }
     }
 
     // 3. Message length check
     if (messageLength > policy.maxMessageLength) {
-      ctx.log.info(
-        `[guard-send-access] send access denied: message too long (${messageLength} chars), max ${policy.maxMessageLength}`,
-      );
+      ctx.log.info(`[guard-send-access] send access denied: message too long (${messageLength} chars), max ${policy.maxMessageLength}`);
       return;
     }
 

@@ -1,13 +1,14 @@
 import semver from "semver";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
-import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/matrix";
-import { createLog } from "../../../logger.js";
+import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/run-command";
+import { YUANBAO_PLUGIN_ID } from "../../../channel-shared.js";
 import { getOpenclawVersion } from "../../../infra/env.js";
+import { createLog } from "../../../logger.js";
 import { makeEnv, nodeExecPath, resolveNpmBin, resolveOpenClawBin } from "./env.js";
 
 const log = createLog("upgrade");
 
-export const PLUGIN_ID = "openclaw-plugin-yuanbao";
+export const PLUGIN_ID = YUANBAO_PLUGIN_ID;
 
 /** Default timeout for shell commands (3 minutes) */
 const EXEC_TIMEOUT_MS = 3 * 60 * 1000;
@@ -42,7 +43,7 @@ export function isValidVersion(version: string): boolean {
 
 /** Simple sleep for retry backoff */
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -204,9 +205,7 @@ function firstLine(e: unknown): string {
  *
  * @returns null if compatible or unable to determine; error message string if incompatible.
  */
-export async function checkTargetVersionHostCompatibility(
-  targetVersion: string,
-): Promise<string | null> {
+export async function checkTargetVersionHostCompatibility(targetVersion: string): Promise<string | null> {
   const hostVersion = getOpenclawVersion();
   if (!hostVersion) {
     // Cannot determine host version, skip check
@@ -246,8 +245,8 @@ export async function checkTargetVersionHostCompatibility(
         hostVersion,
       });
       return (
-        `❌ 目标版本 v${targetVersion} 要求 OpenClaw ${constraint}，` +
-        `但当前版本为 ${hostVersion}。请先升级 OpenClaw 后再更新插件。`
+        `❌ 目标版本 v${targetVersion} 要求 OpenClaw ${constraint}，`
+        + `但当前版本为 ${hostVersion}。请先升级 OpenClaw 后再更新插件。`
       );
     }
   } catch (e: unknown) {
@@ -272,8 +271,7 @@ export async function runOpenClawCommand(
     const stdout = result.stdout.trim() || undefined;
     const stderr = result.stderr.trim() || undefined;
     if (result.code !== 0) {
-      const summary =
-        stderr?.split("\n")[0] ?? stdout?.split("\n")[0] ?? `exit code ${result.code}`;
+      const summary = stderr?.split("\n")[0] ?? stdout?.split("\n")[0] ?? `exit code ${result.code}`;
       return { ok: false, stdout, stderr, error: summary };
     }
     return { ok: true, stdout, stderr };

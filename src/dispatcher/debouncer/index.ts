@@ -19,8 +19,7 @@ const pipeline = createPipeline();
 const sessionQueue = new SessionQueue();
 const sessionAbortManager = new SessionAbortManager();
 
-let debouncer: ReturnType<typeof createChannelInboundDebouncer<DebouncerItem>>["debouncer"] | null =
-  null;
+let debouncer: ReturnType<typeof createChannelInboundDebouncer<DebouncerItem>>["debouncer"] | null = null;
 
 const MEDIA_MSG_TYPES = new Set([
   "TIMImageElem",
@@ -76,9 +75,7 @@ function hasMediaElem(item: DebouncerItem): boolean {
   if (!body || body.length === 0) {
     return false;
   }
-  return body.some((elem: { msg_type?: string }) =>
-    elem.msg_type ? MEDIA_MSG_TYPES.has(elem.msg_type) : false,
-  );
+  return body.some((elem: { msg_type?: string }) => (elem.msg_type ? MEDIA_MSG_TYPES.has(elem.msg_type) : false));
 }
 
 function isDirectNormalMessage(item: DebouncerItem): boolean {
@@ -115,7 +112,7 @@ function buildSyntheticMessage(
   primary: DebouncerItem,
   items: DebouncerItem[],
 ): YuanbaoInboundMessage {
-  const combinedBody = items.flatMap((item) => item.msg.msg_body ?? []);
+  const combinedBody = items.flatMap(item => item.msg.msg_body ?? []);
   return {
     ...primary.msg,
     msg_body: combinedBody,
@@ -136,9 +133,9 @@ function buildPipelineContext(primary: DebouncerItem, items: DebouncerItem[]): P
     abortSignal: (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })
       ._sessionAbortSignal
       ? combineAbortSignals(
-          primary.abortSignal,
-          (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal,
-        )
+        primary.abortSignal,
+        (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal,
+      )
       : primary.abortSignal,
     statusSink: primary.statusSink,
 
@@ -195,7 +192,7 @@ export function ensureDebouncer(config: OpenClawConfig) {
     cfg: config,
     channel: "yuanbao",
 
-    buildKey: (item) => buildSessionKey(item),
+    buildKey: item => buildSessionKey(item),
 
     shouldDebounce: (item) => {
       const minCtx = buildMinCtx(item, debouncerLog);
@@ -203,11 +200,7 @@ export function ensureDebouncer(config: OpenClawConfig) {
       return shouldDebounceTextInbound({
         text: rawBody,
         cfg: item.config,
-        hasMedia: Boolean(
-          item.msg.msg_body?.some((elem: { msg_type?: string }) =>
-            MEDIA_MSG_TYPES.has(elem.msg_type ?? ""),
-          ),
-        ),
+        hasMedia: Boolean(item.msg.msg_body?.some((elem: { msg_type?: string }) => MEDIA_MSG_TYPES.has(elem.msg_type ?? ""))),
       });
     },
 
@@ -227,8 +220,7 @@ export function ensureDebouncer(config: OpenClawConfig) {
         // Rotate AbortController: abort old inference, get new signal
         const sessionSignal = sessionAbortManager.rotate(baseKey);
         // Attach session-level signal to primary for buildPipelineContext
-        (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal =
-          sessionSignal;
+        (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal = sessionSignal;
       }
 
       if (items.length === 1) {
@@ -245,14 +237,12 @@ export function ensureDebouncer(config: OpenClawConfig) {
 
       // Merge text + media from multiple messages; skip if empty
       const combinedText = items
-        .map((item) => extractRawText(item))
+        .map(item => extractRawText(item))
         .filter(Boolean)
         .join("\n");
-      const combinedMedia = items.flatMap((item) =>
-        (item.msg.msg_body ?? []).filter((elem: { msg_type?: string }) =>
-          MEDIA_MSG_TYPES.has(elem.msg_type ?? ""),
-        ),
-      );
+      const combinedMedia = items
+        .flatMap(item => (item.msg.msg_body ?? [])
+          .filter((elem: { msg_type?: string }) => MEDIA_MSG_TYPES.has(elem.msg_type ?? "")));
       if (!combinedText.trim() && combinedMedia.length === 0) {
         debouncerLog.info("flush skipped: no text or media after merge", {
           count: items.length,

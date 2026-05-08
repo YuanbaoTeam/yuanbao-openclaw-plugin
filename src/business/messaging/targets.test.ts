@@ -9,10 +9,10 @@ import test from "node:test";
 import { looksLikeYuanbaoId, parseTarget } from "./targets.js";
 
 void test("looksLikeYuanbaoId recognizes valid Base64 format IDs", () => {
-  // Length >= 24, contains uppercase + lowercase + digits, Base64 charset only
-  assert.equal(looksLikeYuanbaoId("xqfNihe1yIVQyNwbAb3Cd2Ef"), true);
-  assert.equal(looksLikeYuanbaoId("Ab1Cd2Ef3Gh4Ij5KLm6No7Pq"), true);
-  assert.equal(looksLikeYuanbaoId("YWJj1GVmZ2hpamtsbW5vcHFy"), true);
+  // Length >= 16, length is multiple of 4, Base64 charset only
+  assert.equal(looksLikeYuanbaoId("YWJjZGVmZ2hpamts"), true);
+  assert.equal(looksLikeYuanbaoId("YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4"), true);
+  assert.equal(looksLikeYuanbaoId("Ab1Cd2Ef3Gh4Ij5K"), true);
 });
 
 void test("looksLikeYuanbaoId rejects invalid IDs", () => {

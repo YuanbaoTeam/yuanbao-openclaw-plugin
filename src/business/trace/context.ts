@@ -36,7 +36,9 @@ function normalizeTraceIdForTraceparent(traceId: string): string {
     }
   }
 
-  const hashed = createHash("sha256").update(traceId.trim()).digest("hex").slice(0, 32);
+  const hashed = createHash("sha256").update(traceId.trim())
+    .digest("hex")
+    .slice(0, 32);
   if (hashed !== EMPTY_TRACE_ID) {
     return hashed;
   }

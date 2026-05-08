@@ -4,9 +4,7 @@
 
 function stripOuterMarkdownFence(text: string): string {
   const HAS_TABLE = /^\s*\|[-:| ]+\|/m;
-  return text.replace(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/gm, (fullMatch, inner: string) =>
-    HAS_TABLE.test(inner) ? inner : fullMatch,
-  );
+  return text.replace(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/gm, (fullMatch, inner: string) => (HAS_TABLE.test(inner) ? inner : fullMatch));
 }
 
 function hasUnclosedFence(text: string): boolean {
@@ -122,16 +120,16 @@ function endsWithTableRow(text: string): boolean {
 function startsWithBlockElement(text: string): boolean {
   const firstLine = (text.trimStart().split("\n")[0] ?? "").trimStart();
   return (
-    /^#{1,6}\s/.test(firstLine) || // heading
-    firstLine.startsWith("---") || // thematic break
-    firstLine.startsWith("***") ||
-    firstLine.startsWith("___") ||
-    firstLine.startsWith("> ") || // blockquote
-    firstLine.startsWith("```") || // fenced code block
-    /^[*\-+]\s/.test(firstLine) || // unordered list
-    /^\d+[.)]\s/.test(firstLine) || // ordered list
-    firstLine.startsWith("|") || // table
-    firstLine.startsWith("$$")
+    /^#{1,6}\s/.test(firstLine) // heading
+    || firstLine.startsWith("---") // thematic break
+    || firstLine.startsWith("***")
+    || firstLine.startsWith("___")
+    || firstLine.startsWith("> ") // blockquote
+    || firstLine.startsWith("```") // fenced code block
+    || /^[*\-+]\s/.test(firstLine) // unordered list
+    || /^\d+[.)]\s/.test(firstLine) // ordered list
+    || firstLine.startsWith("|") // table
+    || firstLine.startsWith("$$")
   ); // display math
 }
 
@@ -146,7 +144,8 @@ function inferBlockSeparator(buffer: string, incoming: string): string {
     return "";
   }
 
-  const lastLine = (buffer.trimEnd().split("\n").at(-1) ?? "").trim();
+  const lastLine = (buffer.trimEnd().split("\n")
+    .at(-1) ?? "").trim();
   const firstLine = (incoming.trimStart().split("\n")[0] ?? "").trimStart();
 
   // OpenClaw may split a table row at maxChars, producing two blocks:
@@ -218,7 +217,7 @@ function findSeparatorInFlat(flat: string): boolean {
 }
 
 function healPipeTableRegion(regionLines: string[]): string | null {
-  if (!regionLines.some((l) => l.trim() === "")) {
+  if (!regionLines.some(l => l.trim() === "")) {
     return null;
   }
 
@@ -227,7 +226,7 @@ function healPipeTableRegion(regionLines: string[]): string | null {
     return null;
   }
 
-  const nonBlank = regionLines.filter((l) => l.trim() !== "");
+  const nonBlank = regionLines.filter(l => l.trim() !== "");
   const result: string[] = [];
   let acc = "";
 
@@ -356,7 +355,8 @@ function extractAtomicBlocks(text: string): AtomicBlock[] {
 
     if (line.startsWith("```")) {
       flushTable();
-      const lang = line.slice(3).trim().toLowerCase();
+      const lang = line.slice(3).trim()
+        .toLowerCase();
       if (lang && DIAGRAM_LANGUAGES.has(lang)) {
         inDiagram = true;
         diagramStart = offset;
@@ -418,7 +418,7 @@ function chunkMarkdownTextAtomicAware(
   let chunkWindowStart = 0;
 
   for (const idx of splitIndices) {
-    const hit = atomicBlocks.find((b) => b.start < idx && idx < b.end);
+    const hit = atomicBlocks.find(b => b.start < idx && idx < b.end);
     if (!hit) {
       adjustedIndices.push(idx);
       chunkWindowStart = idx;
@@ -449,7 +449,7 @@ function chunkMarkdownTextAtomicAware(
     result.push(text.slice(prev));
   }
 
-  return result.filter((c) => c.length > 0);
+  return result.filter(c => c.length > 0);
 }
 
 // Structured namespace exports

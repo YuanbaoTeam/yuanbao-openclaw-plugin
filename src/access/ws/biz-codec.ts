@@ -154,9 +154,7 @@ export function toProtoMsgBody(elements: YuanbaoMsgBodyElement[]): Record<string
 }
 
 /** Convert protobuf format message body back to TS MsgBodyElement[]. */
-export function fromProtoMsgBody(
-  elements: Array<Record<string, unknown>>,
-): YuanbaoMsgBodyElement[] {
+export function fromProtoMsgBody(elements: Array<Record<string, unknown>>): YuanbaoMsgBodyElement[] {
   if (!elements || !Array.isArray(elements)) {
     return [];
   }
@@ -290,8 +288,7 @@ export function decodeInboundMessage(data: Uint8Array | ArrayBuffer): YuanbaoInb
 
   const msgBody = decoded.msgBody ? fromProtoMsgBody(decoded.msgBody) : undefined;
   const traceId = decoded.logExt?.traceId?.trim();
-  const seqId =
-    decoded.msgSeq !== undefined && decoded.msgSeq !== null ? String(decoded.msgSeq) : undefined;
+  const seqId = decoded.msgSeq !== undefined && decoded.msgSeq !== null ? String(decoded.msgSeq) : undefined;
 
   const log = createLog("biz-codec");
   log.debug("[msg-trace] decoded inbound", {
@@ -394,11 +391,11 @@ export function decodeQueryGroupInfoRsp(
     msg: decoded.msg || "",
     group_info: gi
       ? {
-          group_name: gi.groupName || "",
-          group_owner_user_id: gi.groupOwnerUserId || "",
-          group_owner_nickname: gi.groupOwnerNickname || "",
-          group_size: gi.groupSize || 0,
-        }
+        group_name: gi.groupName || "",
+        group_owner_user_id: gi.groupOwnerUserId || "",
+        group_owner_nickname: gi.groupOwnerNickname || "",
+        group_size: gi.groupSize || 0,
+      }
       : undefined,
   };
 }
@@ -424,11 +421,11 @@ export function decodeGetGroupMemberListRsp(
   }
 
   const memberList = Array.isArray(decoded.memberList)
-    ? decoded.memberList.map((m) => ({
-        user_id: m.userId || "",
-        nick_name: m.nickName || "",
-        user_type: m.userType || 0,
-      }))
+    ? decoded.memberList.map(m => ({
+      user_id: m.userId || "",
+      nick_name: m.nickName || "",
+      user_type: m.userType || 0,
+    }))
     : [];
 
   return {

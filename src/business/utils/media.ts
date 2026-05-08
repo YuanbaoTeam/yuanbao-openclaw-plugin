@@ -97,7 +97,8 @@ function generateFileId(): string {
  * Compute MD5 hash of a Buffer, returning hex string.
  */
 function md5Hex(buffer: Buffer): string {
-  return createHash("md5").update(buffer).digest("hex");
+  return createHash("md5").update(buffer)
+    .digest("hex");
 }
 
 /** Parse image dimensions from Buffer (supports JPEG/PNG/GIF/WebP), no extra dependencies. */
@@ -182,18 +183,18 @@ function parseWebpSize(buf: Buffer): { width: number; height: number } | undefin
 /** Check if a string is a local file path (not a remote URL). */
 function isLocalPath(s: string): boolean {
   return (
-    s.startsWith("file://") ||
-    s === "~" ||
-    s.startsWith("~/") ||
-    s.startsWith("~\\") ||
-    s.startsWith("/") ||
-    /^[a-zA-Z]:[/\\]/.test(s) ||
-    s.startsWith("\\\\") ||
-    s.startsWith("./") ||
-    s.startsWith("../") ||
-    s.startsWith(".\\") ||
-    s.startsWith("..\\") ||
-    !s.includes("://") // No scheme -> local path (bare filename / bare relative path)
+    s.startsWith("file://")
+    || s === "~"
+    || s.startsWith("~/")
+    || s.startsWith("~\\")
+    || s.startsWith("/")
+    || /^[a-zA-Z]:[/\\]/.test(s)
+    || s.startsWith("\\\\")
+    || s.startsWith("./")
+    || s.startsWith("../")
+    || s.startsWith(".\\")
+    || s.startsWith("..\\")
+    || !s.includes("://") // No scheme -> local path (bare filename / bare relative path)
   );
 }
 
@@ -242,9 +243,7 @@ function inferFilenameFromResponse(
   contentType: string,
 ): string {
   // 1. content-disposition
-  const fromDisp = extractFilenameFromContentDisposition(
-    response.headers.get("content-disposition") ?? "",
-  );
+  const fromDisp = extractFilenameFromContentDisposition(response.headers.get("content-disposition") ?? "");
   if (fromDisp) {
     return fromDisp;
   }
@@ -253,9 +252,8 @@ function inferFilenameFromResponse(
   const fromPath = basename(new URL(fetchUrl).pathname).trim();
   if (fromPath) {
     // No extension: supplement from content-type
-    const inferredExt =
-      MIME_TO_EXT[contentType] ??
-      (contentType.startsWith("image/") ? `.${contentType.split("/")[1]}` : "");
+    const inferredExt = MIME_TO_EXT[contentType]
+      ?? (contentType.startsWith("image/") ? `.${contentType.split("/")[1]}` : "");
     return extname(fromPath) ? fromPath : `${fromPath}${inferredExt}`;
   }
 
@@ -292,9 +290,7 @@ export async function downloadMediaForYuanbao(
     const chunks: Buffer[] = [];
     await new Promise<void>((resolve, reject) => {
       const stream = createReadStream(filePath);
-      stream.on("data", (chunk) =>
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
-      );
+      stream.on("data", chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
       stream.on("end", resolve);
       stream.on("error", reject);
     });
@@ -424,8 +420,8 @@ async function uploadBufferToCos(params: {
     Headers: headers,
     onProgress: params.onProgress
       ? (progressData: { percent: number }) => {
-          params.onProgress!(Math.round(progressData.percent * 10000) / 100);
-        }
+        params.onProgress!(Math.round(progressData.percent * 10000) / 100);
+      }
       : undefined,
   });
 
@@ -442,9 +438,7 @@ export async function uploadMediaToCos(
   const maxBytes = account.mediaMaxMb * 1024 * 1024;
 
   if (data.length > maxBytes) {
-    throw new Error(
-      `文件过大: ${(data.length / 1024 / 1024).toFixed(1)} MB > ${account.mediaMaxMb} MB`,
-    );
+    throw new Error(`文件过大: ${(data.length / 1024 / 1024).toFixed(1)} MB > ${account.mediaMaxMb} MB`);
   }
 
   const fileId = generateFileId();
@@ -535,10 +529,10 @@ export async function downloadMediasToLocalFiles(
   core: PluginRuntime,
   log: { verbose: (msg: string) => void; warn: (msg: string) => void },
 ): Promise<{
-  results: Array<{ path: string; contentType: string }>;
-  mediaPaths: string[];
-  mediaTypes: string[];
-}> {
+    results: Array<{ path: string; contentType: string }>;
+    mediaPaths: string[];
+    mediaTypes: string[];
+  }> {
   if (medias.length === 0) {
     return { results: [], mediaPaths: [], mediaTypes: [] };
   }
@@ -557,17 +551,15 @@ export async function downloadMediasToLocalFiles(
 
     let contentType = mediaFile.mimeType;
     if (
-      (!contentType || contentType === "application/octet-stream") &&
-      typeof core.media?.detectMime === "function"
+      (!contentType || contentType === "application/octet-stream")
+      && typeof core.media?.detectMime === "function"
     ) {
       contentType = (await core.media.detectMime({ buffer: mediaFile.data })) ?? contentType;
     }
 
     const cachedFilePath = join(cacheDir, md5Filename);
     if (existsSync(cachedFilePath)) {
-      log.verbose(
-        `media ${i + 1}/${medias.length} hit local cache, skipping save: ${cachedFilePath}`,
-      );
+      log.verbose(`media ${i + 1}/${medias.length} hit local cache, skipping save: ${cachedFilePath}`);
       return { path: cachedFilePath, contentType };
     }
 
@@ -593,16 +585,14 @@ export async function downloadMediasToLocalFiles(
     const r = settled[i];
     if (r.status === "fulfilled") {
       results.push(r.value);
-      log.verbose(
-        `media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`,
-      );
+      log.verbose(`media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`);
     } else {
       log.warn(`media ${i + 1}/${medias.length} download failed, skipping: ${String(r.reason)}`);
     }
   }
   return {
     results,
-    mediaPaths: results.map((r) => r.path),
-    mediaTypes: results.map((r) => r.contentType),
+    mediaPaths: results.map(r => r.path),
+    mediaTypes: results.map(r => r.contentType),
   };
 }

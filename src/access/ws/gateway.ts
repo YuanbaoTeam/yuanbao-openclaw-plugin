@@ -95,9 +95,7 @@ export async function startYuanbaoWsGateway(params: StartWsGatewayParams): Promi
         gwlog.info(`[${account.accountId}] WS closed: code=${code}, reason=${reason}`);
       },
       onKickout: (data) => {
-        gwlog.warn(
-          `[${account.accountId}] kicked out: status=${data.status}, reason=${data.reason}`,
-        );
+        gwlog.warn(`[${account.accountId}] kicked out: status=${data.status}, reason=${data.reason}`);
         statusSink?.({ kickedOut: true, kickReason: data.reason });
       },
       onAuthFailed: async (code: number) => {
@@ -117,10 +115,10 @@ export async function startYuanbaoWsGateway(params: StartWsGatewayParams): Promi
       },
     },
     log: {
-      info: (msg) => log?.info?.(msg),
-      warn: (msg) => log?.warn?.(msg),
-      error: (msg) => log?.error?.(msg),
-      debug: (msg) => log?.debug?.(msg),
+      info: msg => log?.info?.(msg),
+      warn: msg => log?.warn?.(msg),
+      error: msg => log?.error?.(msg),
+      debug: msg => log?.debug?.(msg),
     },
   });
 
@@ -180,9 +178,7 @@ async function resolveWsAuth(account: ResolvedYuanbaoAccount, log?: GatewayLog) 
     account.botId = tokenData.bot_id;
   }
 
-  mlog.info(
-    `[${account.accountId}] ✍️ sign-token done uid=${uid} (bot_id=${tokenData.bot_id}, botId=${account.botId})`,
-  );
+  mlog.info(`[${account.accountId}] ✍️ sign-token done uid=${uid} (bot_id=${tokenData.bot_id}, botId=${account.botId})`);
 
   return {
     bizId: "ybBot",
@@ -297,9 +293,7 @@ export function wsPushToInboundMessage(
 
   // First try decoding full ConnMsg.data directly (backend may omit the PushMsg wrapper)
   if (pushEvent.connData && pushEvent.connData.length > 0) {
-    wsLog.debug(
-      `[${pushEvent.type}] WS push decode via connData (connData.length=${pushEvent.connData.length})`,
-    );
+    wsLog.debug(`[${pushEvent.type}] WS push decode via connData (connData.length=${pushEvent.connData.length})`);
     const pushType = String(pushEvent.type ?? "");
     const result = decodeFromProtobuf(pushEvent.connData, pushType);
     if (result) {
@@ -311,9 +305,8 @@ export function wsPushToInboundMessage(
   if (pushEvent.rawData && pushEvent.rawData.length > 0) {
     const pushType = String(pushEvent.type ?? "rawData");
     wsLog.debug(`[${pushType}] WS push decode via rawData`);
-    const result =
-      decodeFromProtobuf(pushEvent.rawData, pushType) ??
-      decodeFromRawDataJson(pushEvent.rawData, pushType);
+    const result = decodeFromProtobuf(pushEvent.rawData, pushType)
+      ?? decodeFromRawDataJson(pushEvent.rawData, pushType);
     if (result) {
       return result;
     }
@@ -356,15 +349,11 @@ function handleWsDispatchEvent(params: {
   } = params;
   const dlog = createLog("ws", gwLog);
 
-  dlog.debug(
-    `[${account.accountId}][dispatch] cmd=${pushEvent.cmd}, module=${pushEvent.module}, msgId=${pushEvent.msgId}`,
-  );
+  dlog.debug(`[${account.accountId}][dispatch] cmd=${pushEvent.cmd}, module=${pushEvent.module}, msgId=${pushEvent.msgId}`);
 
   const converted = wsPushToInboundMessage(pushEvent, gwLog);
   if (!converted) {
-    dlog.debug(
-      `[${account.accountId}][dispatch] cmd=${pushEvent.cmd} (non-message event, skipping)`,
-    );
+    dlog.debug(`[${account.accountId}][dispatch] cmd=${pushEvent.cmd} (non-message event, skipping)`);
     return;
   }
 
@@ -395,9 +384,7 @@ function handleWsDispatchEvent(params: {
 
   // Feed into the message pipeline
   if (!runtime) {
-    dlog.warn(
-      `[${account.accountId}][dispatch] PluginRuntime not provided, cannot process message`,
-    );
+    dlog.warn(`[${account.accountId}][dispatch] PluginRuntime not provided, cannot process message`);
     return;
   }
 
@@ -417,9 +404,7 @@ function handleWsDispatchEvent(params: {
     statusSink: statusSink as Parameters<typeof handleInboundMessage>[0]["statusSink"],
     abortSignal,
   }).catch((err) => {
-    dlog.error(
-      `[${account.accountId}][dispatch] WS ${isGroup ? "group " : ""} message handler failed: ${String(err)}`,
-    );
+    dlog.error(`[${account.accountId}][dispatch] WS ${isGroup ? "group " : ""} message handler failed: ${String(err)}`);
   });
 }
 
@@ -452,9 +437,7 @@ async function syncCommandsToServer(
   slog.info(`[${accountId}] SyncInformationRsp:`, { code: rsp.code, msg: rsp.msg });
 
   if (rsp.code !== 0) {
-    slog.warn(
-      `[${accountId}] sync command list returned non-zero code: code=${rsp.code}, msg=${rsp.msg}`,
-    );
+    slog.warn(`[${accountId}] sync command list returned non-zero code: code=${rsp.code}, msg=${rsp.msg}`);
   } else {
     slog.info(`[${accountId}] sync command list succeeded`);
   }

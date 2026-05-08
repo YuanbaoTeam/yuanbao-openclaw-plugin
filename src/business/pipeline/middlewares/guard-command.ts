@@ -21,10 +21,8 @@ export const guardCommand: MiddlewareDescriptor = {
     // Build DM policy allowFrom
     const dmPolicy = account.config.dm?.policy ?? "open";
     const rawAllowFrom = (account.config.dm?.allowFrom ?? []).map(String);
-    const effectiveAllowFrom =
-      dmPolicy === "open" && !rawAllowFrom.includes("*") ? [...rawAllowFrom, "*"] : rawAllowFrom;
-    const senderAllowed =
-      effectiveAllowFrom.includes("*") || effectiveAllowFrom.includes(fromAccount);
+    const effectiveAllowFrom = dmPolicy === "open" && !rawAllowFrom.includes("*") ? [...rawAllowFrom, "*"] : rawAllowFrom;
+    const senderAllowed = effectiveAllowFrom.includes("*") || effectiveAllowFrom.includes(fromAccount);
     const useAccessGroups = config.commands?.useAccessGroups !== false;
 
     const { commandAuthorized, shouldBlock } = resolveControlCommandGate({
@@ -37,9 +35,7 @@ export const guardCommand: MiddlewareDescriptor = {
     ctx.commandAuthorized = commandAuthorized;
 
     if (shouldBlock) {
-      ctx.log.info(
-        `[guard-command] control command unauthorized, discarding <- ${ctx.isGroup ? `group:${ctx.groupCode}` : ""} from: ${fromAccount}`,
-      );
+      ctx.log.info(`[guard-command] control command unauthorized, discarding <- ${ctx.isGroup ? `group:${ctx.groupCode}` : ""} from: ${fromAccount}`);
       return; // Abort pipeline
     }
 

@@ -16,7 +16,7 @@ import type { BuiltinStickerJsonEntry } from "./sticker-types.js";
 export function initBuiltinStickers(): void {
   const now = new Date().toISOString();
   const list = builtinStickers as BuiltinStickerJsonEntry[];
-  const stickers = list.map((s) => ({
+  const stickers = list.map(s => ({
     sticker_id: s.emoji_id,
     package_id: s.emoji_pack_id,
     name: s.name,

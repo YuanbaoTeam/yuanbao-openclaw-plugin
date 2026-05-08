@@ -105,11 +105,8 @@ export function resolveUsername(
     const results = member.lookupUsers(code, query);
     if (results.length > 0) {
       // Pick exact match or first result
-      const exactMatch = results.find(
-        (u) =>
-          u.nickName.toLowerCase() === query.toLowerCase() ||
-          u.userId.toLowerCase() === query.toLowerCase(),
-      );
+      const exactMatch = results.find(u => u.nickName.toLowerCase() === query.toLowerCase()
+          || u.userId.toLowerCase() === query.toLowerCase());
       const best = exactMatch ?? results[0];
       const entry: CachedUserEntry = {
         userId: best.userId,

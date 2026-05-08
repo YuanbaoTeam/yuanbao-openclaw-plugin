@@ -22,29 +22,29 @@ const RemindSchema = {
       type: "string",
       enum: ["add", "list", "remove"],
       description:
-        "操作类型: add=创建定时任务, list=查询已有任务, remove=删除任务。" +
-        "删除前请先通过 list 获取 jobId。",
+        "操作类型: add=创建定时任务, list=查询已有任务, remove=删除任务。"
+        + "删除前请先通过 list 获取 jobId。",
     },
     intent: {
       type: "string",
       enum: ["remind", "task"],
       description:
-        "内容语义类型: 明确是提醒类文案时使用 remind; " +
-        "需要定时执行某项任务时使用 task。默认 remind。",
+        "内容语义类型: 明确是提醒类文案时使用 remind; "
+        + "需要定时执行某项任务时使用 task。默认 remind。",
     },
     content: {
       type: "string",
       description:
-        "任务内容。action=add 时必填。" +
-        '例如: "喝水"、"检查服务状态"、"整理今天会议纪要并发送总结"。',
+        "任务内容。action=add 时必填。"
+        + '例如: "喝水"、"检查服务状态"、"整理今天会议纪要并发送总结"。',
     },
     time: {
       type: "string",
       description:
-        "时间描述, action=add 时必填。" +
-        "相对时间: 5m、1h、1h30m、2d(一次性任务); " +
-        'cron 表达式: "0 8 * * *"、"0 9 * * 1-5"(循环任务)。' +
-        "包含空格识别为 cron, 否则按相对时间处理。",
+        "时间描述, action=add 时必填。"
+        + "相对时间: 5m、1h、1h30m、2d(一次性任务); "
+        + 'cron 表达式: "0 8 * * *"、"0 9 * * 1-5"(循环任务)。'
+        + "包含空格识别为 cron, 否则按相对时间处理。",
     },
     timezone: {
       type: "string",
@@ -63,17 +63,15 @@ const RemindSchema = {
 } as const;
 
 /** Task scenario: execute scheduled task, no reply length limit */
-const TASK_AGENT_PROMPT_TEMPLATE = (content: string) =>
-  `你是一个任务执行助手。请在当前时刻完成以下任务：${content}。` +
-  "要求：(1) 不要回复HEARTBEAT_OK (2) 不要解释你是谁 " +
-  "(3) 直接执行任务并输出可直接给用户的结果 (4) 此时是在执行任务，不要再新建定时任务";
+const TASK_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个任务执行助手。请在当前时刻完成以下任务：${content}。`
+  + "要求：(1) 不要回复HEARTBEAT_OK (2) 不要解释你是谁 "
+  + "(3) 直接执行任务并输出可直接给用户的结果 (4) 此时是在执行任务，不要再新建定时任务";
 
 /** Remind scenario: warm reminder, limited to short reply */
-const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) =>
-  `你是一个暖心的提醒助手。请用温暖、有趣的方式提醒用户：${content}。` +
-  "要求：(1) 不要回复HEARTBEAT_OK (2) 不要解释你是谁 " +
-  "(3) 直接输出一条暖心的提醒消息，不要携带其他和该提醒无关的内容 (4) 可以加一句简短的关怀话语 " +
-  "(5) 控制在2-3句话以内 (6) 此时是在执行任务，不要再新建定时任务";
+const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个暖心的提醒助手。请用温暖、有趣的方式提醒用户：${content}。`
+  + "要求：(1) 不要回复HEARTBEAT_OK (2) 不要解释你是谁 "
+  + "(3) 直接输出一条暖心的提醒消息，不要携带其他和该提醒无关的内容 (4) 可以加一句简短的关怀话语 "
+  + "(5) 控制在2-3句话以内 (6) 此时是在执行任务，不要再新建定时任务";
 
 /** Tool-level description: guide model to prioritize this tool and use cron result as source of truth */
 const YUANBAO_REMIND_TOOL_DESCRIPTION = [
@@ -359,8 +357,8 @@ function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
           if (!delayMs || delayMs <= 0) {
             return json({
               error:
-                `无法解析时间 "${p.time}"。支持相对时间（5m/1h/1h30m/2d）` +
-                "或 cron 表达式（如 0 8 * * *）。",
+                `无法解析时间 "${p.time}"。支持相对时间（5m/1h/1h30m/2d）`
+                + "或 cron 表达式（如 0 8 * * *）。",
             });
           }
           if (delayMs < 30_000) {

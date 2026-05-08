@@ -62,7 +62,7 @@ export function handleGroupRecall(ctx: MessageHandlerContext, msg: YuanbaoInboun
     }
 
     const history = chatHistories.get(groupCode);
-    const idx = history ? history.findIndex((e) => e.messageId === messageId) : -1;
+    const idx = history ? history.findIndex(e => e.messageId === messageId) : -1;
 
     if (history && idx !== -1) {
       history.splice(idx, 1);
@@ -88,7 +88,6 @@ export function handleGroupRecall(ctx: MessageHandlerContext, msg: YuanbaoInboun
  * C2C has no chatHistories like group chat; always inject a system event.
  */
 export function handleC2CRecall(ctx: MessageHandlerContext, msg: YuanbaoInboundMessage): void {
-  debugger
   const { core, account } = ctx;
   const log = createLog("recall", ctx.log);
   const fromAccount = msg.from_account?.trim() || "unknown";

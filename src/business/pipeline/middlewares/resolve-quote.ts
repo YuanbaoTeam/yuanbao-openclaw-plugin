@@ -12,9 +12,7 @@ export const resolveQuote: MiddlewareDescriptor = {
 
     if (quoteInfo) {
       ctx.quoteInfo = quoteInfo;
-      ctx.log.info(
-        `[resolve-quote] detected quote message, quoted from: ${quoteInfo.sender_nickname || quoteInfo.sender_id || "unknown"}`,
-      );
+      ctx.log.info(`[resolve-quote] detected quote message, quoted from: ${quoteInfo.sender_nickname || quoteInfo.sender_id || "unknown"}`);
       ctx.log.debug("[resolve-quote] quote content", { quote: quoteInfo.desc || "" });
     }
 

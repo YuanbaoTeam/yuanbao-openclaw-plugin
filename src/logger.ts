@@ -53,14 +53,10 @@ function getActiveLogger(): PluginLogger {
   if (initialized && childLogger) {
     const cl = childLogger;
     return {
-      info: (message: string, meta?: Record<string, unknown>) =>
-        meta ? cl.info(message, meta) : cl.info(message),
-      warn: (message: string, meta?: Record<string, unknown>) =>
-        meta ? cl.warn(message, meta) : cl.warn(message),
-      error: (message: string, meta?: Record<string, unknown>) =>
-        meta ? cl.error(message, meta) : cl.error(message),
-      debug: (message: string, meta?: Record<string, unknown>) =>
-        meta ? cl.debug?.(message, meta) : cl.debug?.(message),
+      info: (message: string, meta?: Record<string, unknown>) => (meta ? cl.info(message, meta) : cl.info(message)),
+      warn: (message: string, meta?: Record<string, unknown>) => (meta ? cl.warn(message, meta) : cl.warn(message)),
+      error: (message: string, meta?: Record<string, unknown>) => (meta ? cl.error(message, meta) : cl.error(message)),
+      debug: (message: string, meta?: Record<string, unknown>) => (meta ? cl.debug?.(message, meta) : cl.debug?.(message)),
     };
   }
   return fallbackLogger;
@@ -93,7 +89,7 @@ function parseEnvDebugBotIds(): string[] {
   }
   return raw
     .split(",")
-    .map((s) => s.trim())
+    .map(s => s.trim())
     .filter(Boolean);
 }
 
@@ -220,9 +216,7 @@ export function sanitize(value: unknown): string {
 
 function sanitizeObj(obj: Record<string, unknown>): Record<string, unknown> {
   if (Array.isArray(obj)) {
-    return obj.map((item) =>
-      typeof item === "object" && item !== null ? sanitizeObj(item) : item,
-    ) as unknown as Record<string, unknown>;
+    return obj.map(item => (typeof item === "object" && item !== null ? sanitizeObj(item) : item)) as unknown as Record<string, unknown>;
   }
 
   const result: Record<string, unknown> = {};

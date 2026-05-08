@@ -51,8 +51,8 @@ export const buildContext: MiddlewareDescriptor = {
     // Group chat: build history context
     let combinedBody = body;
     let inboundHistory:
-      | Array<{ sender: string | undefined; body: string; timestamp: number | undefined }>
-      | undefined;
+    | Array<{ sender: string | undefined; body: string; timestamp: number | undefined }>
+    | undefined;
 
     if (isGroup && groupCode) {
       const { historyLimit } = account;
@@ -62,24 +62,22 @@ export const buildContext: MiddlewareDescriptor = {
         historyKey: groupCode,
         limit: historyLimit,
         currentMessage: body,
-        formatEntry: (entry) =>
-          core.channel.reply.formatAgentEnvelope({
-            channel: "YUANBAO",
-            from: `group:${groupCode}:${entry.sender}`,
-            timestamp: entry.timestamp,
-            body: entry.body,
-            envelope: envelopeOptions,
-          }),
+        formatEntry: entry => core.channel.reply.formatAgentEnvelope({
+          channel: "YUANBAO",
+          from: `group:${groupCode}:${entry.sender}`,
+          timestamp: entry.timestamp,
+          body: entry.body,
+          envelope: envelopeOptions,
+        }),
       });
 
-      inboundHistory =
-        historyLimit > 0
-          ? (chatHistories.get(groupCode) ?? []).map((entry) => ({
-              sender: entry.sender,
-              body: entry.body,
-              timestamp: entry.timestamp,
-            }))
-          : undefined;
+      inboundHistory = historyLimit > 0
+        ? (chatHistories.get(groupCode) ?? []).map(entry => ({
+          sender: entry.sender,
+          body: entry.body,
+          timestamp: entry.timestamp,
+        }))
+        : undefined;
     }
 
     // Use SDK finalizeInboundContext

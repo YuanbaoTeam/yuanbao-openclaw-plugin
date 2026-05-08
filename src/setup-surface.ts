@@ -77,12 +77,11 @@ export const yuanbaoSetupWizard: ChannelSetupWizard = {
           envValue,
         };
       },
-      applySet: ({ cfg, value }) =>
-        patchTopLevelChannelConfigSection({
-          cfg,
-          channel: CHANNEL,
-          patch: { appKey: value },
-        }),
+      applySet: ({ cfg, value }) => patchTopLevelChannelConfigSection({
+        cfg,
+        channel: CHANNEL,
+        patch: { appKey: value },
+      }),
     },
     {
       inputKey: "privateKey",
@@ -108,12 +107,11 @@ export const yuanbaoSetupWizard: ChannelSetupWizard = {
           envValue,
         };
       },
-      applySet: ({ cfg, value }) =>
-        patchTopLevelChannelConfigSection({
-          cfg,
-          channel: CHANNEL,
-          patch: { appSecret: value },
-        }),
+      applySet: ({ cfg, value }) => patchTopLevelChannelConfigSection({
+        cfg,
+        channel: CHANNEL,
+        patch: { appSecret: value },
+      }),
     },
   ],
 
@@ -126,12 +124,11 @@ export const yuanbaoSetupWizard: ChannelSetupWizard = {
         const yuanbaoCfg = cfg.channels?.yuanbao as YuanbaoConfig | undefined;
         return yuanbaoCfg?.name?.trim() || undefined;
       },
-      applySet: ({ cfg, value }) =>
-        patchTopLevelChannelConfigSection({
-          cfg,
-          channel: CHANNEL,
-          patch: { name: value },
-        }),
+      applySet: ({ cfg, value }) => patchTopLevelChannelConfigSection({
+        cfg,
+        channel: CHANNEL,
+        patch: { name: value },
+      }),
     },
   ],
 
@@ -149,6 +146,5 @@ export const yuanbaoSetupWizard: ChannelSetupWizard = {
     ],
   },
 
-  disable: (cfg: OpenClawConfig) =>
-    setSetupChannelEnabled(cfg, CHANNEL, false),
+  disable: (cfg: OpenClawConfig) => setSetupChannelEnabled(cfg, CHANNEL, false),
 };

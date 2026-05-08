@@ -26,7 +26,7 @@ export const fileHandler: MessageElemHandler = {
       resData.medias.push({ mediaType: "file", url: fileUrl, mediaName: fileName });
       return fileName
         ? `[${fileName}]`
-        : `[file${resData.medias.filter((m) => m.mediaType === "file").length}]`;
+        : `[file${resData.medias.filter(m => m.mediaType === "file").length}]`;
     }
     return "[file]";
   },

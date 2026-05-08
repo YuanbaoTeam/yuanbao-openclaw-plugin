@@ -197,7 +197,7 @@ function asciiFuzzyStickerScore(needleNorm: string, hayNorm: string): number {
   if (needleNorm.length < 2 || needleNorm.length > 14) {
     return 0;
   }
-  if (!needleNorm.split("").every((ch) => ch.charCodeAt(0) <= 0x7f)) {
+  if (!needleNorm.split("").every(ch => ch.charCodeAt(0) <= 0x7f)) {
     return 0;
   }
   const h = hayNorm.replace(/[^a-z0-9]/g, "");
@@ -260,7 +260,7 @@ function scoreStickerFieldAgainstTokens(haystack: string, tokens: string[]): num
   if (tokens.length === 0) {
     return 0;
   }
-  const parts = tokens.map((t) => scoreStickerFieldAgainstQuery(haystack, t));
+  const parts = tokens.map(t => scoreStickerFieldAgainstQuery(haystack, t));
   const mean = parts.reduce((a, b) => a + b, 0) / parts.length;
   const weakest = Math.min(...parts);
   return weakest * 0.35 + mean * 0.65;
@@ -337,7 +337,7 @@ export function searchStickers(query: string, limit = 10): CachedSticker[] {
   } else {
     floor = Math.max(6, top * 0.35);
   }
-  const filtered = scored.filter((s) => s.score >= floor);
+  const filtered = scored.filter(s => s.score >= floor);
   const list = filtered.length > 0 ? filtered : scored;
-  return list.slice(0, safeLimit).map((s) => s.sticker);
+  return list.slice(0, safeLimit).map(s => s.sticker);
 }

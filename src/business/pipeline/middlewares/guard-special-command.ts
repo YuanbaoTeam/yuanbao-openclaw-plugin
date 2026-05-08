@@ -57,7 +57,6 @@ export const guardSpecialCommand: MiddlewareDescriptor = {
       ctx.log.info(`[guard-special-command] owner triggered upgrade command ${trimmedBody}`, {
         fromAccount,
       });
-      await sendReplyMessage(ctx, "🔄 正在升级中，请稍候...");
 
       // Execute upgrade here (middleware owns more context than the plugin command handler);
       // progress messages are streamed back via sendReplyMessage.
@@ -85,7 +84,7 @@ export const guardSpecialCommand: MiddlewareDescriptor = {
         ctx.log.error("[guard-special-command] performUpgrade threw", { error: String(err) });
         await sendReplyMessage(ctx, "❌ 升级过程发生异常，请稍后重试。");
       }
-      return; // Abort pipeline; upgrade fully handled here
+      return;
     }
 
     // /issue-log owner guard

@@ -6,8 +6,7 @@ import { formatQuoteContext } from "../../messaging/quote.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 /** Regex for /yuanbao-health-check with optional start_time and end_time (HH:MM) */
-const SLASH_HEALTH_CHECK_RE =
-  /^\/yuanbao-health-check(?:\s+(\d{1,2}:\d{2})(?:\s+(\d{1,2}:\d{2}))?)?\s*$/;
+const SLASH_HEALTH_CHECK_RE = /^\/yuanbao-health-check(?:\s+(\d{1,2}:\d{2})(?:\s+(\d{1,2}:\d{2}))?)?\s*$/;
 
 /**
  * Rewrite recognized slash commands into natural language queries.
@@ -25,10 +24,9 @@ function rewriteSlashCommand(
   const startTime = match[1];
   const endTime = match[2];
 
-  const result =
-    startTime && endTime
-      ? `Query openclaw system [yuanbao channel] warn and error logs from ${startTime} to ${endTime}`
-      : "Query openclaw system [yuanbao channel] warn and error logs in the last 10 minutes";
+  const result = startTime && endTime
+    ? `Query openclaw system [yuanbao channel] warn and error logs from ${startTime} to ${endTime}`
+    : "Query openclaw system [yuanbao channel] warn and error logs in the last 10 minutes";
 
   const prompt = `
     ${result}
@@ -56,10 +54,9 @@ export const rewriteBody: MiddlewareDescriptor = {
     });
 
     // Group chat scenario: append mentions info
-    const mentionsContext =
-      isGroup && mentions && mentions.length > 0
-        ? `\n[Message mentions the following users: ${mentions.map((m) => `${m.text}(userId: ${m.userId})`).join(", ")}]`
-        : "";
+    const mentionsContext = isGroup && mentions && mentions.length > 0
+      ? `\n[Message mentions the following users: ${mentions.map(m => `${m.text}(userId: ${m.userId})`).join(", ")}]`
+      : "";
 
     // Append quote context
     ctx.rewrittenBody = quoteInfo

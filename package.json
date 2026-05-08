@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-yuanbao",
-  "version": "2.12.1",
+  "version": "2.13.0",
   "type": "module",
   "private": true,
   "packageManager": "pnpm@10.33.2",
@@ -39,11 +39,11 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
-    "setupEntry": "./setup-entry.ts",
+    "setupEntry": "./dist/setup-entry.js",
     "channel": {
-      "id": "openclaw-plugin-yuanbao",
+      "id": "yuanbao",
       "label": "Yuanbao",
       "selectionLabel": "Yuanbao (元宝)",
       "detailLabel": "Yuanbao",

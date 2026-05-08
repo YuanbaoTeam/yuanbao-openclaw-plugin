@@ -46,7 +46,9 @@ function clamp(value: number, min: number, max: number): number {
  * so subsequent business flow only processes validated data, reducing runtime branch complexity.
  */
 export function parseCommandArgs(rawArgs: string | undefined): ParsedCommandArgs {
-  const tokens = (rawArgs ?? "").trim().split(/\s+/).map(normalizeOptionToken).filter(Boolean);
+  const tokens = (rawArgs ?? "").trim().split(/\s+/)
+    .map(normalizeOptionToken)
+    .filter(Boolean);
   const parsed: ParsedCommandArgs = {
     limit: DEFAULT_LIMIT,
     uploadCos: true,
@@ -128,12 +130,11 @@ function resolveBotIdFromConfig(ctx: PluginCommandContext): string | undefined {
 }
 
 function buildTimestamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, "-");
+  return new Date().toISOString()
+    .replace(/[:.]/g, "-");
 }
 
-async function persistTempBundle(
-  lines: string[],
-): Promise<{ dir: string; jsonlPath: string; gzipPath: string; gzipBytes: number }> {
+async function persistTempBundle(lines: string[]): Promise<{ dir: string; jsonlPath: string; gzipPath: string; gzipBytes: number }> {
   const baseDir = join(resolvePreferredOpenClawTmpDir(), "openclaw-log-export-");
   const dir = await mkdtemp(baseDir);
   const ts = buildTimestamp();

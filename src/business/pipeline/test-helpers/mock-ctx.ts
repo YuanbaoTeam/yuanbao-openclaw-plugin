@@ -37,8 +37,7 @@ export function createMockCtx(overrides: DeepPartial<PipelineContext> = {}): Pip
         session: { recordInboundSession: async () => {} },
         reply: {
           dispatchReplyWithBufferedBlockDispatcher: async () => {},
-          formatAgentEnvelope: (opts: Record<string, unknown>) =>
-            typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body ?? ""),
+          formatAgentEnvelope: (opts: Record<string, unknown>) => (typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body ?? "")),
           finalizeInboundContext: (opts: Record<string, unknown>) => opts,
         },
         routing: {
@@ -87,12 +86,12 @@ export function createMockCtx(overrides: DeepPartial<PipelineContext> = {}): Pip
   const merged = { ...base };
   for (const [key, value] of Object.entries(overrides)) {
     if (
-      value !== undefined &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      base[key] &&
-      typeof base[key] === "object" &&
-      !Array.isArray(base[key])
+      value !== undefined
+      && typeof value === "object"
+      && !Array.isArray(value)
+      && base[key]
+      && typeof base[key] === "object"
+      && !Array.isArray(base[key])
     ) {
       merged[key] = {
         ...(base[key] as Record<string, unknown>),

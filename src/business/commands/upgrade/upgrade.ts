@@ -38,13 +38,12 @@ async function verifyVersionAfterFailedCommand(params: {
 }): Promise<
   | { upgraded: true; installedVersion: string }
   | { upgraded: false; installedVersion: string | null; rateLimited: boolean }
-> {
+  > {
   const { currentVersion, targetVersion, commandResult, commandName } = params;
   const installedVersion = await readInstalledVersion(PLUGIN_ID);
-  const upgraded =
-    !!installedVersion &&
-    ((targetVersion != null && installedVersion === targetVersion) ||
-      (targetVersion == null && currentVersion != null && installedVersion !== currentVersion));
+  const upgraded = !!installedVersion
+    && ((targetVersion != null && installedVersion === targetVersion)
+      || (targetVersion == null && currentVersion != null && installedVersion !== currentVersion));
 
   if (upgraded) {
     log.warn(`${commandName} 安装命令执行异常，但版本已更新成功`, {
@@ -96,11 +95,9 @@ async function runSpecifiedVersionFlow(params: {
   }
 
   if (hasTargetVersion) {
-    await onProgress?.(
-      currentVersion
-        ? `🔄 正在将**元宝 Bot 插件**从 **v${currentVersion}** 升级至 **v${targetVersion}** ，请稍等片刻。`
-        : `⏳ 正在将**元宝 Bot 插件**升级至 **v${targetVersion}** ，请稍等片刻。`,
-    );
+    await onProgress?.(currentVersion
+      ? `🔄 正在将**元宝 Bot 插件**从 **v${currentVersion}** 升级至 **v${targetVersion}** ，请稍等片刻。`
+      : `⏳ 正在将**元宝 Bot 插件**升级至 **v${targetVersion}** ，请稍等片刻。`);
   }
 
   // Step 2: Backup config first, restore after reinstall
@@ -199,11 +196,9 @@ async function runSpecifiedVersionFlow(params: {
   log.info("指定版本安装流程完成", { targetVersion, hasSnapshot: !!restoreSnapshotJson });
 
   // Step 8: Notify upgrade success
-  await onProgress?.(
-    currentVersion
-      ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${targetVersion}`
-      : `✅ 更新成功！**元宝 Bot 插件**已升级至 v${targetVersion}`,
-  );
+  await onProgress?.(currentVersion
+    ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${targetVersion}`
+    : `✅ 更新成功！**元宝 Bot 插件**已升级至 v${targetVersion}`);
 
   return { ok: true };
 }
@@ -215,12 +210,12 @@ async function runRegularUpgradeFlow(params: {
   currentVersion: string | null;
   onProgress?: (text: string) => Promise<unknown>;
 }): Promise<{
-  ok: boolean;
-  skip?: boolean;
-  error?: string;
-  message?: string;
-  needToInstall?: boolean;
-}> {
+    ok: boolean;
+    skip?: boolean;
+    error?: string;
+    message?: string;
+    needToInstall?: boolean;
+  }> {
   const { currentVersion, onProgress } = params;
 
   // Step 1: Check if already on latest stable version
@@ -245,11 +240,9 @@ async function runRegularUpgradeFlow(params: {
     }
   }
 
-  await onProgress?.(
-    currentVersion && latestStableVersion
-      ? `🔄 正在将**元宝 Bot 插件**从 **v${currentVersion}** 升级至 **v${latestStableVersion}** ，请稍等片刻。`
-      : "⏳ 正在将**元宝 Bot 插件**升级至最新版本，请稍等片刻。",
-  );
+  await onProgress?.(currentVersion && latestStableVersion
+    ? `🔄 正在将**元宝 Bot 插件**从 **v${currentVersion}** 升级至 **v${latestStableVersion}** ，请稍等片刻。`
+    : "⏳ 正在将**元宝 Bot 插件**升级至最新版本，请稍等片刻。");
 
   // Step 2: Execute update command
   const updateResult = await runOpenClawCommandWithRetry({
@@ -266,11 +259,9 @@ async function runRegularUpgradeFlow(params: {
       commandName: "plugins update",
     });
     if (verify.upgraded) {
-      await onProgress?.(
-        latestStableVersion
-          ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${latestStableVersion}`
-          : `✅ 更新成功！**元宝 Bot 插件**已更新至 v${verify.installedVersion}`,
-      );
+      await onProgress?.(latestStableVersion
+        ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${latestStableVersion}`
+        : `✅ 更新成功！**元宝 Bot 插件**已更新至 v${verify.installedVersion}`);
       return { ok: true };
     }
     return {
@@ -290,11 +281,9 @@ async function runRegularUpgradeFlow(params: {
   log.info("更新命令执行完毕");
 
   // Step 3.2: Notify upgrade success
-  await onProgress?.(
-    latestStableVersion
-      ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${latestStableVersion}`
-      : "✅ 更新成功！**元宝 Bot 插件**已更新至最新版本",
-  );
+  await onProgress?.(latestStableVersion
+    ? `✅ 更新成功！**元宝 Bot 插件**已从 v${currentVersion} 升级至 v${latestStableVersion}`
+    : "✅ 更新成功！**元宝 Bot 插件**已更新至最新版本");
 
   return { ok: true };
 }
@@ -425,10 +414,7 @@ export async function performUpgrade(
   // container), surface a clear manual instruction instead of silently leaving the old
   // in-memory version serving `/status`.
   const restartOutput = `${restartResult.stdout ?? ""}\n${restartResult.stderr ?? ""}`;
-  const supervisorUnavailable =
-    /Gateway service disabled|systemd user services are unavailable|run the gateway in the foreground/i.test(
-      restartOutput,
-    );
+  const supervisorUnavailable = /Gateway service disabled|systemd user services are unavailable|run the gateway in the foreground/i.test(restartOutput);
   if (!restartResult.ok || supervisorUnavailable) {
     log.warn("升级后 gateway 未自动重启，需手动介入", {
       ok: restartResult.ok,

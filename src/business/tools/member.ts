@@ -13,8 +13,7 @@ import { getMember } from "../../infra/cache/member.js";
 import { extractGroupCode, type OpenClawPluginToolContext, json } from "../utils/utils.js";
 
 /** @mention hint text (used as JSON field value) */
-const MENTION_HINT_TEXT =
-  'To @mention a user, you MUST use the format: space + @ + nickname + space (e.g. " @Alice ").';
+const MENTION_HINT_TEXT = 'To @mention a user, you MUST use the format: space + @ + nickname + space (e.g. " @Alice ").';
 
 /** User role type mapping (0=undefined, 1=user, 2=yuanbao, 3=bot) */
 const USER_TYPE_LABEL: Record<number, string> = {
@@ -29,7 +28,7 @@ type MemberRecord = { nickName: string; userId: string; userType?: number };
 
 /** Map user records to a compact format */
 function toMembers(records: MemberRecord[]) {
-  return records.map((u) => ({
+  return records.map(u => ({
     nickname: u.nickName,
     userId: u.userId,
     ...(u.userType !== undefined
@@ -40,7 +39,7 @@ function toMembers(records: MemberRecord[]) {
 
 /** List bots in the group (including Yuanbao AI assistants and other bots) */
 function handleListBots(allMembers: MemberRecord[], mention: boolean) {
-  const bots = allMembers.filter((u) => u.userType === 2 || u.userType === 3);
+  const bots = allMembers.filter(u => u.userType === 2 || u.userType === 3);
   if (bots.length === 0) {
     return json({ success: false, msg: "No bot info available. Role data requires API fetch." });
   }
@@ -65,7 +64,7 @@ function handleFind(allMembers: MemberRecord[], nameFilter: string, mention: boo
 
   if (nameFilter) {
     const filter = nameFilter.toLowerCase();
-    const matched = allMembers.filter((u) => u.nickName.toLowerCase().includes(filter));
+    const matched = allMembers.filter(u => u.nickName.toLowerCase().includes(filter));
 
     if (matched.length > 0) {
       return json({
@@ -117,8 +116,8 @@ function handleListAll(allMembers: MemberRecord[], mention: boolean) {
     name: "query_session_members",
     label: "Query Session Members",
     description:
-      'Query session members in the current group (called "派/Pai" in the app): ' +
-      "find a user by name, @mention someone, list bots (including Yuanbao AI assistants), or list all members.",
+      'Query session members in the current group (called "派/Pai" in the app): '
+      + "find a user by name, @mention someone, list bots (including Yuanbao AI assistants), or list all members.",
     parameters: {
       type: "object",
       properties: {
@@ -126,16 +125,16 @@ function handleListAll(allMembers: MemberRecord[], mention: boolean) {
           type: "string",
           enum: ["find", "list_bots", "list_all"],
           description:
-            "Interaction type. " +
-            "find — search a user by name; " +
-            "list_bots — list bots (including Yuanbao AI assistants) in the group; " +
-            "list_all — list all recorded members.",
+            "Interaction type. "
+            + "find — search a user by name; "
+            + "list_bots — list bots (including Yuanbao AI assistants) in the group; "
+            + "list_all — list all recorded members.",
         },
         name: {
           type: "string",
           description:
-            "User name to search (partial match, case-insensitive). " +
-            'Required for "find", ignored for other actions.',
+            "User name to search (partial match, case-insensitive). "
+            + 'Required for "find", ignored for other actions.',
         },
         mention: {
           type: "boolean",

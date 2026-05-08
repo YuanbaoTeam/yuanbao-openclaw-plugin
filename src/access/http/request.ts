@@ -148,9 +148,7 @@ async function doFetchSignToken(
     const signature = computeSignature({ nonce, timestamp, appKey, appSecret });
     const body = { app_key: appKey, nonce, signature, timestamp };
 
-    mlog.info(
-      `signing token: url=${url}${attempt > 0 ? ` (retry ${attempt}/${SIGN_MAX_RETRIES})` : ""}`,
-    );
+    mlog.info(`signing token: url=${url}${attempt > 0 ? ` (retry ${attempt}/${SIGN_MAX_RETRIES})` : ""}`);
     mlog.info("sign-token params", body);
 
     const headers: Record<string, string> = {
@@ -184,7 +182,7 @@ async function doFetchSignToken(
 
     if (result.code === RETRYABLE_SIGN_CODE && attempt < SIGN_MAX_RETRIES) {
       mlog.warn(`sign-token retryable: code=${result.code}, retrying in ${SIGN_RETRY_DELAY_MS}ms`);
-      await new Promise((r) => setTimeout(r, SIGN_RETRY_DELAY_MS));
+      await new Promise(r => setTimeout(r, SIGN_RETRY_DELAY_MS));
       continue;
     }
 
@@ -209,24 +207,18 @@ function scheduleTokenRefresh(
   const rawMs = durationSec * 1000 - CACHE_REFRESH_MARGIN_MS;
   const refreshAfterMs = Math.min(Math.max(rawMs, 60_000), MAX_SAFE_TIMEOUT_MS);
   const clampedHint = rawMs > MAX_SAFE_TIMEOUT_MS ? ", clamped to max safe timeout" : "";
-  mlog.info(
-    `[${account.accountId}][token-timer] scheduled refresh: ` +
-      `${Math.round(refreshAfterMs / 1000)}s later (duration=${durationSec}s, ` +
-      `margin=${CACHE_REFRESH_MARGIN_MS / 1000}s${clampedHint})`,
-  );
+  mlog.info(`[${account.accountId}][token-timer] scheduled refresh: `
+      + `${Math.round(refreshAfterMs / 1000)}s later (duration=${durationSec}s, `
+      + `margin=${CACHE_REFRESH_MARGIN_MS / 1000}s${clampedHint})`);
 
   const timer = setTimeout(async () => {
     tokenRefreshTimers.delete(account.accountId);
     try {
-      mlog.info(
-        `[${account.accountId}][token-timer] scheduled refresh triggered, re-signing token`,
-      );
+      mlog.info(`[${account.accountId}][token-timer] scheduled refresh triggered, re-signing token`);
       await forceRefreshSignToken(account, log);
       mlog.info(`[${account.accountId}][token-timer] scheduled refresh done`);
     } catch (err) {
-      mlog.error(
-        `[${account.accountId}][token-timer] scheduled refresh failed: ${String(err)}, retrying in 30s`,
-      );
+      mlog.error(`[${account.accountId}][token-timer] scheduled refresh failed: ${String(err)}, retrying in 30s`);
       // Retry after short delay on scheduled refresh failure to avoid losing the timer
       const retryTimer = setTimeout(async () => {
         tokenRefreshTimers.delete(account.accountId);
@@ -234,9 +226,7 @@ function scheduleTokenRefresh(
           await forceRefreshSignToken(account, log);
           mlog.info(`[${account.accountId}][token-timer] scheduled refresh retry succeeded`);
         } catch (retryErr) {
-          mlog.error(
-            `[${account.accountId}][token-timer] scheduled refresh retry also failed: ${String(retryErr)}, waiting for next request to trigger refresh`,
-          );
+          mlog.error(`[${account.accountId}][token-timer] scheduled refresh retry also failed: ${String(retryErr)}, waiting for next request to trigger refresh`);
         }
       }, 30_000);
       tokenRefreshTimers.set(account.accountId, retryTimer);
@@ -358,9 +348,7 @@ export async function yuanbaoPost<T>(
 
     // HTTP 401: token expired, force-refresh and retry once
     if (response.status === 401 && attempt < HTTP_AUTH_RETRY_MAX) {
-      plog.warn(
-        `[post][${account.accountId}] ${path} received 401, refreshing token and retrying (attempt=${attempt + 1})`,
-      );
+      plog.warn(`[post][${account.accountId}] ${path} received 401, refreshing token and retrying (attempt=${attempt + 1})`);
       await forceRefreshSignToken(account, log);
       continue;
     }
@@ -372,9 +360,7 @@ export async function yuanbaoPost<T>(
     const json = (await response.json()) as { code?: number; data?: T; msg?: string };
 
     if (json.code !== 0 && json.code !== undefined) {
-      throw new Error(
-        `[yuanbao-api][POST] ${path} business error: code=${json.code}, msg=${json.msg}`,
-      );
+      throw new Error(`[yuanbao-api][POST] ${path} business error: code=${json.code}, msg=${json.msg}`);
     }
 
     plog.info(`[post][${account.accountId}] ${path} request succeeded`);
@@ -406,9 +392,7 @@ export async function yuanbaoGet<T>(
 
     // HTTP 401: token expired, force-refresh and retry once
     if (response.status === 401 && attempt < HTTP_AUTH_RETRY_MAX) {
-      glog.warn(
-        `[get][${account.accountId}] ${path} received 401, refreshing token and retrying (attempt=${attempt + 1})`,
-      );
+      glog.warn(`[get][${account.accountId}] ${path} received 401, refreshing token and retrying (attempt=${attempt + 1})`);
       await forceRefreshSignToken(account, log);
       continue;
     }
@@ -420,9 +404,7 @@ export async function yuanbaoGet<T>(
     const json = (await response.json()) as { code?: number; data?: T; msg?: string };
 
     if (json.code !== 0 && json.code !== undefined) {
-      throw new Error(
-        `[yuanbao-api][GET] ${path} business error: code=${json.code}, msg=${json.msg}`,
-      );
+      throw new Error(`[yuanbao-api][GET] ${path} business error: code=${json.code}, msg=${json.msg}`);
     }
 
     return (json.data ?? json) as T;

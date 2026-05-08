@@ -104,114 +104,110 @@ export const dispatchReply: MiddlewareDescriptor = {
 
       // ⭐ Step 3: Dispatch reply (deliver callback with info.kind)
       // Wrap with runWithTraceContext to ensure AI request fetch interceptor auto-injects X-Traceparent header
-      const doDispatchReply = () =>
-        core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
-          ctx: ctxPayload,
-          cfg: config,
-          dispatcherOptions: {
-            ...replyPipeline,
-            deliver: async (payload: Record<string, unknown>, info: { kind: string }) => {
-              if (ctx.abortSignal?.aborted) {
-                ctx.log.warn(
-                  `[${account.accountId}] reply aborted, stopping subsequent reply blocks`,
-                );
-                return;
-              }
+      const doDispatchReply = () => core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+        ctx: ctxPayload,
+        cfg: config,
+        dispatcherOptions: {
+          ...replyPipeline,
+          deliver: async (payload: Record<string, unknown>, info: { kind: string }) => {
+            if (ctx.abortSignal?.aborted) {
+              ctx.log.warn(`[${account.accountId}] reply aborted, stopping subsequent reply blocks`);
+              return;
+            }
 
-              if (payload.isReasoning) {
-                ctx.log.info("[dispatch-reply] Reasoning", { text: payload.text });
-                return;
-              }
+            if (payload.isReasoning) {
+              ctx.log.info("[dispatch-reply] Reasoning", { text: payload.text });
+              return;
+            }
 
-              // Received context compaction notice, skip message sending
-              if (payload.isCompactionNotice) {
-                ctx.log.info("[dispatch-reply] CompactionNotice", { text: payload.text });
-                return;
-              }
+            // Received context compaction notice, skip message sending
+            if (payload.isCompactionNotice) {
+              ctx.log.info("[dispatch-reply] CompactionNotice", { text: payload.text });
+              return;
+            }
 
-              // Normalize payload
-              const normalized = normalizeOutboundReplyPayload(payload);
-              ctx.log.info("[dispatch-reply] received reply data", {
-                kind: info.kind,
-                model_output: normalized.text,
-              });
+            // Normalize payload
+            const normalized = normalizeOutboundReplyPayload(payload);
+            ctx.log.info("[dispatch-reply] received reply data", {
+              kind: info.kind,
+              model_output: normalized.text,
+            });
 
-              // ⭐ Tool-kind deliver is tool execution result, not sent to user
-              // Only update prevDeliverKind to track block→tool→block transitions
-              if (info.kind === "tool") {
-                prevDeliverKind = info.kind;
-                return;
-              }
-
-              // Convert Markdown tables
-              const text = core.channel.text.convertMarkdownTables(
-                normalized.text ?? "",
-                tableMode,
-              );
-              const mediaUrls = resolveOutboundMediaUrls(normalized);
-
-              const trimmedText = text.trim();
-
-              // Use real info.kind to track block→tool→block transitions
-              const prevKind = prevDeliverKind;
+            // ⭐ Tool-kind deliver is tool execution result, not sent to user
+            // Only update prevDeliverKind to track block→tool→block transitions
+            if (info.kind === "tool") {
               prevDeliverKind = info.kind;
+              return;
+            }
 
-              // Push text
-              if (trimmedText) {
-                const isAfterToolCall =
-                  info.kind === "block" && prevKind !== null && prevKind !== "block";
-                await queueSession.push({
-                  type: "text",
-                  text: isAfterToolCall ? `\n\n${text}` : text,
-                });
+            // Convert Markdown tables
+            const text = core.channel.text.convertMarkdownTables(
+              normalized.text ?? "",
+              tableMode,
+            );
+            const mediaUrls = resolveOutboundMediaUrls(normalized);
+
+            const trimmedText = text.trim();
+
+            // Use real info.kind to track block→tool→block transitions
+            const prevKind = prevDeliverKind;
+            prevDeliverKind = info.kind;
+
+            // Push text
+            if (trimmedText) {
+              const isAfterToolCall = info.kind === "block" && prevKind !== null && prevKind !== "block";
+              await queueSession.push({
+                type: "text",
+                text: isAfterToolCall ? `\n\n${text}` : text,
+              });
+              hasSentContent = true;
+            }
+
+            // Push media
+            for (const mediaUrl of mediaUrls) {
+              if (mediaUrl) {
+                await queueSession.push({ type: "media", mediaUrl });
                 hasSentContent = true;
               }
+            }
 
-              // Push media
-              for (const mediaUrl of mediaUrls) {
-                if (mediaUrl) {
-                  await queueSession.push({ type: "media", mediaUrl });
-                  hasSentContent = true;
-                }
-              }
-
-              // Send heartbeat
-              heartbeat.emit(WS_HEARTBEAT.RUNNING);
-            },
-            onError: (err: unknown, info: { kind: string }) => {
-              if (ctx.abortSignal?.aborted) {
-                ctx.log.warn(`[${account.accountId}] reply aborted, ignoring onDispatchError`);
-                return;
-              }
-              ctx.log.error("[dispatch-reply] reply dispatch failed", {
-                kind: info.kind,
+            // Send heartbeat
+            heartbeat.emit(WS_HEARTBEAT.RUNNING);
+          },
+          onError: (err: unknown, info: { kind: string }) => {
+            if (ctx.abortSignal?.aborted) {
+              ctx.log.warn(`[${account.accountId}] reply aborted, ignoring onDispatchError`);
+              return;
+            }
+            ctx.log.error("[dispatch-reply] reply dispatch failed", {
+              kind: info.kind,
+              error: String(err),
+            });
+          },
+        },
+        replyOptions: {
+          abortSignal: ctx.abortSignal,
+          disableBlockStreaming: account.disableBlockStreaming,
+          onModelSelected,
+          onAgentRunStart: () => {
+            heartbeat.emit(WS_HEARTBEAT.RUNNING);
+          },
+          onAssistantMessageStart: () => {
+            heartbeat.emit(WS_HEARTBEAT.RUNNING);
+          },
+          // ⭐ Force-flush buffered text before tool_call starts,
+          // so user doesn't have to wait until session.flush() to see pre-tool AI output
+          onToolStart: async () => {
+            try {
+              await queueSession.drainNow();
+            } catch (err) {
+              ctx.log.error("[dispatch-reply] onToolStart drainNow failed, skipping", {
                 error: String(err),
               });
-            },
+            }
           },
-          replyOptions: {
-            abortSignal: ctx.abortSignal,
-            disableBlockStreaming: account.disableBlockStreaming,
-            onModelSelected,
-            onAgentRunStart: () => {
-              heartbeat.emit(WS_HEARTBEAT.RUNNING);
-            },
-            onAssistantMessageStart: () => {
-              heartbeat.emit(WS_HEARTBEAT.RUNNING);
-            },
-            // ⭐ Force-flush buffered text before tool_call starts,
-            // so user doesn't have to wait until session.flush() to see pre-tool AI output
-            onToolStart: async () => {
-              try {
-                await queueSession.drainNow();
-              } catch (err) {
-                ctx.log.error("[dispatch-reply] onToolStart drainNow failed, skipping", {
-                  error: String(err),
-                });
-              }
-            },
-          },
-        });
+        },
+      });
 
       // Use pipeline's unified traceContext (created by resolve-trace middleware)
       if (ctx.traceContext) {

@@ -30,9 +30,7 @@ export const resolveRoute: MiddlewareDescriptor = {
     ctx.envelopeOptions = envelopeOptions;
     ctx.previousTimestamp = previousTimestamp;
 
-    ctx.log.debug(
-      `[resolve-route] route resolved, agentId=${route.agentId}, sessionKey=${route.sessionKey}`,
-    );
+    ctx.log.debug(`[resolve-route] route resolved, agentId=${route.agentId}, sessionKey=${route.sessionKey}`);
 
     await next();
   },

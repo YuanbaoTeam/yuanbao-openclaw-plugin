@@ -87,7 +87,7 @@ export function buildMessageToolHints(): string[] {
     // ── File/image sending ──
     "File/image: use media/mediaUrls with real URLs or absolute paths (e.g. /tmp/file.md). Never use relative paths.",
     // ── DM routing (only when user explicitly requests DM in group chat) ──
-    'DM/私信: set `to="<userId>"` only when the user explicitly asks to send a DM/私信/direct message in a group chat. ' +
-      "To resolve a userId, call query_session_members first. If the recipient is ambiguous, ask for clarification.",
+    'DM/私信: set `to="<userId>"` only when the user explicitly asks to send a DM/私信/direct message in a group chat. '
+      + "To resolve a userId, call query_session_members first. If the recipient is ambiguous, ask for clarification.",
   ];
 }

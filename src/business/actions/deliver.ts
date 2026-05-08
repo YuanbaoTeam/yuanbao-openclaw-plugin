@@ -37,22 +37,22 @@ export async function deliver(
 ): Promise<SendResult> {
   return dt.isGroup
     ? sendGroupMsgBody({
-        account: dt.account,
-        groupCode: dt.target,
-        msgBody,
-        fromAccount: dt.fromAccount,
-        refMsgId: dt.refMsgId,
-        refFromAccount: dt.refFromAccount,
-        wsClient: dt.wsClient,
-        traceContext: dt.traceContext,
-      })
+      account: dt.account,
+      groupCode: dt.target,
+      msgBody,
+      fromAccount: dt.fromAccount,
+      refMsgId: dt.refMsgId,
+      refFromAccount: dt.refFromAccount,
+      wsClient: dt.wsClient,
+      traceContext: dt.traceContext,
+    })
     : sendC2CMsgBody({
-        account: dt.account,
-        toAccount: dt.target,
-        msgBody,
-        fromAccount: dt.fromAccount,
-        wsClient: dt.wsClient,
-        groupCode: dt.groupCode,
-        traceContext: dt.traceContext,
-      });
+      account: dt.account,
+      toAccount: dt.target,
+      msgBody,
+      fromAccount: dt.fromAccount,
+      wsClient: dt.wsClient,
+      groupCode: dt.groupCode,
+      traceContext: dt.traceContext,
+    });
 }

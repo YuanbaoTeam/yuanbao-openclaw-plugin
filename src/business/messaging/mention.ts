@@ -95,8 +95,8 @@ export function extractTargetMentionsFromText(
 
     // Skip bot mention
     if (
-      botIdentifiers.botUsername &&
-      handle.toLowerCase() === botIdentifiers.botUsername.toLowerCase()
+      botIdentifiers.botUsername
+      && handle.toLowerCase() === botIdentifiers.botUsername.toLowerCase()
     ) {
       continue;
     }

@@ -24,8 +24,8 @@ function createQueryGroupInfoTool(ctx: OpenClawPluginToolContext) {
     name: "query_group_info",
     label: "Query Group Info",
     description:
-      'Query basic info about the current group (called "派/Pai" in the app), ' +
-      "including group name, group owner, and member count.",
+      'Query basic info about the current group (called "派/Pai" in the app), '
+      + "including group name, group owner, and member count.",
     parameters: {
       type: "object",
       properties: {},

@@ -1,5 +1,5 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/matrix";
+import { runPluginCommandWithTimeout } from "openclaw/plugin-sdk/run-command";
 import { createLog } from "../../../logger.js";
 import { getYuanbaoRuntime } from "../../../runtime.js";
 import type {
@@ -60,8 +60,8 @@ async function resolveLatestTmpOpenclawLog(): Promise<string | undefined> {
   }
 
   const candidates = files
-    .filter((name) => /^openclaw-\d{4}-\d{2}-\d{2}\.log$/.test(name))
-    .map((name) => `${logDir}/${name}`);
+    .filter(name => /^openclaw-\d{4}-\d{2}-\d{2}\.log$/.test(name))
+    .map(name => `${logDir}/${name}`);
 
   if (candidates.length === 0) {
     return undefined;
@@ -85,7 +85,8 @@ async function resolveLatestTmpOpenclawLog(): Promise<string | undefined> {
 }
 
 function buildTodayLogPath(): string {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = new Date().toISOString()
+    .slice(0, 10);
   return `/tmp/openclaw/openclaw-${date}.log`;
 }
 
@@ -120,7 +121,9 @@ async function tailLinesFromFile(
   const fileStat = await stat(filePath);
   const size = fileStat.size ?? 0;
   const content = await readFile(filePath);
-  const lines = content.toString("utf8").split(/\r?\n/).filter(Boolean).slice(-maxLines);
+  const lines = content.toString("utf8").split(/\r?\n/)
+    .filter(Boolean)
+    .slice(-maxLines);
   return { lines, size };
 }
 
@@ -161,7 +164,7 @@ async function extractViaLogsTail(params: ParsedCommandArgs): Promise<ExtractRes
       return {
         source: "logs.tail",
         file: rsp.file ?? "(unknown)",
-        lines: rsp.lines.map((line) => line),
+        lines: rsp.lines.map(line => line),
         truncated: !!rsp.truncated,
         reset: !!rsp.reset,
         cursor: rsp.cursor ?? 0,
@@ -274,7 +277,7 @@ function filterLines(lines: string[], args: ParsedCommandArgs): string[] {
   let next = lines;
 
   if (!args.all) {
-    next = next.filter((line) => /yuanbao/i.test(line));
+    next = next.filter(line => /yuanbao/i.test(line));
   }
 
   const timeRange = resolveTimeRange(args);

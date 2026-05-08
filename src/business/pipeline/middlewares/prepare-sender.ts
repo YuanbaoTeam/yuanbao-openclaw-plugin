@@ -10,8 +10,7 @@ export const prepareSender: MiddlewareDescriptor = {
   name: "prepare-sender",
   handler: async (ctx, next) => {
     const { account, isGroup, fromAccount, groupCode, raw, route, wsClient, config, core } = ctx;
-    const outboundSessionKey =
-      route?.sessionKey || (isGroup ? `group:${groupCode}` : `direct:${fromAccount}`);
+    const outboundSessionKey = route?.sessionKey || (isGroup ? `group:${groupCode}` : `direct:${fromAccount}`);
 
     // ⭐ Create MessageSender and inject into ctx.sender
     const target = isGroup ? groupCode! : fromAccount;
@@ -31,8 +30,7 @@ export const prepareSender: MiddlewareDescriptor = {
     });
 
     // ⭐ Create QueueSession and inject into ctx.queueSession
-    const chunkText = (text: string, maxChars: number) =>
-      core.channel.text.chunkMarkdownText(text, maxChars);
+    const chunkText = (text: string, maxChars: number) => core.channel.text.chunkMarkdownText(text, maxChars);
 
     ctx.queueSession = createQueueSession({
       sender: ctx.sender,

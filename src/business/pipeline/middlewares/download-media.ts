@@ -27,34 +27,28 @@ function getHistoryMedias(
   const history = chatHistories.get(groupCode) ?? [];
   const now = Date.now();
 
-  const recentHistory = history.filter(
-    (entry) => entry.timestamp == null || now - entry.timestamp <= TEN_MINUTES_MS,
-  );
-  const lastUserHistory = recentHistory.findLast((entry) => entry.sender === fromAccount);
+  const recentHistory = history.filter(entry => entry.timestamp == null || now - entry.timestamp <= TEN_MINUTES_MS);
+  const lastUserHistory = recentHistory.findLast(entry => entry.sender === fromAccount);
   if (lastUserHistory) {
-    historyMedias.push(
-      ...(lastUserHistory.medias ?? []).map((m) => ({
-        mediaType: "image" as const,
-        url: m.url,
-        mediaName: m.mediaName,
-      })),
-    );
+    historyMedias.push(...(lastUserHistory.medias ?? []).map(m => ({
+      mediaType: "image" as const,
+      url: m.url,
+      mediaName: m.mediaName,
+    })));
   }
 
   if (quoteInfo?.id) {
     const mediaList = chatMediaHistories.get(groupCode) ?? [];
-    const quoteMedia = mediaList.findLast((entry) => entry.messageId === quoteInfo.id);
+    const quoteMedia = mediaList.findLast(entry => entry.messageId === quoteInfo.id);
     if (quoteMedia) {
-      const existingUrls = new Set(historyMedias.map((m) => m.url));
-      historyMedias.push(
-        ...quoteMedia.medias
-          .filter((m) => !existingUrls.has(m.url))
-          .map((m) => ({
-            mediaType: "image" as const,
-            url: m.url,
-            mediaName: m.mediaName,
-          })),
-      );
+      const existingUrls = new Set(historyMedias.map(m => m.url));
+      historyMedias.push(...quoteMedia.medias
+        .filter(m => !existingUrls.has(m.url))
+        .map(m => ({
+          mediaType: "image" as const,
+          url: m.url,
+          mediaName: m.mediaName,
+        })));
     }
   }
 
@@ -63,7 +57,7 @@ function getHistoryMedias(
 
 export const downloadMedia: MiddlewareDescriptor = {
   name: "download-media",
-  when: (ctx) => !!ctx.medias,
+  when: ctx => !!ctx.medias,
   handler: async (ctx, next) => {
     const { medias, isGroup, groupCode, fromAccount, quoteInfo, account, core } = ctx;
 
@@ -83,13 +77,13 @@ export const downloadMedia: MiddlewareDescriptor = {
         });
       }
 
-      allMedias = [...historyMedias.filter((m) => m.url), ...medias];
+      allMedias = [...historyMedias.filter(m => m.url), ...medias];
     }
 
     // Download media to local
     const { mediaPaths, mediaTypes } = await downloadMediasToLocalFiles(allMedias, account, core, {
-      verbose: (msg) => ctx.log.debug(msg),
-      warn: (msg) => ctx.log.warn(msg),
+      verbose: msg => ctx.log.debug(msg),
+      warn: msg => ctx.log.warn(msg),
     });
 
     ctx.mediaPaths = mediaPaths;

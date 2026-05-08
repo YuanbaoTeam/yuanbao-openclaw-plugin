@@ -24,13 +24,13 @@ export interface DebouncerItem {
   core: PluginRuntime;
   wsClient: YuanbaoWsClient;
   log?:
-    | ModuleLog
-    | {
-        info: (msg: string) => void;
-        warn: (msg: string) => void;
-        error: (msg: string) => void;
-        verbose?: (msg: string) => void;
-      };
+  | ModuleLog
+  | {
+    info: (msg: string) => void;
+    warn: (msg: string) => void;
+    error: (msg: string) => void;
+    verbose?: (msg: string) => void;
+  };
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   abortSignal?: AbortSignal;
 }

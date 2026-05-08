@@ -54,5 +54,5 @@ export function dispatchSystemCallback(params: SystemCallbackParams): boolean {
   return true;
 }
 
-registerSystemCallback("Group.CallbackAfterRecallMsg", ({ ctx, msg }) => handleGroupRecall(ctx, msg),);
+registerSystemCallback("Group.CallbackAfterRecallMsg", ({ ctx, msg }) => handleGroupRecall(ctx, msg));
 registerSystemCallback("C2C.CallbackAfterMsgWithDraw", ({ ctx, msg }) => handleC2CRecall(ctx, msg));

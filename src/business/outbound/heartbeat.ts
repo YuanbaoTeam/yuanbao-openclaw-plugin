@@ -18,32 +18,29 @@ export interface ReplyHeartbeatMeta {
 /**
  * Send reply status heartbeat (best effort, no throw, no interruption to main flow).
  */
-export async function emitReplyHeartbeat(
-  params: ReplyHeartbeatMeta & {
-    heartbeat: WsHeartbeatValue;
-    sendTime: number;
-  },
-): Promise<void> {
+export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
+  heartbeat: WsHeartbeatValue;
+  sendTime: number;
+}): Promise<void> {
   const { ctx, account, toAccount, groupCode, heartbeat, sendTime } = params;
   const log = createLog("reply-heartbeat");
   const fromAccount = account.botId?.trim() ?? "";
   const targetAccount = toAccount.trim();
-  const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
-    new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`heartbeat timeout(${timeoutMs}ms)`)),
-        timeoutMs,
-      );
-      promise
-        .then((value) => {
-          clearTimeout(timer);
-          resolve(value);
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          reject(err);
-        });
-    });
+  const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`heartbeat timeout(${timeoutMs}ms)`)),
+      timeoutMs,
+    );
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 
   if (!ctx.wsClient) {
     log.warn(`[${account.accountId}] heartbeat send failed: wsClient unavailable`);
@@ -73,9 +70,7 @@ export async function emitReplyHeartbeat(
         HEARTBEAT_TIMEOUT_MS,
       );
       if (rsp.code !== 0) {
-        log.warn(
-          `[${account.accountId}] group reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`,
-        );
+        log.warn(`[${account.accountId}] group reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`);
       }
       return;
     }
@@ -89,9 +84,7 @@ export async function emitReplyHeartbeat(
       HEARTBEAT_TIMEOUT_MS,
     );
     if (rsp.code !== 0) {
-      log.warn(
-        `[${account.accountId}] C2C reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`,
-      );
+      log.warn(`[${account.accountId}] C2C reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`);
     }
   } catch (err) {
     log.warn(`[${account.accountId}] reply heartbeat send error: ${String(err)}`);

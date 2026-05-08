@@ -121,12 +121,10 @@ export function resolveYuanbaoAccount(params: {
   const mediaMaxMb = merged.mediaMaxMb && merged.mediaMaxMb >= 1 ? merged.mediaMaxMb : 20;
 
   // Group chat history context entries (default 100)
-  const historyLimit =
-    merged.historyLimit !== undefined && merged.historyLimit >= 0 ? merged.historyLimit : 100;
+  const historyLimit = merged.historyLimit !== undefined && merged.historyLimit >= 0 ? merged.historyLimit : 100;
 
   // Whether to disable block streaming output (default false)
-  const disableBlockStreaming =
-    merged.disableBlockStreaming !== undefined ? merged.disableBlockStreaming : false;
+  const disableBlockStreaming = merged.disableBlockStreaming !== undefined ? merged.disableBlockStreaming : false;
   // Whether group chat requires @mention to reply (default true)
   const requireMention = merged.requireMention !== undefined ? merged.requireMention : true;
   // Fallback reply text (used when AI returns no reply)
@@ -180,6 +178,6 @@ export function resolveYuanbaoAccount(params: {
  */
 export function listEnabledYuanbaoAccounts(cfg: OpenClawConfig): ResolvedYuanbaoAccount[] {
   return listYuanbaoAccountIds(cfg)
-    .map((accountId) => resolveYuanbaoAccount({ cfg, accountId }))
-    .filter((account) => account.enabled);
+    .map(accountId => resolveYuanbaoAccount({ cfg, accountId }))
+    .filter(account => account.enabled);
 }

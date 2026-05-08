@@ -17,7 +17,7 @@ export class MessagePipeline {
 
   /** Insert before a named middleware */
   useBefore(targetName: string, descriptor: MiddlewareDescriptor): this {
-    const idx = this.middlewares.findIndex((m) => m.name === targetName);
+    const idx = this.middlewares.findIndex(m => m.name === targetName);
     if (idx === -1) {
       this.middlewares.push(descriptor);
     } else {
@@ -28,7 +28,7 @@ export class MessagePipeline {
 
   /** Insert after a named middleware */
   useAfter(targetName: string, descriptor: MiddlewareDescriptor): this {
-    const idx = this.middlewares.findIndex((m) => m.name === targetName);
+    const idx = this.middlewares.findIndex(m => m.name === targetName);
     if (idx === -1) {
       this.middlewares.push(descriptor);
     } else {
@@ -39,7 +39,7 @@ export class MessagePipeline {
 
   /** Remove middleware by name */
   remove(name: string): this {
-    const idx = this.middlewares.findIndex((m) => m.name === name);
+    const idx = this.middlewares.findIndex(m => m.name === name);
     if (idx !== -1) {
       this.middlewares.splice(idx, 1);
     }

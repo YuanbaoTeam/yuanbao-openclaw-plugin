@@ -37,18 +37,12 @@ function formatSharedLink(data: SharedLinkData): string {
     lines.push(`  <link>${data.link}</link>`);
   }
   if (data.card_content) {
-    lines.push(
-      `  <preview_title>${truncate(data.card_content, CONTENT_MAX_LENGTH)}</preview_title>`,
-    );
+    lines.push(`  <preview_title>${truncate(data.card_content, CONTENT_MAX_LENGTH)}</preview_title>`);
   }
   if (data.wechat_des) {
-    lines.push(
-      `  <preview_description>${truncate(data.wechat_des, CONTENT_MAX_LENGTH)}</preview_description>`,
-    );
+    lines.push(`  <preview_description>${truncate(data.wechat_des, CONTENT_MAX_LENGTH)}</preview_description>`);
   }
-  lines.push(
-    "  <instruction>以上仅为分享卡片的摘要预览，请访问 link 获取完整页面内容后再进行分析回复</instruction>",
-  );
+  lines.push("  <instruction>以上仅为分享卡片的摘要预览，请访问 link 获取完整页面内容后再进行分析回复</instruction>");
   lines.push("</share_card>");
   return lines.join("\n");
 }

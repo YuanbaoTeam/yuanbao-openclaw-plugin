@@ -24,5 +24,4 @@ export type MessageHandlerContext = {
 };
 
 /** System prompt to prevent model from wrapping entire reply in markdown code block */
-export const YUANBAO_MARKDOWN_HINT =
-  "⚠️ 格式规范（强制）：当回复内容包含 Markdown 表格时，禁止用 ```markdown 代码块包裹，直接输出表格内容即可，不需要外层 fence。";
+export const YUANBAO_MARKDOWN_HINT = "⚠️ 格式规范（强制）：当回复内容包含 Markdown 表格时，禁止用 ```markdown 代码块包裹，直接输出表格内容即可，不需要外层 fence。";

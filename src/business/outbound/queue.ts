@@ -193,30 +193,22 @@ function createMergeTextSession(opts: QueueSessionOptions): QueueSession {
     }
 
     const chunks = chunkText(textBuffer, maxChars);
-    log.debug(
-      `[${sessionKey}] drainBuffer force=${force}: inputLen=${textBuffer.length}, chunks=${chunks.length}`,
-    );
+    log.debug(`[${sessionKey}] drainBuffer force=${force}: inputLen=${textBuffer.length}, chunks=${chunks.length}`);
 
     if (force || chunks.length <= 1) {
       // Non-forced single chunk: defer if fence is unclosed
       if (!force && chunks.length === 1 && mdFence.hasUnclosed(chunks[0])) {
-        log.debug(
-          `[${sessionKey}] drainBuffer: single chunk has unclosed fence, keeping in buffer`,
-        );
+        log.debug(`[${sessionKey}] drainBuffer: single chunk has unclosed fence, keeping in buffer`);
         return;
       }
       // Non-forced single chunk: defer if ends with table row
       if (!force && chunks.length === 1 && mdBlock.endsWithTableRow(chunks[0])) {
-        log.debug(
-          `[${sessionKey}] drainBuffer: single chunk ends with table row, keeping in buffer`,
-        );
+        log.debug(`[${sessionKey}] drainBuffer: single chunk ends with table row, keeping in buffer`);
         return;
       }
       // Non-forced single chunk: defer if below minChars threshold
       if (!force && chunks.length === 1 && textBuffer.length < minChars) {
-        log.debug(
-          `[${sessionKey}] drainBuffer: bufLen=${textBuffer.length} < minChars=${minChars}, waiting`,
-        );
+        log.debug(`[${sessionKey}] drainBuffer: bufLen=${textBuffer.length} < minChars=${minChars}, waiting`);
         return;
       }
       textBuffer = "";
@@ -238,9 +230,7 @@ function createMergeTextSession(opts: QueueSessionOptions): QueueSession {
       // Send first n-1 chunks (fence-safe boundary), keep last chunk in buffer
       const toSend = chunks.slice(0, -1);
       textBuffer = chunks[chunks.length - 1]!;
-      log.debug(
-        `[${sessionKey}] drainBuffer: sending ${toSend.length} chunk(s), remainder len=${textBuffer.length}`,
-      );
+      log.debug(`[${sessionKey}] drainBuffer: sending ${toSend.length} chunk(s), remainder len=${textBuffer.length}`);
       for (const chunk of toSend) {
         if (aborted) {
           return;
@@ -340,9 +330,7 @@ function createMergeTextSession(opts: QueueSessionOptions): QueueSession {
         if (aborted || !textBuffer) {
           return;
         }
-        log.debug(
-          `[${sessionKey}] drainNow: force flushing bufLen=${textBuffer.length} before tool call`,
-        );
+        log.debug(`[${sessionKey}] drainNow: force flushing bufLen=${textBuffer.length} before tool call`);
         await drainBuffer(true);
       });
       return sendChain;

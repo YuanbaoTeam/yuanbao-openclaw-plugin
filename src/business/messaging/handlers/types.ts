@@ -67,18 +67,18 @@ export type ExtractTextFromMsgBodyResult = {
 export type OutboundContentItem =
   | { type: "text"; text: string }
   | {
-      type: "image";
-      url: string;
-      uuid?: string;
-      imageFormat?: number;
-      imageInfoArray?: Array<{
-        type?: number;
-        size?: number;
-        width?: number;
-        height?: number;
-        url?: string;
-      }>;
-    }
+    type: "image";
+    url: string;
+    uuid?: string;
+    imageFormat?: number;
+    imageInfoArray?: Array<{
+      type?: number;
+      size?: number;
+      width?: number;
+      height?: number;
+      url?: string;
+    }>;
+  }
   | { type: "file"; url: string; fileName?: string; fileSize?: number; uuid?: string }
   | { type: "video"; videoUrl: string; [key: string]: unknown }
   | { type: "custom"; data: string | Record<string, unknown> };

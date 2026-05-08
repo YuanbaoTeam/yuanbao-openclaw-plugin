@@ -15,10 +15,10 @@ import type { MiddlewareDescriptor } from "../types.js";
 
 export const resolveMention: MiddlewareDescriptor = {
   name: "resolve-mention",
-  when: (ctx) => ctx.isGroup,
+  when: ctx => ctx.isGroup,
   handler: async (ctx, next) => {
     const { isGroup, account, isAtBot, hasControlCommand, commandAuthorized, core, config } = ctx;
-    const requireMention = account.requireMention;
+    const { requireMention } = account;
 
     const allowTextCommands = core.channel.commands.shouldHandleTextCommands({
       cfg: config,
@@ -67,7 +67,7 @@ export const resolveMention: MiddlewareDescriptor = {
       }
 
       logInboundDrop({
-        log: (msg) => ctx.log.info(msg),
+        log: msg => ctx.log.info(msg),
         channel: "yuanbao",
         reason: "mention-gating",
         target: ctx.groupCode,

@@ -1,5 +1,4 @@
-import type { ReplyPayload } from "openclaw/plugin-sdk/core";
-import type {
+import type { ReplyPayload,
   OpenClawPluginCommandDefinition,
   PluginCommandContext,
 } from "openclaw/plugin-sdk/core";

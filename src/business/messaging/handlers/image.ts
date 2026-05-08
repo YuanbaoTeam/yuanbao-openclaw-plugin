@@ -29,7 +29,7 @@ export const imageHandler: MessageElemHandler = {
     if (imageInfo?.url) {
       resData.medias.push({ mediaType: "image", url: imageInfo.url });
       // Image index starts from 1, corresponding to [image1][image2]
-      return `[image${resData.medias.filter((m) => m.mediaType === "image").length}]`;
+      return `[image${resData.medias.filter(m => m.mediaType === "image").length}]`;
     }
     return undefined;
   },

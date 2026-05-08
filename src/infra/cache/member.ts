@@ -49,7 +49,7 @@ export class SessionMember {
 
     if (nameFilter) {
       const filter = nameFilter.trim().toLowerCase();
-      results = results.filter((u) => u.nickName.toLowerCase().includes(filter));
+      results = results.filter(u => u.nickName.toLowerCase().includes(filter));
     }
 
     results.sort((a, b) => b.lastSeen - a.lastSeen);
@@ -180,7 +180,7 @@ export class GroupMember {
 
     if (nameFilter) {
       const filter = nameFilter.trim().toLowerCase();
-      results = results.filter((u) => u.nickName.toLowerCase().includes(filter));
+      results = results.filter(u => u.nickName.toLowerCase().includes(filter));
     }
 
     return results;
@@ -193,7 +193,7 @@ export class GroupMember {
     }
 
     const target = nickName.trim().toLowerCase();
-    return cached.members.find((u) => u.nickName.toLowerCase() === target);
+    return cached.members.find(u => u.nickName.toLowerCase() === target);
   }
 
   hasCachedData(groupCode: string): boolean {
@@ -282,9 +282,7 @@ export class GroupMember {
         groupSize: rsp.group_info.group_size ?? 0,
       };
 
-      this.log.info(
-        `group info: name=${info.groupName}, size=${info.groupSize}, owner=${info.ownerNickName} for group=${groupCode}`,
-      );
+      this.log.info(`group info: name=${info.groupName}, size=${info.groupSize}, owner=${info.ownerNickName} for group=${groupCode}`);
       this.infoCache.set(groupCode, { info, fetchedAt: Date.now() });
 
       // Also update ownerCache
@@ -293,9 +291,7 @@ export class GroupMember {
 
       return info;
     } catch (err) {
-      this.log.error(
-        `queryGroupInfo (full) error: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      this.log.error(`queryGroupInfo (full) error: ${err instanceof Error ? err.message : String(err)}`);
       return cached?.info ?? null;
     }
   }
@@ -343,9 +339,7 @@ export class GroupMember {
 
       return records;
     } catch (err) {
-      this.log.error(
-        `getGroupMemberList error: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      this.log.error(`getGroupMemberList error: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }
@@ -385,16 +379,14 @@ export class Member {
       }
 
       const filter = nameFilter.trim().toLowerCase();
-      const filtered = groupMembers.filter((u) => u.nickName.toLowerCase().includes(filter));
+      const filtered = groupMembers.filter(u => u.nickName.toLowerCase().includes(filter));
       if (filtered.length > 0) {
         return filtered;
       }
     }
 
     // Fall back to SessionMember
-    this.log.debug(
-      `GroupMember empty or no match, fallback to SessionMember for group=${groupCode}`,
-    );
+    this.log.debug(`GroupMember empty or no match, fallback to SessionMember for group=${groupCode}`);
     return this.session.lookupUsers(groupCode, nameFilter);
   }
 
@@ -412,8 +404,8 @@ export class Member {
   lookupUserByNickName(groupCode: string, nickName: string): UserRecord | undefined {
     // Prioritize GroupMember cache
     return (
-      this.group.lookupUserByNickName(groupCode, nickName) ??
-      this.session.lookupUserByNickName(groupCode, nickName)
+      this.group.lookupUserByNickName(groupCode, nickName)
+      ?? this.session.lookupUserByNickName(groupCode, nickName)
     );
   }
 
@@ -437,7 +429,7 @@ export class Member {
 
     const members = await this.group.getMembers(groupCode);
     // userType: 2=yuanbao, 3=bot; prefer yuanbao, bot as fallback
-    const yuanbao = members.find((u) => u.userType === 2) ?? members.find((u) => u.userType === 3);
+    const yuanbao = members.find(u => u.userType === 2) ?? members.find(u => u.userType === 3);
     if (!yuanbao?.userId) {
       this.log.warn(`queryYuanbaoUserId failed: no yuanbao/bot found in group=${groupCode}`);
       return null;
@@ -453,7 +445,7 @@ export class Member {
   }
 
   formatRecords(records: UserRecord[]): FormattedUserRecord[] {
-    return records.map((u) => ({
+    return records.map(u => ({
       userId: u.userId,
       nickName: u.nickName,
       lastSeen: new Date(u.lastSeen).toISOString(),

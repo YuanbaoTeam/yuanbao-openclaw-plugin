@@ -73,19 +73,15 @@ export function json(data: unknown) {
 /**
  * Desensitize a MsgBody array for safe logging.
  * Text messages (TIMTextElem) are masked; other types retain original structure for debugging.
- */export function msgBodyDesensitization(
-  msg_body: Array<{ msg_type?: string; msg_content?: { text?: string } & Record<string, unknown> }>,
-) {
+ */export function msgBodyDesensitization(msg_body: Array<{ msg_type?: string; msg_content?: { text?: string } & Record<string, unknown> }>) {
   let log = "";
-  msg_body.forEach(
-    (item: { msg_type?: string; msg_content?: { text?: string } & Record<string, unknown> }) => {
-      if (item.msg_type === "TIMTextElem") {
-        log += `[text:${textDesensitization(item.msg_content?.text ?? "") ?? "-"}]`;
-      } else {
-        log += `[${item.msg_type}:${JSON.stringify(item.msg_content)}]`;
-      }
-    },
-  );
+  msg_body.forEach((item: { msg_type?: string; msg_content?: { text?: string } & Record<string, unknown> }) => {
+    if (item.msg_type === "TIMTextElem") {
+      log += `[text:${textDesensitization(item.msg_content?.text ?? "") ?? "-"}]`;
+    } else {
+      log += `[${item.msg_type}:${JSON.stringify(item.msg_content)}]`;
+    }
+  });
   return log;
 }
 
