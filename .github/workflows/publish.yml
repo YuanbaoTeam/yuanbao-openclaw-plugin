@@ -19,6 +19,9 @@ jobs:
 
       - uses: ./.github/actions/build-and-pack
 
+      - name: Set up npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > staging/package/.npmrc
+
       - name: Publish beta
         if: contains(github.ref_name, 'beta')
         working-directory: staging/package
