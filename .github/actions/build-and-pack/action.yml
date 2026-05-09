@@ -38,8 +38,8 @@ runs:
           fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
         "
 
-        # 防止继承上游 .npmrc 配置
-        touch staging/package/.npmrc
+        # Set up npm auth for publishing
+        echo "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > staging/package/.npmrc
 
         # 生成 lockfile 用于可复现安装
         (cd staging/package && npm install --package-lock-only --omit=dev --ignore-scripts --silent)
