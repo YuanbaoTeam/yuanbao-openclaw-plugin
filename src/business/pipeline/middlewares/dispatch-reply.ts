@@ -243,7 +243,7 @@ export const dispatchReply: MiddlewareDescriptor = {
         const { fallbackReply } = account;
         if (fallbackReply) {
           ctx.log.warn("[dispatch-reply] AI returned no reply content, using fallback reply");
-          // await sender.sendText(fallbackReply);
+          await sender.sendText(fallbackReply);
         } else {
           ctx.log.warn("[dispatch-reply] AI returned no reply content");
         }

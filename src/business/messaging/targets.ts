@@ -19,15 +19,14 @@ export function looksLikeYuanbaoId(raw: string): boolean {
 
   // UserID format validation (inferred from Base64 format)
 
-  // Length must be at least 24 characters
-  if (trimmed.length < 24) {
+  // Length must be at least 16 characters and a multiple of 4
+  if (trimmed.length < 16 || trimmed.length % 4 !== 0) {
     return false;
   }
 
-  // Must contain uppercase, lowercase, and numbers
   // Only allows Base64 character set A-Z a-z 0-9 + / =
   // = can only appear at the end, and at most 2
-  if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?!.*=.+)[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) {
     return false;
   }
 
