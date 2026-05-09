@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-yuanbao",
-  "version": "2.13.0",
+  "version": "2.13.1-beta.0",
   "type": "module",
   "private": true,
   "packageManager": "pnpm@10.33.2",
@@ -19,7 +19,8 @@
     "build": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts"
+    "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts",
+    "release": "bash scripts/release.sh"
   },
   "dependencies": {
     "cos-nodejs-sdk-v5": "^2.15.4",

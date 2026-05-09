@@ -20,20 +20,19 @@ through direct messages and group chats.
 
 > **Requires OpenClaw 2026.4.10 or above.** Run `openclaw --version` to check. Upgrade with `openclaw update`.
 
-<Steps>
-  <Step title="Add the Yuanbao channel with your credentials">
-  ```bash
-  openclaw channels add --channel yuanbao --token "appKey:appSecret"
-  ```
-  The `--token` value uses colon-separated `appKey:appSecret` format. You can obtain these from the Yuanbao app by creating a robot in your application settings.
-  </Step>
+### 1. Add the Yuanbao channel with your credentials
 
-  <Step title="After setup completes, restart the gateway to apply the changes">
-  ```bash
-  openclaw gateway restart
-  ```
-  </Step>
-</Steps>
+```bash
+openclaw channels add --channel yuanbao --token "appKey:appSecret"
+```
+
+The `--token` value uses colon-separated `appKey:appSecret` format. You can obtain these from the Yuanbao app by creating a robot in your application settings.
+
+### 2. Restart the gateway to apply the changes
+
+```bash
+openclaw gateway restart
+```
 
 ### Interactive setup (alternative)
 
