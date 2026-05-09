@@ -20,18 +20,18 @@ jobs:
       - uses: ./.github/actions/build-and-pack
 
       - name: Set up npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > staging/package/.npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.YUANBAO }}" > staging/package/.npmrc
 
       - name: Publish beta
         if: contains(github.ref_name, 'beta')
         working-directory: staging/package
         run: npm publish --tag beta --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.YUANBAO }}
 
       - name: Publish latest
         if: ${{ !contains(github.ref_name, 'beta') }}
         working-directory: staging/package
         run: npm publish --tag latest --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.YUANBAO }}
