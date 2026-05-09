@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# Pre-commit hook: run lint and test before allowing commit.
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+echo "🔍 Running lint..."
+pnpm lint
+echo "✅ Lint passed."
+
+echo "🧪 Running tests..."
+pnpm test
+echo "✅ Tests passed."

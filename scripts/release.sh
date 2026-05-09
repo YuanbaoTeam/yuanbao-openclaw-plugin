@@ -39,7 +39,7 @@ VERSION=$(node -p "require('./package.json').version")
 # Commit, tag, and push
 git add .
 git commit -m "$MESSAGE (v$VERSION)"
-git tag "v$VERSION"
+git tag -a "v$VERSION" -m "$MESSAGE (v$VERSION)"
 git push origin main --follow-tags
 
 echo ""
