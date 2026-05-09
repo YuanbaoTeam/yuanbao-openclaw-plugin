@@ -188,6 +188,7 @@ export const dispatchReply: MiddlewareDescriptor = {
         replyOptions: {
           abortSignal: ctx.abortSignal,
           disableBlockStreaming: account.disableBlockStreaming,
+          sourceReplyDeliveryMode: "automatic",
           onModelSelected,
           onAgentRunStart: () => {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
