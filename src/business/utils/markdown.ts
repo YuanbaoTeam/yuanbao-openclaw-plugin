@@ -117,6 +117,15 @@ function endsWithTableRow(text: string): boolean {
   return line.startsWith("|") && line.endsWith("|");
 }
 
+function isTableInProgress(text: string): boolean {
+  const trimmed = text.trimEnd();
+  if (!trimmed) {
+    return false;
+  }
+  const lastLine = trimmed.split("\n").at(-1) ?? "";
+  return lastLine.trimStart().startsWith("|");
+}
+
 function startsWithBlockElement(text: string): boolean {
   const firstLine = (text.trimStart().split("\n")[0] ?? "").trimStart();
   return (
@@ -147,6 +156,12 @@ function inferBlockSeparator(buffer: string, incoming: string): string {
   const lastLine = (buffer.trimEnd().split("\n")
     .at(-1) ?? "").trim();
   const firstLine = (incoming.trimStart().split("\n")[0] ?? "").trimStart();
+
+  // Incomplete table row: buffer last line starts with | but doesn't end with |
+  // → mid-cell break, direct concat to complete the row
+  if (lastLine.startsWith("|") && !lastLine.endsWith("|")) {
+    return "";
+  }
 
   // OpenClaw may split a table row at maxChars, producing two blocks:
   //   buffer last line: "| GPT-4o | 88.7% | 90.2% | - |"
@@ -466,8 +481,10 @@ export const mdFence = {
 export const mdBlock = {
   /** Check if text starts with a block-level element */
   startsWithBlockElement,
-  /** Check if text ends with a table row */
+  /** Check if text ends with a complete table row (starts and ends with |) */
   endsWithTableRow,
+  /** Check if text ends with any table row (starts with |), including incomplete rows */
+  isTableInProgress,
   inferSeparator: inferBlockSeparator,
 } as const;
 

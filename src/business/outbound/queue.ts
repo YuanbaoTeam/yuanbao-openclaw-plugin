@@ -1,7 +1,7 @@
 /** Outbound queue (MessageSender-based). */
 
 import { createLog } from "../../logger.js";
-import { mdFence, mdBlock, mdAtomic } from "../utils/markdown.js";
+import { mdFence, mdBlock, mdAtomic, mdTable } from "../utils/markdown.js";
 import type { MessageSender, OutboundItem } from "./types.js";
 
 /** Queue session interface */
@@ -192,21 +192,25 @@ function createMergeTextSession(opts: QueueSessionOptions): QueueSession {
       return;
     }
 
+    if (!force) {
+      if (mdFence.hasUnclosed(textBuffer)) {
+        log.debug(`[${sessionKey}] drainBuffer: unclosed fence, keeping in buffer`);
+        return;
+      }
+      if (mdBlock.isTableInProgress(textBuffer)) {
+        log.debug(`[${sessionKey}] drainBuffer: table in progress, keeping in buffer`);
+        return;
+      }
+    }
+
+    // block-streaming's \n\n may fragment a table into multiple atomic blocks;
+    // sanitize before chunking so extractAtomicBlocks sees a single complete table.
+    textBuffer = mdTable.sanitize(textBuffer);
+
     const chunks = chunkText(textBuffer, maxChars);
     log.debug(`[${sessionKey}] drainBuffer force=${force}: inputLen=${textBuffer.length}, chunks=${chunks.length}`);
 
     if (force || chunks.length <= 1) {
-      // Non-forced single chunk: defer if fence is unclosed
-      if (!force && chunks.length === 1 && mdFence.hasUnclosed(chunks[0])) {
-        log.debug(`[${sessionKey}] drainBuffer: single chunk has unclosed fence, keeping in buffer`);
-        return;
-      }
-      // Non-forced single chunk: defer if ends with table row
-      if (!force && chunks.length === 1 && mdBlock.endsWithTableRow(chunks[0])) {
-        log.debug(`[${sessionKey}] drainBuffer: single chunk ends with table row, keeping in buffer`);
-        return;
-      }
-      // Non-forced single chunk: defer if below minChars threshold
       if (!force && chunks.length === 1 && textBuffer.length < minChars) {
         log.debug(`[${sessionKey}] drainBuffer: bufLen=${textBuffer.length} < minChars=${minChars}, waiting`);
         return;
