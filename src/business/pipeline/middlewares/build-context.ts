@@ -8,7 +8,7 @@ import {
   clearHistoryEntriesIfEnabled,
 } from "openclaw/plugin-sdk/reply-history";
 import { chatHistories } from "../../messaging/chat-history.js";
-import { YUANBAO_MARKDOWN_HINT } from "../../messaging/context.js";
+import { YUANBAO_MARKDOWN_HINT, YUANBAO_SKILL_AUDIT_HINT } from "../../messaging/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 export const buildContext: MiddlewareDescriptor = {
@@ -105,7 +105,10 @@ export const buildContext: MiddlewareDescriptor = {
       OriginatingChannel: "yuanbao",
       OriginatingTo: `yuanbao:${label}`,
       CommandAuthorized: commandAuthorized,
-      ...(account.markdownHintEnabled && { GroupSystemPrompt: YUANBAO_MARKDOWN_HINT }),
+      GroupSystemPrompt: [
+        YUANBAO_SKILL_AUDIT_HINT,
+        ...(account.markdownHintEnabled ? [YUANBAO_MARKDOWN_HINT] : []),
+      ].join("\n"),
       ...(mediaPaths.length > 0 && { MediaPaths: mediaPaths, MediaPath: mediaPaths[0] }),
       ...(mediaTypes.length > 0 && { MediaTypes: mediaTypes, MediaType: mediaTypes[0] }),
       ...(ctx.linkUrls.length > 0 && { LinkUnderstanding: [...new Set(ctx.linkUrls)] }),
