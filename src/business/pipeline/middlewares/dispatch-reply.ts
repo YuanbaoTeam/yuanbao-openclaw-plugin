@@ -75,7 +75,7 @@ export const dispatchReply: MiddlewareDescriptor = {
       },
       account,
       toAccount: fromAccount,
-      groupCode,
+      groupCode: isGroup ? groupCode : undefined,
     };
     const heartbeat = createReplyHeartbeatController({ meta: heartbeatMeta });
 
