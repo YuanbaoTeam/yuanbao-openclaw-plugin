@@ -149,6 +149,7 @@ function buildPipelineContext(primary: DebouncerItem, items: DebouncerItem[]): P
     commandAuthorized: false,
     rewrittenBody: "",
     hasControlCommand: false,
+    commandParts: [],
     effectiveWasMentioned: false,
     mediaPaths: [],
     mediaTypes: [],

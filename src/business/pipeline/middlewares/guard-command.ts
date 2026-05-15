@@ -4,18 +4,32 @@
  */
 
 import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
-import type { MiddlewareDescriptor } from "../types.js";
+import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
+
+/** Extract pure text content from msg_body (TIMTextElem only, skipping @mention custom elements). */
+function extractTextOnly(ctx: PipelineContext): string {
+  if (!ctx.raw.msg_body) return ctx.rawBody;
+  return ctx.raw.msg_body
+    .filter(e => e.msg_type === "TIMTextElem")
+    .map(e => e.msg_content?.text ?? "")
+    .join("")
+    .trim() || ctx.rawBody;
+}
 
 export const guardCommand: MiddlewareDescriptor = {
   name: "guard-command",
   handler: async (ctx, next) => {
     const { core, config, rawBody, fromAccount, account } = ctx;
 
+    // Group chat: extract TIMTextElem-only text for command detection
+    // (rawBody includes @mention custom elements which break command matching).
+    const commandText = ctx.isGroup ? extractTextOnly(ctx) : rawBody;
+
     const allowTextCommands = core.channel.commands.shouldHandleTextCommands({
       cfg: config,
       surface: "yuanbao",
     });
-    const hasControlCommand = core.channel.text.hasControlCommand(rawBody, config);
+    const hasControlCommand = core.channel.text.hasControlCommand(commandText, config);
     ctx.hasControlCommand = hasControlCommand;
 
     // Build DM policy allowFrom
@@ -37,6 +51,10 @@ export const guardCommand: MiddlewareDescriptor = {
     if (shouldBlock) {
       ctx.log.info(`[guard-command] control command unauthorized, discarding <- ${ctx.isGroup ? `group:${ctx.groupCode}` : ""} from: ${fromAccount}`);
       return; // Abort pipeline
+    }
+
+    if (hasControlCommand && commandAuthorized) {
+      ctx.commandParts = commandText.trim().split(/\s+/);
     }
 
     await next();

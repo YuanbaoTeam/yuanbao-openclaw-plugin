@@ -11,33 +11,36 @@ import type { YuanbaoMsgBodyElement } from "../../../types.js";
 import { prepareOutboundContent, buildOutboundMsgBody } from "../../messaging/handlers/index.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
-/** Public commands available to all group members */
-const GROUP_PUBLIC_COMMANDS = new Set<string>([]);
+/** Commands allowed in group chat (owner-only) */
+const GROUP_ALLOWED_COMMANDS = new Set<string>([
+  "/new", "/reset", "/retry", "/undo", "/stop",
+  "/approve", "/btw", "/queue",
+]);
 
 export const guardGroupCommand: MiddlewareDescriptor = {
   name: "guard-group-command",
   when: ctx => ctx.isGroup,
   handler: async (ctx, next) => {
-    const { core, config, rawBody, raw, account, groupCode, fromAccount } = ctx;
-    const q = rawBody.trim().split(/\s+/)
-      .find(part => !part.trim().startsWith("@")) || rawBody;
+    const { commandParts, raw, account, groupCode, fromAccount } = ctx;
+    const cmd = commandParts[0]?.toLowerCase();
 
-    const hasRegisteredCommand = core.channel.text.hasControlCommand(q, config);
     const ownerId = account.botOwnerId || raw.bot_owner_id;
     const isOwner = Boolean(ownerId && raw.from_account === ownerId);
-    const cmdMatch = q.trim().match(/^\/([a-z_-]+)/i);
 
-    ctx.log.info('[guard-group-command] come in', { hasRegisteredCommand, isOwner, isCmd: !!cmdMatch });
+    ctx.log.info('[guard-group-command] come in', { hasRegisteredCommand: ctx.hasControlCommand, isOwner, cmd });
 
-    if (hasRegisteredCommand && cmdMatch) {
-      const cmdName = cmdMatch[1].toLowerCase();
-
-      if (!GROUP_PUBLIC_COMMANDS.has(cmdName) && !isOwner) {
+    if (ctx.hasControlCommand && cmd) {
+      const allowed = GROUP_ALLOWED_COMMANDS.has(cmd);
+      const rejected = !allowed || !isOwner;
+      if (rejected) {
+        const rejectReason = !allowed
+          ? `⚠️ ${cmd} 暂不支持在群聊中使用，请在私聊中发送`
+          : `⚠️ ${cmd} 仅限创建者使用哦~`;
         await sendGroupMsgBody({
           account,
           groupCode: groupCode!,
           msgBody: buildOutboundMsgBody(prepareOutboundContent(
-            `⚠️ /${cmdName} 仅限创建者${!raw?.bot_owner_id ? "并且在私聊模式下" : ""}使用哦~`,
+            rejectReason,
             groupCode,
             getMember(account.accountId),
           )) as YuanbaoMsgBodyElement[],
@@ -46,8 +49,9 @@ export const guardGroupCommand: MiddlewareDescriptor = {
           refFromAccount: fromAccount,
           wsClient: ctx.wsClient,
         });
-        return; // Abort pipeline
+        return;
       }
+
     }
 
     await next();
