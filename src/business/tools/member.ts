@@ -108,7 +108,10 @@ function handleListAll(allMembers: MemberRecord[], mention: boolean) {
  *
  * Merges the original lookup_session_members and query_group_members into one tool.
  * Prefers API-fetched full member list; session cache as fallback.
- */ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
+ */
+function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
+  if (!ctx.messageChannel?.includes('yuanbao')) return null;
+
   const sessionKey: string = ctx.sessionKey ?? "";
   const accountId: string = ctx.agentAccountId ?? "";
 

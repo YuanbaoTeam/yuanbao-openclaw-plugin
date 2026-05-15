@@ -35,7 +35,7 @@ export const yuanbaoMeta = {
   docsPath: "/plugins/community#yuanbao",
   docsLabel: "yuanbao",
   blurb: "Tencent Yuanbao AI assistant conversation channel",
-  aliases: ["yb", "tencent-yuanbao", "元宝"],
+  aliases: ["yb", "yuanbao", "tencent-yuanbao", "元宝"],
   order: 85,
   quickstartAllowFrom: true,
 } as const;
