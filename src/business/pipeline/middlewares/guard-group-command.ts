@@ -23,7 +23,8 @@ export const guardGroupCommand: MiddlewareDescriptor = {
       .find(part => !part.trim().startsWith("@")) || rawBody;
 
     const hasRegisteredCommand = core.channel.text.hasControlCommand(q, config);
-    const isOwner = Boolean(raw.bot_owner_id && raw.from_account === raw.bot_owner_id);
+    const ownerId = account.botOwnerId || raw.bot_owner_id;
+    const isOwner = Boolean(ownerId && raw.from_account === ownerId);
     const cmdMatch = q.trim().match(/^\/([a-z_-]+)/i);
 
     ctx.log.info('[guard-group-command] come in', { hasRegisteredCommand, isOwner, isCmd: !!cmdMatch });

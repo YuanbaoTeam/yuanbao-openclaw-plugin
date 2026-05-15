@@ -5,6 +5,7 @@ import { buildSyncCommandsPayload } from "../../business/commands/command-sync/i
 import { handleInboundMessage } from "../../business/inbound/index.js";
 import { resolveTraceContext } from "../../business/trace/context.js";
 import { createLog } from "../../logger.js";
+import type { ModuleLog } from "../../logger.js";
 import type {
   ResolvedYuanbaoAccount,
   YuanbaoInboundMessage,
@@ -62,6 +63,13 @@ export async function startYuanbaoWsGateway(params: StartWsGatewayParams): Promi
         // Sync command list to the backend after connection is established
         syncCommandsToServer(client, account.accountId, config).catch((err) => {
           gwlog.warn(`[${account.accountId}] failed to sync command list (non-blocking)`, {
+            error: String(err),
+          });
+        });
+
+        // Query and cache bot owner id (non-blocking)
+        queryAndCacheBotOwner(client, account, gwlog).catch((err) => {
+          gwlog.warn(`[${account.accountId}] failed to query bot owner (non-blocking)`, {
             error: String(err),
           });
         });
@@ -406,6 +414,33 @@ function handleWsDispatchEvent(params: {
   }).catch((err) => {
     dlog.error(`[${account.accountId}][dispatch] WS ${isGroup ? "group " : ""} message handler failed: ${String(err)}`);
   });
+}
+
+/**
+ * Query bot info (owner id) from the backend after connection is established,
+ * and cache the result on the account object for use in owner-gating middleware.
+ *
+ * Called once after auth-bind succeeds. Failures are non-fatal.
+ */
+async function queryAndCacheBotOwner(
+  client: YuanbaoWsClient,
+  account: ResolvedYuanbaoAccount,
+  log: ModuleLog,
+): Promise<void> {
+  const botId = account.botId;
+  if (!botId) {
+    log.warn(`[${account.accountId}] queryAndCacheBotOwner: botId not set, skipping`);
+    return;
+  }
+  const rsp = await client.queryBotInfo(botId);
+  if (rsp.code !== 0) {
+    log.warn(`[${account.accountId}] queryBotInfo returned non-zero code: ${rsp.code}`);
+    return;
+  }
+  if (rsp.ownerId) {
+    account.botOwnerId = rsp.ownerId;
+    log.info(`[${account.accountId}] bot owner cached: ownerId=${rsp.ownerId}`);
+  }
 }
 
 /**

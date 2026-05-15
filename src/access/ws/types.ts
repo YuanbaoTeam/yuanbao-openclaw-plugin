@@ -200,3 +200,17 @@ export type WsSyncInformationResponse = {
   code: number;
   msg: string;
 };
+
+/** Query bot info request */
+export type WsQueryBotInfoData = {
+  bot_id: string;
+};
+
+/** Query bot info response */
+export type WsQueryBotInfoResponse = {
+  msgId: string;
+  code: number;
+  msg: string;
+  botId: string;
+  ownerId: string;
+};

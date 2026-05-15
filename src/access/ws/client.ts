@@ -20,6 +20,8 @@ import {
   decodeGetGroupMemberListRsp,
   encodeSyncInformationReq,
   decodeSyncInformationRsp,
+  encodeQueryBotInfoReq,
+  decodeQueryBotInfoRsp,
 } from "./biz-codec.js";
 import {
   decodeConnMsg,
@@ -51,6 +53,7 @@ import type {
   WsPushEvent,
   WsSyncInformationData,
   WsSyncInformationResponse,
+  WsQueryBotInfoResponse,
 } from "./types.js";
 
 type PBAuthBindRsp = {
@@ -125,6 +128,7 @@ export const BIZ_CMD = {
   SendPrivateHeartbeat: "send_private_heartbeat",
   SendGroupHeartbeat: "send_group_heartbeat",
   SyncInformation: "sync_information",
+  QueryBotInfo: "query_bot_info",
 } as const;
 
 const BIZ_MODULE = "yuanbao_openclaw_proxy";
@@ -397,6 +401,21 @@ export class YuanbaoWsClient {
       BIZ_MODULE,
       encoded,
       decodeSyncInformationRsp,
+    );
+  }
+
+  /** Query bot info (owner id, etc.) from the backend. */
+  queryBotInfo(botId: string): Promise<WsQueryBotInfoResponse> {
+    this.log.debug("[bot-info] querying bot info", { botId });
+    const encoded = encodeQueryBotInfoReq(botId);
+    if (!encoded) {
+      return Promise.reject(new Error("Failed to encode QueryBotInfoReq"));
+    }
+    return this.sendAndWaitWith(
+      BIZ_CMD.QueryBotInfo,
+      BIZ_MODULE,
+      encoded,
+      decodeQueryBotInfoRsp,
     );
   }
 
