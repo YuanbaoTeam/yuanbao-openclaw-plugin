@@ -50,7 +50,7 @@ const assertHostVersionCompatible = (hostVersion: string): void => {
   const constraint = getMinHostVersion();
   if (!constraint) return;
 
-  if (!semver.satisfies(hostVersion, constraint)) {
+  if (!semver.satisfies(hostVersion, constraint, { includePrerelease: true })) {
     throw new Error(`openclaw-plugin-yuanbao requires openclaw ${constraint}, but current version is ${hostVersion}. Please upgrade openclaw first.`);
   }
 };

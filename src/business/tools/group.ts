@@ -17,6 +17,8 @@ import { extractGroupCode, type OpenClawPluginToolContext, json } from "../utils
  * Queries basic group info including name, owner (userId + nickname), and member count.
  */
 function createQueryGroupInfoTool(ctx: OpenClawPluginToolContext) {
+  if (!ctx.messageChannel?.includes('yuanbao')) return null;
+
   const sessionKey: string = ctx.sessionKey ?? "";
   const accountId: string = ctx.agentAccountId ?? "";
 
