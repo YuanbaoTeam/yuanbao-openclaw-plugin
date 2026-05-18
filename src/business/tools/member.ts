@@ -10,6 +10,7 @@
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { getMember } from "../../infra/cache/member.js";
+import { createLog } from "../../logger.js";
 import { extractGroupCode, type OpenClawPluginToolContext, json } from "../utils/utils.js";
 
 /** @mention hint text (used as JSON field value) */
@@ -110,6 +111,7 @@ function handleListAll(allMembers: MemberRecord[], mention: boolean) {
  * Prefers API-fetched full member list; session cache as fallback.
  */
 function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
+  const log = createLog("tools.member");
   if (!ctx.messageChannel?.includes('yuanbao')) return null;
 
   const sessionKey: string = ctx.sessionKey ?? "";
@@ -153,12 +155,12 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
      * 2. Query via Member facade: prefer GroupMember (WS API) -> fallback SessionMember (cache)
      * 3. Dispatch to action handlers
      */
-    async execute(_toolCallId: string, params: Record<string, unknown>) {
+    async execute(toolCallId: string, params: Record<string, unknown>) {
+      log.debug("execute", { toolCallId });
+
       const action = typeof params.action === "string" ? params.action : "list_all";
       const nameFilter = typeof params.name === "string" ? params.name.trim() : "";
       const mention = params.mention === true || params.mention === "true";
-
-      // Extract groupCode from sessionKey
       const groupCode = extractGroupCode(sessionKey);
 
       if (!groupCode) {
@@ -198,5 +200,7 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
  * - query_session_members: Query session members (always available)
  */
 export function registerMemberTools(api: OpenClawPluginApi): void {
-  api.registerTool(createQuerySessionMembersTool, { optional: false });
+  const log = createLog("tools.member");
+  log.info("register tool", { name: "query_session_members", optional: false });
+  api.registerTool(createQuerySessionMembersTool, { name: "query_session_members", optional: false });
 }

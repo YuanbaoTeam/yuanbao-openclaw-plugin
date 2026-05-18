@@ -8,6 +8,7 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
+import { createLog } from "../../logger.js";
 import { type OpenClawPluginToolContext, json } from "../utils/utils.js";
 
 interface RemindParams {
@@ -689,6 +690,7 @@ function executeLegacy(p: RemindParams, resolvedTo: string | null) {
 
 /** Returns null for non-yuanbao channels. */
 function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
+  const log = createLog("tools.remind");
   if (!ctx.messageChannel?.includes('yuanbao')) return null;
 
   const resolvedTo = resolveToFromSession(ctx);
@@ -699,7 +701,9 @@ function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
     label: '元宝定时任务',
     description: TOOL_DESCRIPTION,
     parameters: RemindSchema,
-    async execute(_toolCallId: string, params: Record<string, unknown>) {
+    async execute(toolCallId: string, params: Record<string, unknown>) {
+      log.debug("execute", { toolCallId });
+
       const p = params as unknown as RemindParams;
 
       const gatewayTool = await resolveCallGatewayTool();
@@ -721,5 +725,7 @@ function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
 }
 
 export function registerRemindTools(api: OpenClawPluginApi): void {
-  api.registerTool(createYuanbaoRemindTool, { optional: false });
+  const log = createLog("tools.remind");
+  log.info("register tool", { name: "yuanbao_remind", optional: false });
+  api.registerTool(createYuanbaoRemindTool, { name: "yuanbao_remind", optional: false });
 }
