@@ -9,6 +9,7 @@
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { getMember } from "../../infra/cache/member.js";
+import { createLog } from "../../logger.js";
 import { extractGroupCode, type OpenClawPluginToolContext, json } from "../utils/utils.js";
 
 /**
@@ -17,6 +18,7 @@ import { extractGroupCode, type OpenClawPluginToolContext, json } from "../utils
  * Queries basic group info including name, owner (userId + nickname), and member count.
  */
 function createQueryGroupInfoTool(ctx: OpenClawPluginToolContext) {
+  const log = createLog("tools.group");
   if (!ctx.messageChannel?.includes('yuanbao')) return null;
 
   const sessionKey: string = ctx.sessionKey ?? "";
@@ -39,8 +41,9 @@ function createQueryGroupInfoTool(ctx: OpenClawPluginToolContext) {
      * 1. No groupCode -> inform model no group context
      * 2. Call queryGroupInfo to get basic group info
      */
-    async execute(_toolCallId: string, _params: Record<string, unknown>) {
-      // Extract groupCode from sessionKey
+    async execute(toolCallId: string, _params: Record<string, unknown>) {
+      log.debug("execute", { toolCallId });
+
       const groupCode = extractGroupCode(sessionKey);
 
       // 1. No groupCode -> cannot locate group
@@ -87,5 +90,7 @@ function createQueryGroupInfoTool(ctx: OpenClawPluginToolContext) {
  * - query_group_info: Query basic group info (always available)
  */
 export function registerGroupTools(api: OpenClawPluginApi): void {
-  api.registerTool(createQueryGroupInfoTool, { optional: false });
+  const log = createLog("tools.group");
+  log.info("register tool", { name: "query_group_info", optional: false });
+  api.registerTool(createQueryGroupInfoTool, { name: "query_group_info", optional: false });
 }
