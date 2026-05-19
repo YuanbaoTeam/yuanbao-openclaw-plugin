@@ -188,7 +188,8 @@ export const dispatchReply: MiddlewareDescriptor = {
         replyOptions: {
           abortSignal: ctx.abortSignal,
           disableBlockStreaming: account.disableBlockStreaming,
-          sourceReplyDeliveryMode: "automatic",
+          // 4.27 后支持的新参数
+          ...({ sourceReplyDeliveryMode: "automatic" } as unknown as Record<string, unknown>),
           onModelSelected,
           onAgentRunStart: () => {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
