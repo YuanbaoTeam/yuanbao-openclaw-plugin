@@ -4,10 +4,18 @@
  * Uses Map<accountId, WsClient> to manage concurrent connections.
  * Each account's WsClient reference is stored when the ws-gateway starts
  * and consumed by the outbound sendText path.
+ *
+ * Uses globalThis + Symbol.for() to guarantee a process-wide singleton,
+ * because the bundled channel entry may load this module in separate scopes
+ * (plugin scope vs tool-registration scope).
  */
 import type { YuanbaoWsClient } from "./client.js";
 
-const activeClients = new Map<string, YuanbaoWsClient>();
+const WS_CLIENTS_KEY = Symbol.for("yuanbao:ws:activeClients");
+
+const activeClients: Map<string, YuanbaoWsClient> =
+  (globalThis as Record<symbol, unknown>)[WS_CLIENTS_KEY] as Map<string, YuanbaoWsClient>
+  ?? ((globalThis as Record<symbol, unknown>)[WS_CLIENTS_KEY] = new Map<string, YuanbaoWsClient>());
 
 /**
  * Store a WebSocket client reference for the given account.

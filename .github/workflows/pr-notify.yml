@@ -1,0 +1,83 @@
+name: PR Wecom Notify
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  notify-pr:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build & send
+        env:
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_USER: ${{ github.event.pull_request.user.login }}
+        run: |
+          if [ "$ACTION" = "closed" ] && [ "$MERGED" != "true" ]; then
+            echo "PR closed without merge, skip"
+            exit 0
+          fi
+
+          if [ "$ACTION" = "closed" ]; then
+            CONTENT="🚀 **PR 已合并** [#${PR_NUM}](${PR_URL})\n> ${PR_USER}: ${PR_TITLE}"
+          else
+            CONTENT="🆕 **新 PR 待 review** [#${PR_NUM}](${PR_URL})\n> ${PR_USER}: ${PR_TITLE}"
+          fi
+
+          jq -n --arg c "$(printf '%b' "$CONTENT")" \
+            '{msgtype:"markdown", markdown:{content:$c}}' \
+            | curl -s -X POST "$WECOM_WEBHOOK" \
+                -H 'Content-Type: application/json' --data @-
+
+  notify-ci:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Resolve PR & send
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          REPO: ${{ github.repository }}
+        run: |
+          case "$CONCLUSION" in
+            success) ICON="✅"; TEXT="CI 通过" ;;
+            failure) ICON="🚨"; TEXT="CI 失败" ;;
+            *) echo "conclusion=$CONCLUSION, skip"; exit 0 ;;
+          esac
+
+          PR_JSON=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/pulls" --jq '.[0] // empty')
+          if [ -n "$PR_JSON" ]; then
+            PR_NUM=$(echo "$PR_JSON" | jq -r '.number')
+            PR_URL=$(echo "$PR_JSON" | jq -r '.html_url')
+            PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+            REF="[#${PR_NUM}](${PR_URL}) ${PR_TITLE}"
+          else
+            REF="\`${HEAD_BRANCH}\`"
+          fi
+
+          if [ "$CONCLUSION" = "failure" ]; then
+            CONTENT="${ICON} **${TEXT}** ${REF}\n> [查看详情](${RUN_URL})"
+          else
+            CONTENT="${ICON} **${TEXT}** ${REF}"
+          fi
+
+          jq -n --arg c "$(printf '%b' "$CONTENT")" \
+            '{msgtype:"markdown", markdown:{content:$c}}' \
+            | curl -s -X POST "$WECOM_WEBHOOK" \
+                -H 'Content-Type: application/json' --data @-
