@@ -3,6 +3,7 @@
  */
 
 import { formatQuoteContext } from "../../messaging/quote.js";
+import { formatThreadContext } from "../../messaging/thread-info.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 /** Regex for /yuanbao-health-check with optional start_time and end_time (HH:MM) */
@@ -46,22 +47,39 @@ function rewriteSlashCommand(
 export const rewriteBody: MiddlewareDescriptor = {
   name: "rewrite-body",
   handler: async (ctx, next) => {
-    const { rawBody, quoteInfo, mentions, isGroup } = ctx;
+    const { rawBody, threadInfo, quoteInfo, mentions, isGroup, account } = ctx;
 
     // Slash command rewrite
     const rewritten = rewriteSlashCommand(rawBody, (orig, result) => {
       ctx.log.info("[rewrite-body] command rewrite", { orig, result });
     });
 
-    // Group chat scenario: append mentions info
-    const mentionsContext = isGroup && mentions && mentions.length > 0
-      ? `\n[Message mentions the following users: ${mentions.map(m => `${m.text}(userId: ${m.userId})`).join(", ")}]`
-      : "";
+    const parts: string[] = [];
 
-    // Append quote context
-    ctx.rewrittenBody = quoteInfo
-      ? `${formatQuoteContext(quoteInfo)}\n${rewritten}${mentionsContext}`
-      : `${rewritten}${mentionsContext}`;
+    // Thread context prefix (outermost, provides conversation topic background)
+    if (threadInfo) {
+      parts.push(formatThreadContext(threadInfo));
+    }
+
+    // Quote context prefix
+    if (quoteInfo) {
+      parts.push(formatQuoteContext(quoteInfo));
+    }
+
+    // Main body
+    parts.push(rewritten);
+
+    ctx.rewrittenBody = parts.join("\n\n");
+
+    // Group chat scenario: mentions metadata goes to UntrustedContext (not injected into body)
+    if (isGroup && mentions && mentions.length > 0) {
+      const untrusted: string[] = [];
+      if (ctx.botUsername) {
+        untrusted.push(`BotUsername(self): ${ctx.botUsername}`);
+      }
+      untrusted.push(`Message mentions the following users: ${mentions.map(m => `${m.text}(userId: ${m.userId})`).join(", ")}`);
+      ctx.untrustedContext = untrusted;
+    }
 
     await next();
   },

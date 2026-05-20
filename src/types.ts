@@ -169,12 +169,36 @@ export type QuoteInfo = {
   sender_nickname?: string;
 };
 
+// Thread item in thread_info.threads
+export type ThreadItem = {
+  thread_id: string;
+  thread_title: string;
+};
+
+// Parsed structure of ext_map.thread_info (JSON string)
+export type ThreadInfo = {
+  /** group_id of the conversation */
+  thread_conv_id: string;
+  /** 1=C2C, 2=Group */
+  conv_type: number;
+  threads: ThreadItem[];
+};
+
+// ext_map in cloud_custom_data
+export type CloudCustomDataExtMap = {
+  /** JSON string, parse to ThreadInfo */
+  thread_info?: string;
+  [key: string]: string | undefined;
+};
+
 // Parsed structure of cloud_custom_data
 export type CloudCustomData = {
   env?: string;
   message_type?: number;
   quote?: QuoteInfo;
   source_group?: string;
+  channel?: string;
+  ext_map?: CloudCustomDataExtMap;
   [key: string]: unknown;
 };
 

@@ -6,6 +6,7 @@ export { extractContent } from "./extract-content.js";
 export { skipSelf } from "./skip-self.js";
 export { skipPlaceholder } from "./skip-placeholder.js";
 export { resolveQuote } from "./resolve-quote.js";
+export { resolveThreadInfo } from "./resolve-thread-info.js";
 export { recordMember } from "./record-member.js";
 export { guardCommand } from "./guard-command.js";
 export { resolveMention } from "./resolve-mention.js";

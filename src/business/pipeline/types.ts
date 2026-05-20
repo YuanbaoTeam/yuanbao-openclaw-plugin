@@ -8,7 +8,7 @@ import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/core";
 import type { FinalizedMsgContext } from "openclaw/plugin-sdk/reply-runtime";
 import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import type { ModuleLog } from "../../logger.js";
-import type { QuoteInfo, YuanbaoInboundMessage, ResolvedYuanbaoAccount } from "../../types.js";
+import type { QuoteInfo, ThreadInfo, YuanbaoInboundMessage, ResolvedYuanbaoAccount } from "../../types.js";
 import type { MediaItem, MentionItem } from "../messaging/handlers/types.js";
 import type { QueueSession } from "../outbound/queue.js";
 import type { MessageSender } from "../outbound/types.js";
@@ -56,10 +56,19 @@ export interface PipelineContext {
   medias: MediaItem[];
   isAtBot: boolean;
   mentions: MentionItem[];
+  /** Bot's display name as seen in the @mention text (without @ prefix); only present in group chat when bot is @mentioned */
+  botUsername?: string;
   linkUrls: string[];
 
   // -- Populated by resolveQuote --
   quoteInfo?: QuoteInfo;
+
+  // -- Populated by resolveThreadInfo --
+  threadInfo?: ThreadInfo;
+
+  // -- Populated by rewriteBody --
+  /** Untrusted metadata strings passed to SDK UntrustedContext; not treated as system instructions. */
+  untrustedContext?: string[];
 
   // -- Populated by guardCommand --
   commandAuthorized: boolean;

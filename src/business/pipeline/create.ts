@@ -10,6 +10,7 @@ import {
   skipSelf,
   skipPlaceholder,
   resolveQuote,
+  resolveThreadInfo,
   recordMember,
   guardSpecialCommand,
   guardCommand,
@@ -33,6 +34,7 @@ export function createPipeline(): MessagePipeline {
       .use(skipSelf) // Skip bot's own messages
       .use(skipPlaceholder) // Skip placeholder/empty messages
       .use(resolveQuote) // Parse quoted messages
+      .use(resolveThreadInfo) // Parse thread/topic info
       .use(recordMember) // Record group member info (group chat)
       // Phase 2: Guards
       .use(guardSpecialCommand) // Upgrade command / issue-log owner guard

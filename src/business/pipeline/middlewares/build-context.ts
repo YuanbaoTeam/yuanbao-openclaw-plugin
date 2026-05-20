@@ -96,6 +96,8 @@ export const buildContext: MiddlewareDescriptor = {
       ...(isGroup && raw.group_name ? { GroupSubject: raw.group_name } : {}),
       SenderName: senderNickname || fromAccount,
       SenderId: fromAccount,
+      ...(isGroup && ctx.botUsername ? { BotUsername: ctx.botUsername } : {}),
+      ...(isGroup ? { WasMentioned: ctx.effectiveWasMentioned } : {}),
       Provider: "yuanbao",
       Surface: "yuanbao",
       MessageSid: raw.msg_id ?? String(raw.msg_seq ?? ""),
@@ -109,6 +111,7 @@ export const buildContext: MiddlewareDescriptor = {
       ...(mediaPaths.length > 0 && { MediaPaths: mediaPaths, MediaPath: mediaPaths[0] }),
       ...(mediaTypes.length > 0 && { MediaTypes: mediaTypes, MediaType: mediaTypes[0] }),
       ...(ctx.linkUrls.length > 0 && { LinkUnderstanding: [...new Set(ctx.linkUrls)] }),
+      ...(ctx.untrustedContext && ctx.untrustedContext.length > 0 && { UntrustedContext: ctx.untrustedContext }),
     });
 
     await next();
