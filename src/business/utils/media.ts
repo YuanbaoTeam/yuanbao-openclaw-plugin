@@ -10,6 +10,7 @@ import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/temp-path";
 import { createLog } from "../../logger.js";
 import { apiGetDownloadUrl, apiGetUploadInfo } from "../../access/api.js";
 import type { CosUploadConfig } from "../../access/api.js";
+import { createCosClient } from "../../infra/cos.js";
 import type { ResolvedYuanbaoAccount } from "../../types.js";
 
 export type CosUploadResult = {
@@ -263,32 +264,15 @@ function inferFilenameFromResponse(
   return `${randomBytes(8).toString("hex")}${inferredExt}`;
 }
 
-/**
- * Return true when the URL is a Yuanbao resource API endpoint that requires
- * exchanging a resourceId for a real COS download URL.
- * Yuanbao API domains always start with "yuanbao" (e.g. yuanbao.tencent.com,
- * yuanbao.test.hunyuan.woa.com), and the resource path starts with /api/resource/.
- */
-function isYuanbaoResourceUrl(url: string): boolean {
+/** Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present. */
+async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
+  if (!account) { return url; }
   try {
     const parsed = new URL(url);
-    return (
-      parsed.hostname.startsWith("yuanbao")
-      && parsed.pathname.startsWith("/api/resource/")
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** Resolve actual download URL: exchange resourceId param for real URL via Yuanbao API if present. */
-async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
-  if (!isYuanbaoResourceUrl(url)) { return url; }
-  const parsed = new URL(url);
-  const resourceId = parsed.searchParams.get("resourceId");
-  if (resourceId && account) {
-    return apiGetDownloadUrl(account, resourceId);
-  }
+    if (parsed.pathname === "/api/resource/download" && parsed.searchParams.has("resourceId")) {
+      return apiGetDownloadUrl(account, parsed.searchParams.get("resourceId")!);
+    }
+  } catch { /* not a valid URL, pass through */ }
   return url;
 }
 
@@ -435,42 +419,7 @@ async function uploadBufferToCos(params: {
 }): Promise<string> {
   const { config, data, filename, mimeType } = params;
 
-  // cos-nodejs-sdk-v5 uses CommonJS export = syntax, needs compat handling
-  let COS: unknown;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    COS = require("cos-nodejs-sdk-v5");
-    if ((COS as Record<string, unknown>)?.default) {
-      COS = (COS as Record<string, unknown>).default;
-    }
-  } catch {
-    // CJS require failed, try ESM import
-    try {
-      const pkg = await import("cos-nodejs-sdk-v5" as string);
-      COS = pkg.default ?? pkg;
-    } catch {
-      // Both CJS and ESM failed, throw clear error
-      throw new Error("缺少依赖 cos-nodejs-sdk-v5，请运行 pnpm add cos-nodejs-sdk-v5");
-    }
-  }
-
-  const COSConstructor = COS as new (opts: Record<string, unknown>) => {
-    putObject: (params: Record<string, unknown>) => Promise<unknown>;
-  };
-  const cos = new COSConstructor({
-    FileParallelLimit: 10,
-    getAuthorization(_: unknown, callback: (cred: object) => void) {
-      callback({
-        TmpSecretId: config.encryptTmpSecretId,
-        TmpSecretKey: config.encryptTmpSecretKey,
-        SecurityToken: config.encryptToken,
-        StartTime: config.startTime,
-        ExpiredTime: config.expiredTime,
-        ScopeLimit: true,
-      });
-    },
-    UseAccelerate: true,
-  });
+  const cos = await createCosClient(config);
 
   // Construct request headers
   const headers: Record<string, string> = {};

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { apiGetUploadInfo } from "../../../access/api.js";
 import type { CosUploadConfig } from "../../../access/api.js";
+import { createCosClient } from "../../../infra/cos.js";
 import { createLog } from "../../../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoAccountConfig } from "../../../types.js";
 import type { CosUploadResult, ParsedCommandArgs } from "./types.js";
@@ -31,45 +32,8 @@ function generateFileId(): string {
   return randomBytes(16).toString("hex");
 }
 
-/**
- * Upload Buffer data to Tencent Cloud COS.
- *
- * Same COS upload implementation as uploadBufferToCos in media.ts.
- * Initializes COS SDK with temp credentials from genUploadInfo, then calls putObject.
- * Uses dynamic import for cos-nodejs-sdk-v5, compatible with both CJS and ESM.
- */
 async function uploadBufferToCos(config: CosUploadConfig, data: Buffer): Promise<string> {
-  let COS: unknown;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    COS = require("cos-nodejs-sdk-v5");
-    if ((COS as Record<string, unknown>)?.default) {
-      COS = (COS as Record<string, unknown>).default;
-    }
-  } catch {
-    try {
-      const pkg = await import("cos-nodejs-sdk-v5" as string);
-      COS = pkg.default ?? pkg;
-    } catch {
-      throw new Error("缺少依赖 cos-nodejs-sdk-v5，请运行 pnpm add cos-nodejs-sdk-v5");
-    }
-  }
-
-  const COSConstructor = COS as new (opts: Record<string, unknown>) => { putObject: (params: Record<string, unknown>) => Promise<unknown> };
-  const cos = new COSConstructor({
-    FileParallelLimit: 10,
-    getAuthorization(_: unknown, callback: (cred: object) => void) {
-      callback({
-        TmpSecretId: config.encryptTmpSecretId,
-        TmpSecretKey: config.encryptTmpSecretKey,
-        SecurityToken: config.encryptToken,
-        StartTime: config.startTime,
-        ExpiredTime: config.expiredTime,
-        ScopeLimit: true,
-      });
-    },
-    UseAccelerate: true,
-  });
+  const cos = await createCosClient(config);
 
   await cos.putObject({
     Bucket: config.bucketName,

@@ -10,7 +10,11 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { computeUrlCacheKey, downloadMediasToLocalFiles, sanitizeMediaFilename } from "./media.js";
+import {
+  computeUrlCacheKey,
+  downloadMediasToLocalFiles,
+  sanitizeMediaFilename,
+} from "./media.js";
 
 // ---------------------------------------------------------------------------
 // computeUrlCacheKey
