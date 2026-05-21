@@ -10,7 +10,7 @@ import {
   logInboundDrop,
 } from "openclaw/plugin-sdk/channel-inbound";
 import { recordPendingHistoryEntryIfEnabled } from "openclaw/plugin-sdk/reply-history";
-import { chatHistories, recordMediaHistory } from "../../messaging/chat-history.js";
+import { chatHistories, deriveChatKey, recordMediaHistory } from "../../messaging/chat-history.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 export const resolveMention: MiddlewareDescriptor = {
@@ -58,7 +58,7 @@ export const resolveMention: MiddlewareDescriptor = {
 
       // Write media to dedicated LRU
       if (ctx.medias.length > 0) {
-        recordMediaHistory(ctx.groupCode!, {
+        recordMediaHistory(deriveChatKey(true, ctx.groupCode), {
           sender: ctx.fromAccount,
           messageId: ctx.raw.msg_id ?? String(ctx.raw.msg_seq ?? ""),
           timestamp: Date.now(),

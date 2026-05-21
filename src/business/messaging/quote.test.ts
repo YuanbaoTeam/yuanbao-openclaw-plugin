@@ -1,10 +1,11 @@
 /**
- * Unit tests for quote.ts: parseQuoteFromCloudCustomData and formatQuoteContext.
+ * Unit tests for quote.ts: parseQuoteFromCloudCustomData, resolveMediaQuoteDesc, formatQuoteContext.
  */
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseQuoteFromCloudCustomData, formatQuoteContext } from "./quote.js";
+import { chatMediaHistories } from "./chat-history.js";
+import { parseQuoteFromCloudCustomData, resolveMediaQuoteDesc, formatQuoteContext } from "./quote.js";
 
 void test("parseQuoteFromCloudCustomData 解析有效引用", () => {
   const data = JSON.stringify({
@@ -32,7 +33,7 @@ void test("parseQuoteFromCloudCustomData 无 quote 字段返回 undefined", () =
   assert.equal(parseQuoteFromCloudCustomData(JSON.stringify({ other: "data" })), undefined);
 });
 
-void test("parseQuoteFromCloudCustomData 空 desc 返回 undefined", () => {
+void test("parseQuoteFromCloudCustomData 空 desc 且非媒体类型返回 undefined", () => {
   const data = JSON.stringify({ quote: { desc: "", sender_id: "user-1" } });
   assert.equal(parseQuoteFromCloudCustomData(data), undefined);
 
@@ -40,18 +41,70 @@ void test("parseQuoteFromCloudCustomData 空 desc 返回 undefined", () => {
   assert.equal(parseQuoteFromCloudCustomData(data2), undefined);
 });
 
-void test("parseQuoteFromCloudCustomData 图片引用使用 [image] 占位符", () => {
+void test("parseQuoteFromCloudCustomData 空 desc 的媒体类型引用不被丢弃且 desc 被兜底填充", () => {
+  const expected: Record<number, string> = { 2: "[image]", 3: "[file]", 4: "[video]", 5: "[voice]" };
+  for (const type of [2, 3, 4, 5]) {
+    const data = JSON.stringify({ quote: { type, desc: "", sender_id: "user-1", id: "msg-1" } });
+    const result = parseQuoteFromCloudCustomData(data);
+    assert.ok(result, `type ${type} should not be dropped`);
+    assert.equal(result.type, type);
+    assert.equal(result.desc, expected[type], `type ${type} desc should be ${expected[type]}`);
+  }
+});
+
+void test("parseQuoteFromCloudCustomData 有 desc 时保留原始 desc", () => {
   const data = JSON.stringify({
-    quote: { type: 2, desc: "", sender_id: "user-1" },
+    quote: { type: 3, desc: "report.pdf", sender_id: "user-1" },
   });
   const result = parseQuoteFromCloudCustomData(data);
   assert.ok(result);
-  assert.equal(result.desc, "[image]");
+  assert.equal(result.desc, "report.pdf");
 });
 
 void test("parseQuoteFromCloudCustomData 非法 JSON 返回 undefined", () => {
   assert.equal(parseQuoteFromCloudCustomData("{invalid json}"), undefined);
 });
+
+// ---------------------------------------------------------------------------
+// resolveMediaQuoteDesc
+// ---------------------------------------------------------------------------
+
+void test("resolveMediaQuoteDesc 从 LRU 获取多图文件名", () => {
+  chatMediaHistories.set("test-session", [
+    {
+      sender: "u1", messageId: "msg-1", timestamp: Date.now(),
+      medias: [
+        { url: "https://a.com/1.jpg", mediaName: "a_720_1793.jpeg" },
+        { url: "https://a.com/2.jpg", mediaName: "b_400_300.png" },
+      ],
+    },
+  ]);
+  const result = resolveMediaQuoteDesc(2, "msg-1", "test-session");
+  assert.equal(result, "[image:a_720_1793.jpeg][image:b_400_300.png]");
+  chatMediaHistories.delete("test-session");
+});
+
+void test("resolveMediaQuoteDesc LRU 无数据时降级为通用标签", () => {
+  assert.equal(resolveMediaQuoteDesc(2, "nonexistent", "empty-session"), "[image]");
+  assert.equal(resolveMediaQuoteDesc(3, undefined, "any"), "[file]");
+  assert.equal(resolveMediaQuoteDesc(4, "x", "y"), "[video]");
+  assert.equal(resolveMediaQuoteDesc(5, "x", "y"), "[voice]");
+});
+
+void test("resolveMediaQuoteDesc 未知类型返回 [media] 兜底", () => {
+  assert.equal(resolveMediaQuoteDesc(99, "msg-1", "session"), "[media]");
+});
+
+void test("parseQuoteFromCloudCustomData chatKey=undefined 时媒体引用 desc 兜底到 [label]", () => {
+  const data = JSON.stringify({ quote: { type: 2, desc: "", sender_id: "user-1", id: "msg-1" } });
+  const result = parseQuoteFromCloudCustomData(data, undefined);
+  assert.ok(result);
+  assert.equal(result.desc, "[image]");
+});
+
+// ---------------------------------------------------------------------------
+// formatQuoteContext
+// ---------------------------------------------------------------------------
 
 void test("formatQuoteContext 格式化引用消息", () => {
   const result = formatQuoteContext({
