@@ -21,39 +21,34 @@ export const guardGroupCommand: MiddlewareDescriptor = {
   name: "guard-group-command",
   when: ctx => ctx.isGroup && ctx.hasControlCommand,
   handler: async (ctx, next) => {
-    const { commandParts, raw, account, groupCode, fromAccount, isAtBot } = ctx;
+    const { commandParts, raw, account, groupCode, fromAccount } = ctx;
     const cmd = commandParts?.[0]?.toLowerCase() ?? "";
 
     const ownerId = account.botOwnerId || raw.bot_owner_id;
     const isOwner = Boolean(ownerId && raw.from_account === ownerId);
 
-    ctx.log.info('[guard-group-command] come in', { isOwner, cmd, isAtBot });
+    ctx.log.info('[guard-group-command] come in', { isOwner, cmd });
 
-    if (isAtBot) {
-      const allowed = GROUP_ALLOWED_COMMANDS.has(cmd);
-      const rejected = !allowed || !isOwner;
-      if (rejected) {
-        const rejectReason = !allowed
-          ? `⚠️ ${cmd} 暂不支持在群聊中使用，请在私聊中发送`
-          : `⚠️ ${cmd} 仅限创建者使用哦~`;
-        await sendGroupMsgBody({
-          account,
-          groupCode: groupCode!,
-          msgBody: buildOutboundMsgBody(prepareOutboundContent(
-            rejectReason,
-            groupCode,
-            getMember(account.accountId),
-          )) as YuanbaoMsgBodyElement[],
-          fromAccount: account.botId,
-          refMsgId: raw.msg_id || raw.msg_key || undefined,
-          refFromAccount: fromAccount,
-          wsClient: ctx.wsClient,
-        });
-        return;
-      }
-    } else {
-      ctx.hasControlCommand = false;
-      ctx.commandParts = [];
+    const allowed = GROUP_ALLOWED_COMMANDS.has(cmd);
+    const rejected = !allowed || !isOwner;
+    if (rejected) {
+      const rejectReason = !allowed
+        ? `⚠️ ${cmd} 暂不支持在群聊中使用，请在私聊中发送`
+        : `⚠️ ${cmd} 仅限创建者使用哦~`;
+      await sendGroupMsgBody({
+        account,
+        groupCode: groupCode!,
+        msgBody: buildOutboundMsgBody(prepareOutboundContent(
+          rejectReason,
+          groupCode,
+          getMember(account.accountId),
+        )) as YuanbaoMsgBodyElement[],
+        fromAccount: account.botId,
+        refMsgId: raw.msg_id || raw.msg_key || undefined,
+        refFromAccount: fromAccount,
+        wsClient: ctx.wsClient,
+      });
+      return;
     }
 
     await next();

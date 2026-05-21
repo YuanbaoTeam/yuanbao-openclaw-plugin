@@ -29,8 +29,14 @@ export const guardCommand: MiddlewareDescriptor = {
       cfg: config,
       surface: "yuanbao",
     });
-    const hasControlCommand = core.channel.text.hasControlCommand(commandText, config);
+    const rawHasControlCommand = core.channel.text.hasControlCommand(commandText, config);
+    const hasControlCommand = ctx.isGroup ? rawHasControlCommand && ctx.isAtBot : rawHasControlCommand;
     ctx.hasControlCommand = hasControlCommand;
+
+    if (!hasControlCommand) {
+      await next();
+      return;
+    }
 
     // Build DM policy allowFrom
     const dmPolicy = account.config.dm?.policy ?? "open";
@@ -50,13 +56,10 @@ export const guardCommand: MiddlewareDescriptor = {
 
     if (shouldBlock) {
       ctx.log.info(`[guard-command] control command unauthorized, discarding <- ${ctx.isGroup ? `group:${ctx.groupCode}` : ""} from: ${fromAccount}`);
-      return; // Abort pipeline
+      return;
     }
 
-    if (hasControlCommand && commandAuthorized) {
-      ctx.commandParts = commandText.trim().split(/\s+/);
-    }
-
+    ctx.commandParts = commandText.trim().split(/\s+/);
     await next();
   },
 };
