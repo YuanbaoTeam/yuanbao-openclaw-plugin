@@ -415,11 +415,10 @@ async function uploadBufferToCos(params: {
   data: Buffer;
   filename: string;
   mimeType: string;
-  onProgress?: (percent: number) => void;
 }): Promise<string> {
   const { config, data, filename, mimeType } = params;
 
-  const cos = await createCosClient(config);
+  const cos = createCosClient(config);
 
   // Construct request headers
   const headers: Record<string, string> = {};
@@ -439,11 +438,6 @@ async function uploadBufferToCos(params: {
     Key: config.location,
     Body: data,
     Headers: headers,
-    onProgress: params.onProgress
-      ? (progressData: { percent: number }) => {
-        params.onProgress!(Math.round(progressData.percent * 10000) / 100);
-      }
-      : undefined,
   });
 
   return config.resourceUrl;
@@ -453,7 +447,6 @@ async function uploadBufferToCos(params: {
 export async function uploadMediaToCos(
   mediaFile: MediaFile,
   account: ResolvedYuanbaoAccount,
-  onProgress?: (percent: number) => void,
 ): Promise<MediaUploadResult> {
   const { filename, data, mimeType } = mediaFile;
   const maxBytes = account.mediaMaxMb * 1024 * 1024;
@@ -470,7 +463,7 @@ export async function uploadMediaToCos(
   const cosConfig = await apiGetUploadInfo(account, filename, fileId);
 
   // 2. Upload to COS
-  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType, onProgress });
+  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType });
 
   return {
     url,
@@ -489,10 +482,9 @@ export async function downloadAndUploadMedia(
   core: PluginRuntime,
   account: ResolvedYuanbaoAccount,
   mediaLocalRoots?: string[],
-  onProgress?: (percent: number) => void,
 ): Promise<MediaUploadResult> {
   const mediaFile = await downloadMediaForLocal(mediaUrl, core, mediaLocalRoots, account);
-  return uploadMediaToCos(mediaFile, account, onProgress);
+  return uploadMediaToCos(mediaFile, account);
 }
 
 /** Build Tencent IM TIMImageElem message body. */

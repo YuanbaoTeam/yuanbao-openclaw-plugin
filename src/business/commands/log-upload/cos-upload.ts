@@ -33,7 +33,7 @@ function generateFileId(): string {
 }
 
 async function uploadBufferToCos(config: CosUploadConfig, data: Buffer): Promise<string> {
-  const cos = await createCosClient(config);
+  const cos = createCosClient(config);
 
   await cos.putObject({
     Bucket: config.bucketName,
