@@ -19,17 +19,17 @@ const GROUP_ALLOWED_COMMANDS = new Set<string>([
 
 export const guardGroupCommand: MiddlewareDescriptor = {
   name: "guard-group-command",
-  when: ctx => ctx.isGroup,
+  when: ctx => ctx.isGroup && ctx.hasControlCommand,
   handler: async (ctx, next) => {
     const { commandParts, raw, account, groupCode, fromAccount, isAtBot } = ctx;
-    const cmd = commandParts?.[0]?.toLowerCase();
+    const cmd = commandParts?.[0]?.toLowerCase() ?? "";
 
     const ownerId = account.botOwnerId || raw.bot_owner_id;
     const isOwner = Boolean(ownerId && raw.from_account === ownerId);
 
-    ctx.log.info('[guard-group-command] come in', { hasRegisteredCommand: ctx.hasControlCommand, isOwner, cmd, isAtBot });
+    ctx.log.info('[guard-group-command] come in', { isOwner, cmd, isAtBot });
 
-    if (ctx.hasControlCommand && cmd && isAtBot) {
+    if (isAtBot) {
       const allowed = GROUP_ALLOWED_COMMANDS.has(cmd);
       const rejected = !allowed || !isOwner;
       if (rejected) {
@@ -51,6 +51,9 @@ export const guardGroupCommand: MiddlewareDescriptor = {
         });
         return;
       }
+    } else {
+      ctx.hasControlCommand = false;
+      ctx.commandParts = [];
     }
 
     await next();
