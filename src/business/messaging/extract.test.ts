@@ -24,9 +24,10 @@ void test("extractTextFromMsgBody 处理混合消息体", () => {
     {
       msg_type: "TIMImageElem",
       msg_content: {
+        uuid: "shot.jpeg",
         image_info_array: [
-          { type: 1, url: "https://example.com/img.png" },
-          { type: 2, url: "https://example.com/medium.png" },
+          { type: 1, width: 800, height: 600, url: "https://example.com/img.png" },
+          { type: 2, width: 400, height: 300, url: "https://example.com/medium.png" },
         ],
       },
     },
@@ -35,9 +36,10 @@ void test("extractTextFromMsgBody 处理混合消息体", () => {
 
   assert.ok(result.rawBody.includes("hello"));
   assert.ok(result.rawBody.includes("world"));
-  assert.ok(result.rawBody.includes("[image1]"));
+  assert.ok(result.rawBody.includes("[image:shot_400_300.jpeg]"), `rawBody was: ${result.rawBody}`);
   assert.equal(result.medias.length, 1);
   assert.equal(result.medias[0].url, "https://example.com/medium.png");
+  assert.equal(result.medias[0].mediaName, "shot_400_300.jpeg");
 });
 
 void test("extractTextFromMsgBody 处理 @Bot 消息", () => {

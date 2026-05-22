@@ -1,14 +1,18 @@
 /**
- * Middleware: parse quote message info from cloud_custom_data.
+ * Middleware: parse quote info and resolve media desc.
+ *
+ * Thin wrapper — all business logic lives in `messaging/quote.ts`.
  */
 
+import { deriveChatKey } from "../../messaging/chat-history.js";
 import { parseQuoteFromCloudCustomData } from "../../messaging/quote.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 export const resolveQuote: MiddlewareDescriptor = {
   name: "resolve-quote",
   handler: async (ctx, next) => {
-    const quoteInfo = parseQuoteFromCloudCustomData(ctx.raw.cloud_custom_data);
+    const chatKey = deriveChatKey(ctx.isGroup, ctx.groupCode, ctx.fromAccount);
+    const quoteInfo = parseQuoteFromCloudCustomData(ctx.raw.cloud_custom_data, chatKey);
 
     if (quoteInfo) {
       ctx.quoteInfo = quoteInfo;
