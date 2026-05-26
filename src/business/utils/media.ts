@@ -7,8 +7,10 @@ import { homedir } from "node:os";
 import path, { basename, extname, join } from "node:path";
 import type { PluginRuntime } from "openclaw/plugin-sdk/core";
 import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/temp-path";
+import { createLog } from "../../logger.js";
 import { apiGetDownloadUrl, apiGetUploadInfo } from "../../access/api.js";
 import type { CosUploadConfig } from "../../access/api.js";
+import { createCosClient } from "../../infra/cos.js";
 import type { ResolvedYuanbaoAccount } from "../../types.js";
 
 export type CosUploadResult = {
@@ -262,14 +264,68 @@ function inferFilenameFromResponse(
   return `${randomBytes(8).toString("hex")}${inferredExt}`;
 }
 
-/** Resolve actual download URL: exchange resourceId param for real URL via Yuanbao API if present. */
+/** Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present. */
 async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
-  const parsed = new URL(url);
-  const resourceId = parsed.searchParams.get("resourceId");
-  if (resourceId && account) {
-    return apiGetDownloadUrl(account, resourceId);
-  }
+  if (!account) { return url; }
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/api/resource/download" && parsed.searchParams.has("resourceId")) {
+      return apiGetDownloadUrl(account, parsed.searchParams.get("resourceId")!);
+    }
+  } catch { /* not a valid URL, pass through */ }
   return url;
+}
+
+/**
+ * Compute a stable cache key from a URL.
+ * Strips signing query params (e.g. COS q-sign-* tokens) so that the same resource
+ * with different signatures maps to the same cache directory.
+ */
+export function computeUrlCacheKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return md5Hex(Buffer.from(`${parsed.origin}${parsed.pathname}`));
+  } catch {
+    return md5Hex(Buffer.from(url));
+  }
+}
+
+const FILENAME_MAX_LEN = 120;
+/**
+ * Characters disallowed in sanitized filenames:
+ *   - `\x00-\x1f`, `\x7f`        — control chars
+ *   - `[` `]`                    — would break `[image:{name}]` placeholder
+ *   - `<` `>` `:` `"` `|` `?` `*` — illegal on Windows file systems
+ *
+ * Path separators (`/`, `\`) are stripped earlier via `basename()`.
+ */
+const UNSAFE_FILENAME_CHARS_RE = /[\x00-\x1f\x7f[\]<>:"|?*]+/g;
+
+/**
+ * Sanitize an externally-provided filename for safe use as:
+ *   - placeholder text in `[file:{name}]` / `[image:{name}]`
+ *   - on-disk filename inside per-resource cache directory (cross-platform safe)
+ *
+ * Returns `fallback` when input is empty/dot/dotdot/all-unsafe.
+ */
+export function sanitizeMediaFilename(rawName: string | undefined, fallback: string): string {
+  if (!rawName) {
+    return fallback;
+  }
+  const base = basename(rawName.replace(/\\/g, "/")).trim();
+  if (!base || base === "." || base === "..") {
+    return fallback;
+  }
+  let cleaned = base.replace(UNSAFE_FILENAME_CHARS_RE, "_").trim();
+  if (!cleaned || cleaned === "." || cleaned === "..") {
+    return fallback;
+  }
+  if (cleaned.length > FILENAME_MAX_LEN) {
+    const ext = extname(cleaned);
+    const stemMax = Math.max(FILENAME_MAX_LEN - ext.length, 1);
+    cleaned = cleaned.slice(0, stemMax) + ext;
+  }
+  return cleaned;
 }
 
 /** Download file from URL or local path to Buffer. Supports file://, absolute path, http(s)://. */
@@ -359,46 +415,10 @@ async function uploadBufferToCos(params: {
   data: Buffer;
   filename: string;
   mimeType: string;
-  onProgress?: (percent: number) => void;
 }): Promise<string> {
   const { config, data, filename, mimeType } = params;
 
-  // cos-nodejs-sdk-v5 uses CommonJS export = syntax, needs compat handling
-  let COS: unknown;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    COS = require("cos-nodejs-sdk-v5");
-    if ((COS as Record<string, unknown>)?.default) {
-      COS = (COS as Record<string, unknown>).default;
-    }
-  } catch {
-    // CJS require failed, try ESM import
-    try {
-      const pkg = await import("cos-nodejs-sdk-v5" as string);
-      COS = pkg.default ?? pkg;
-    } catch {
-      // Both CJS and ESM failed, throw clear error
-      throw new Error("缺少依赖 cos-nodejs-sdk-v5，请运行 pnpm add cos-nodejs-sdk-v5");
-    }
-  }
-
-  const COSConstructor = COS as new (opts: Record<string, unknown>) => {
-    putObject: (params: Record<string, unknown>) => Promise<unknown>;
-  };
-  const cos = new COSConstructor({
-    FileParallelLimit: 10,
-    getAuthorization(_: unknown, callback: (cred: object) => void) {
-      callback({
-        TmpSecretId: config.encryptTmpSecretId,
-        TmpSecretKey: config.encryptTmpSecretKey,
-        SecurityToken: config.encryptToken,
-        StartTime: config.startTime,
-        ExpiredTime: config.expiredTime,
-        ScopeLimit: true,
-      });
-    },
-    UseAccelerate: true,
-  });
+  const cos = createCosClient(config);
 
   // Construct request headers
   const headers: Record<string, string> = {};
@@ -418,11 +438,6 @@ async function uploadBufferToCos(params: {
     Key: config.location,
     Body: data,
     Headers: headers,
-    onProgress: params.onProgress
-      ? (progressData: { percent: number }) => {
-        params.onProgress!(Math.round(progressData.percent * 10000) / 100);
-      }
-      : undefined,
   });
 
   return config.resourceUrl;
@@ -432,7 +447,6 @@ async function uploadBufferToCos(params: {
 export async function uploadMediaToCos(
   mediaFile: MediaFile,
   account: ResolvedYuanbaoAccount,
-  onProgress?: (percent: number) => void,
 ): Promise<MediaUploadResult> {
   const { filename, data, mimeType } = mediaFile;
   const maxBytes = account.mediaMaxMb * 1024 * 1024;
@@ -449,7 +463,7 @@ export async function uploadMediaToCos(
   const cosConfig = await apiGetUploadInfo(account, filename, fileId);
 
   // 2. Upload to COS
-  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType, onProgress });
+  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType });
 
   return {
     url,
@@ -468,10 +482,9 @@ export async function downloadAndUploadMedia(
   core: PluginRuntime,
   account: ResolvedYuanbaoAccount,
   mediaLocalRoots?: string[],
-  onProgress?: (percent: number) => void,
 ): Promise<MediaUploadResult> {
   const mediaFile = await downloadMediaForLocal(mediaUrl, core, mediaLocalRoots, account);
-  return uploadMediaToCos(mediaFile, account, onProgress);
+  return uploadMediaToCos(mediaFile, account);
 }
 
 /** Build Tencent IM TIMImageElem message body. */
@@ -526,8 +539,6 @@ export function buildFileMsgBody(params: {
 export async function downloadMediasToLocalFiles(
   medias: Array<{ url: string; mediaName?: string }>,
   account: ResolvedYuanbaoAccount,
-  core: PluginRuntime,
-  log: { verbose: (msg: string) => void; warn: (msg: string) => void },
 ): Promise<{
     results: Array<{ path: string; contentType: string }>;
     mediaPaths: string[];
@@ -537,44 +548,26 @@ export async function downloadMediasToLocalFiles(
     return { results: [], mediaPaths: [], mediaTypes: [] };
   }
 
-  const maxBytes = account.mediaMaxMb * 1024 * 1024;
+  const log = createLog("media");
   const cacheDir = join(resolvePreferredOpenClawTmpDir(), "yuanbao-media");
 
   // Download up to 20 media files concurrently
   const tasks = medias.slice(0, 20).map(async ({ url, mediaName }, i) => {
-    const mediaFile = await downloadMediaForYuanbao(url, account.mediaMaxMb, account);
+    const resolvedUrl = await resolveFetchUrl(url, account);
+    const cacheKey = computeUrlCacheKey(resolvedUrl);
+    const originalFilename = sanitizeMediaFilename(mediaName, "file");
+    const fileDir = join(cacheDir, cacheKey);
+    const cachedFilePath = join(fileDir, originalFilename);
 
-    const originalFilename = mediaName || mediaFile.filename;
-    const ext = extname(originalFilename).toLowerCase();
-    const md5 = md5Hex(mediaFile.data);
-    const md5Filename = ext ? `${md5}${ext}` : md5;
-
-    let contentType = mediaFile.mimeType;
-    if (
-      (!contentType || contentType === "application/octet-stream")
-      && typeof core.media?.detectMime === "function"
-    ) {
-      contentType = (await core.media.detectMime({ buffer: mediaFile.data })) ?? contentType;
-    }
-
-    const cachedFilePath = join(cacheDir, md5Filename);
     if (existsSync(cachedFilePath)) {
-      log.verbose(`media ${i + 1}/${medias.length} hit local cache, skipping save: ${cachedFilePath}`);
-      return { path: cachedFilePath, contentType };
+      log.debug(`media ${i + 1}/${medias.length} cache hit: ${cachedFilePath}`);
+      return { path: cachedFilePath, contentType: guessMimeType(originalFilename) };
     }
 
-    if (typeof core.channel.media?.saveMediaBuffer === "function") {
-      const saved = await core.channel.media.saveMediaBuffer(
-        mediaFile.data,
-        contentType,
-        "inbound",
-        maxBytes,
-        md5Filename,
-      );
-      return { path: saved.path, contentType: saved.contentType ?? contentType };
-    }
+    const mediaFile = await downloadMediaForYuanbao(resolvedUrl, account.mediaMaxMb, account);
+    const contentType = mediaFile.mimeType || guessMimeType(originalFilename);
 
-    await mkdir(cacheDir, { recursive: true });
+    await mkdir(fileDir, { recursive: true });
     await writeFile(cachedFilePath, mediaFile.data);
     return { path: cachedFilePath, contentType };
   });
@@ -585,7 +578,7 @@ export async function downloadMediasToLocalFiles(
     const r = settled[i];
     if (r.status === "fulfilled") {
       results.push(r.value);
-      log.verbose(`media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`);
+      log.debug(`media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`);
     } else {
       log.warn(`media ${i + 1}/${medias.length} download failed, skipping: ${String(r.reason)}`);
     }

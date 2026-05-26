@@ -25,26 +25,37 @@ export type MediaHistoryEntry = {
 /** Group chat message history Map, keyed by groupCode */
 export const chatHistories = new Map<string, GroupHistoryEntry[]>();
 
-const MEDIA_HISTORY_MAX_PER_GROUP = 50;
+const MEDIA_HISTORY_MAX_PER_CHAT = 50;
 
-/** Media history LRU, keyed by groupCode, not cleared by clearHistoryEntriesIfEnabled */
+/** Media history LRU, keyed by chatKey. Not cleared by clearHistoryEntriesIfEnabled. */
 export const chatMediaHistories = new Map<string, MediaHistoryEntry[]>();
+
+/**
+ * Derive a chat-level cache key for media history.
+ * Format follows prepare-sender convention: `group:{groupCode}` / `direct:{fromAccount}`.
+ */
+export function deriveChatKey(isGroup: boolean, groupCode?: string, fromAccount?: string): string {
+  if (isGroup && groupCode) {
+    return `group:${groupCode}`;
+  }
+  return `direct:${fromAccount ?? "unknown"}`;
+}
 
 /**
  * Write media entry to standalone LRU, evicting oldest entries when exceeding limit.
  * Decoupled from text `chatHistories` to prevent media loss when text history is cleared after @bot.
  */
-export function recordMediaHistory(groupCode: string, entry: MediaHistoryEntry): void {
+export function recordMediaHistory(chatKey: string, entry: MediaHistoryEntry): void {
   if (entry.medias.length === 0) {
     return;
   }
-  let list = chatMediaHistories.get(groupCode);
+  let list = chatMediaHistories.get(chatKey);
   if (!list) {
     list = [];
-    chatMediaHistories.set(groupCode, list);
+    chatMediaHistories.set(chatKey, list);
   }
   list.push(entry);
-  if (list.length > MEDIA_HISTORY_MAX_PER_GROUP) {
-    list.splice(0, list.length - MEDIA_HISTORY_MAX_PER_GROUP);
+  if (list.length > MEDIA_HISTORY_MAX_PER_CHAT) {
+    list.splice(0, list.length - MEDIA_HISTORY_MAX_PER_CHAT);
   }
 }

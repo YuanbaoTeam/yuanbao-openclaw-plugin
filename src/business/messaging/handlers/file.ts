@@ -5,6 +5,7 @@
  * on output, constructs file message body.
  */
 
+import { sanitizeMediaFilename } from "../../utils/media.js";
 import type { MessageHandlerContext } from "../context.js";
 import type { MessageElemHandler, MsgBodyItemType, ExtractTextFromMsgBodyResult } from "./types.js";
 
@@ -23,10 +24,10 @@ export const fileHandler: MessageElemHandler = {
     const fileUrl = elem.msg_content?.url;
     const fileName = elem.msg_content?.file_name;
     if (fileUrl) {
-      resData.medias.push({ mediaType: "file", url: fileUrl, mediaName: fileName });
-      return fileName
-        ? `[${fileName}]`
-        : `[file${resData.medias.filter(m => m.mediaType === "file").length}]`;
+      const fileCount = resData.medias.filter(m => m.mediaType === "file").length + 1;
+      const displayName = sanitizeMediaFilename(fileName, `file${fileCount}`);
+      resData.medias.push({ mediaType: "file", url: fileUrl, mediaName: displayName });
+      return `[file:${displayName}]`;
     }
     return "[file]";
   },

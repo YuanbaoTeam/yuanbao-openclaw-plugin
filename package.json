@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-yuanbao",
-  "version": "2.13.4",
+  "version": "2.13.5",
   "type": "module",
   "private": false,
   "packageManager": "pnpm@10.33.2",
@@ -28,7 +28,6 @@
     "release": "bash scripts/release.sh"
   },
   "dependencies": {
-    "cos-nodejs-sdk-v5": "^2.15.4",
     "protobufjs": "^7.5.4",
     "semver": "^7.7.4",
     "ws": "^8.20.0"

@@ -30,6 +30,10 @@ function setupMocks(
     t.mock.module("../../messaging/chat-history.js", {
       namedExports: {
         chatHistories: new Map(),
+        deriveChatKey: (isGroup: boolean, groupCode?: string, fromAccount?: string) => {
+          if (isGroup && groupCode) { return `group:${groupCode}`; }
+          return `direct:${fromAccount ?? "unknown"}`;
+        },
         recordMediaHistory: () => {},
       },
     });
