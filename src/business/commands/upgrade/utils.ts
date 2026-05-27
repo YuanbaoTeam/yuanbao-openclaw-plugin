@@ -134,32 +134,33 @@ export async function isPublishedVersionOnNpm(version: string): Promise<boolean>
 }
 
 /**
- * Parse `openclaw plugins list` output and return the installed version of the specified plugin.
+ * Query `openclaw plugins inspect --json` and return the installed version of the specified plugin.
  * Returns null if plugin is not installed or parsing fails.
  */
 export async function readInstalledVersion(pluginId: string): Promise<string | null> {
   log.info("读取已安装版本", { pluginId });
-  const result = await runOpenClawCommand(["plugins", "list"]);
+  const result = await runOpenClawCommand(["plugins", "inspect", pluginId, "--json"]);
   if (!result.ok) {
-    log.warn("openclaw plugins list 执行失败", {
+    log.warn("openclaw plugins inspect 执行失败", {
       summary: result.error,
       ...(result.stderr ? { stderr: result.stderr } : {}),
     });
     return null;
   }
 
-  for (const line of (result.stdout ?? "").split("\n")) {
-    if (line.toLowerCase().includes(pluginId.toLowerCase())) {
-      const match = line.match(/(\d+\.\d+\.\d+(?:-[\w.]+)?)/);
-      if (match) {
-        log.info("已安装版本", { pluginId, version: match[1] });
-        return match[1];
-      }
+  try {
+    const data = JSON.parse(result.stdout ?? "") as { plugin?: { version?: string } };
+    const version = data.plugin?.version;
+    if (version && isValidVersion(version)) {
+      log.info("已安装版本", { pluginId, version });
+      return version;
     }
+    log.warn("未检测到已安装版本", { pluginId, raw: result.stdout });
+    return null;
+  } catch (e: unknown) {
+    log.warn("解析 inspect JSON 失败", { pluginId, summary: firstLine(e) });
+    return null;
   }
-
-  log.warn("未检测到已安装版本", { pluginId });
-  return null;
 }
 
 /**
