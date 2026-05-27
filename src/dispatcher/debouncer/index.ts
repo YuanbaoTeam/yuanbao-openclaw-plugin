@@ -46,11 +46,19 @@ function extractRawText(item: DebouncerItem): string {
     .trim();
 }
 
+function isOwnerMessage(item: DebouncerItem): boolean {
+  const ownerId = item.account.botOwnerId || item.msg.bot_owner_id;
+  return Boolean(ownerId && item.msg.from_account === ownerId);
+}
+
 function buildSessionKey(item: DebouncerItem): string {
   const base = buildBaseSessionKey(item);
 
-  // Group chat: single queue
   if (item.isGroup) {
+    const rawText = extractRawText(item);
+    if (isAbortRequestText(rawText) && isOwnerMessage(item)) {
+      return `${base}:control`;
+    }
     return base;
   }
 
@@ -212,6 +220,12 @@ export function ensureDebouncer(config: OpenClawConfig) {
       }
 
       const sessionKey = buildSessionKey(primary);
+
+      // Group owner /stop: invalidate base queue → skip remaining queued tasks
+      if (primary.isGroup && isAbortRequestText(extractRawText(primary)) && isOwnerMessage(primary)) {
+        const baseKey = buildBaseSessionKey(primary);
+        sessionQueue.invalidate(baseKey);
+      }
 
       // ⭐ Direct normal message: abort old inference + invalidate queued old tasks
       if (isDirectNormalMessage(primary)) {
