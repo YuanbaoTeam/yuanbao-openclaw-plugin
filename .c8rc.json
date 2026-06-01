@@ -8,12 +8,33 @@
     "src/**/types.ts",
     "src/logger.ts",
     "**/*.proto",
-    "**/*.json"
+    "**/*.json",
+    "src/business/actions/sticker/sticker-types.ts",
+
+    "src/channel.ts",
+    "src/channel.setup.ts",
+    "src/channel-shared.ts",
+    "src/setup-core.ts",
+    "src/setup-surface.ts",
+
+    "src/business/commands/upgrade/**",
+    "src/business/commands/log-upload/perform.ts",
+    "src/business/commands/log-upload/cos-upload.ts",
+    "src/business/commands/log-upload/index.ts",
+
+    "src/access/ws/index.ts",
+    "src/business/actions/index.ts",
+    "src/business/outbound/index.ts",
+    "src/business/messaging/index.ts",
+    "src/business/pipeline/index.ts",
+    "src/business/pipeline/middlewares/index.ts",
+    "src/business/tools/index.ts"
   ],
+  "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI (upgrade, log-upload perform/cos) are validated by the YuanbaoPBGo E2E suite, not unit tests; the listed index.ts are pure re-export barrels.",
   "reporter": ["text-summary", "text", "lcov"],
   "check-coverage": true,
-  "lines": 55,
-  "statements": 55,
-  "functions": 62,
+  "lines": 65,
+  "statements": 65,
+  "functions": 71,
   "branches": 76
 }

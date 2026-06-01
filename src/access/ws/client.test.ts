@@ -229,6 +229,83 @@ void test("business response with non-zero head.status overrides code to FAIL", 
   client.disconnect();
 });
 
+/** Drive a request method to completion by echoing a response with the same msgId. */
+async function roundTrip<T>(
+  fake: FakeWebSocket,
+  call: () => Promise<T>,
+  rspType: string,
+  rspPayload: Record<string, unknown>,
+): Promise<T> {
+  const p = call();
+  await Promise.resolve();
+  const msgId = decodeConnMsg(fake.sent[fake.sent.length - 1])!.head.msgId;
+  const head: PBHead = { cmdType: CMD_TYPE.Response, cmd: "biz", seqNo: 9, msgId, module: "yuanbao_openclaw_proxy", status: 0 };
+  fake.emit("message", Buffer.from(encodeConnMsg(head, encodeBizPB(rspType, rspPayload)!)!));
+  return p;
+}
+
+void test("sendGroupMessage resolves on matching response", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const rsp = await roundTrip(fake, () => client.sendGroupMessage({ group_code: "g-1", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "hi" } }] }), BIZ_MSG_TYPES.SendGroupMessageRsp, { code: 0, message: "ok" });
+  assert.equal(rsp.code, 0);
+  client.disconnect();
+});
+
+void test("queryGroupInfo decodes nested group info", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const rsp = await roundTrip(fake, () => client.queryGroupInfo({ group_code: "g-1" }), BIZ_MSG_TYPES.QueryGroupInfoRsp, {
+    code: 0, msg: "ok", groupInfo: { groupName: "G", groupOwnerUserId: "o", groupOwnerNickname: "owner", groupSize: 3 },
+  });
+  assert.equal(rsp.group_info?.group_name, "G");
+  client.disconnect();
+});
+
+void test("getGroupMemberList decodes the member list", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const rsp = await roundTrip(fake, () => client.getGroupMemberList({ group_code: "g-1" }), BIZ_MSG_TYPES.GetGroupMemberListRsp, {
+    code: 0, message: "ok", memberList: [{ userId: "u1", nickName: "n1", userType: 1 }],
+  });
+  assert.equal(rsp.member_list.length, 1);
+  client.disconnect();
+});
+
+void test("sendPrivateHeartbeat / sendGroupHeartbeat resolve", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const pvt = await roundTrip(fake, () => client.sendPrivateHeartbeat({ from_account: "b", to_account: "u", heartbeat: 1 as never }), BIZ_MSG_TYPES.SendPrivateHeartbeatRsp, { code: 0, msg: "running" });
+  assert.equal(pvt.code, 0);
+  const grp = await roundTrip(fake, () => client.sendGroupHeartbeat({ from_account: "b", to_account: "u", group_code: "g", send_time: 1, heartbeat: 2 as never }), BIZ_MSG_TYPES.SendGroupHeartbeatRsp, { code: 0, msg: "done" });
+  assert.equal(grp.code, 0);
+  client.disconnect();
+});
+
+void test("syncInformation resolves", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const rsp = await roundTrip(fake, () => client.syncInformation({ syncType: 1, botVersion: "1", pluginVersion: "2" }), BIZ_MSG_TYPES.SyncInformationRsp, { code: 0, msg: "ok" });
+  assert.equal(rsp.code, 0);
+  client.disconnect();
+});
+
+void test("sendC2CMessage rejects when the socket is not connected", async () => {
+  const client = makeClient();
+  // never connect → no socket
+  await assert.rejects(client.sendC2CMessage({ to_account: "u", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "x" } }] }), /not connected/);
+});
+
+void test("sendAndWait rejects on request timeout", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client } = connectAndAuth();
+  const p = client.sendC2CMessage({ to_account: "u", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "x" } }] });
+  const assertion = assert.rejects(p, /timeout/);
+  mock.timers.tick(30_000); // default send timeout
+  await assertion;
+  client.disconnect();
+});
+
 void test("disconnect after connecting transitions to disconnected and blocks reconnect", () => {
   const client = makeClient();
   client.connect();

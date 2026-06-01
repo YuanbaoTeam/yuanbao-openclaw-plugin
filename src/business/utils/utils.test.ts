@@ -6,7 +6,28 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { textDesensitization, msgBodyDesensitization } from "./utils.js";
+import { extractGroupCode, isYbGroupChat, json, msgBodyDesensitization, text, textDesensitization } from "./utils.js";
+import type { OpenClawPluginToolContext } from "./utils.js";
+
+void test("isYbGroupChat true only for yuanbao group sessionKey", () => {
+  const ctx = (over: Record<string, unknown>) => over as unknown as OpenClawPluginToolContext;
+  assert.equal(isYbGroupChat(ctx({ messageChannel: "yuanbao", sessionKey: "agent:a:yuanbao:group:g1" })), true);
+  assert.equal(isYbGroupChat(ctx({ messageChannel: "yuanbao", sessionKey: "agent:a:yuanbao:user:u1" })), false);
+  assert.equal(isYbGroupChat(ctx({ messageChannel: "telegram", sessionKey: "yuanbao:group:g1" })), false);
+  assert.equal(isYbGroupChat(ctx({ messageChannel: "yuanbao" })), false);
+});
+
+void test("extractGroupCode pulls the trailing group code", () => {
+  assert.equal(extractGroupCode("agent:a:yuanbao:group:585003747"), "585003747");
+  assert.equal(extractGroupCode("agent:a:yuanbao:user:u1"), "");
+});
+
+void test("text/json MCP response builders", () => {
+  assert.deepEqual(text("hi"), { content: [{ type: "text", text: "hi" }] });
+  const j = json({ a: 1 });
+  assert.deepEqual(j.details, { a: 1 });
+  assert.equal(j.content[0].text, JSON.stringify({ a: 1 }, null, 2));
+});
 
 void test("textDesensitization 短文本不脱敏", () => {
   assert.equal(textDesensitization("你好世界"), "你好世界");
