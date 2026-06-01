@@ -33,8 +33,8 @@
   "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI (upgrade, log-upload perform/cos) are validated by the YuanbaoPBGo E2E suite, not unit tests; the listed index.ts are pure re-export barrels.",
   "reporter": ["text-summary", "text", "lcov"],
   "check-coverage": true,
-  "lines": 73,
-  "statements": 73,
-  "functions": 79,
+  "lines": 76,
+  "statements": 76,
+  "functions": 83,
   "branches": 76
 }

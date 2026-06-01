@@ -4,10 +4,13 @@
  */
 
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import type { OpenClawPluginToolContext } from "../utils/utils.js";
 import { registerGroupTools } from "./group.js";
+import { removeMember } from "../../infra/cache/member.js";
+import { setActiveWsClient } from "../../access/ws/runtime.js";
+import type { YuanbaoWsClient } from "../../access/ws/client.js";
 
 type ToolFactory = (ctx: OpenClawPluginToolContext) => { execute: (id: string, p: Record<string, unknown>) => Promise<{ details?: { success?: boolean; msg?: string } }> } | null;
 
@@ -41,3 +44,17 @@ void test("execute reports failure when group info is unavailable (no WS client)
   assert.equal(res.details?.success, false);
   assert.match(res.details!.msg!, /Failed to query group info/);
 });
+
+void test("execute returns group info on a successful query", async () => {
+  setActiveWsClient("acct-g3", {
+    getState: () => "connected",
+    queryGroupInfo: async () => ({ code: 0, msg: "", group_info: { group_name: "派对", group_owner_user_id: "o", group_owner_nickname: "Owner", group_size: 8 } }),
+  } as unknown as YuanbaoWsClient);
+  const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:585", agentAccountId: "acct-g3" }));
+  const res = await tool!.execute("t", {}) as { details?: { success?: boolean; groupInfo?: { groupName?: string; groupSize?: number } } };
+  assert.equal(res.details?.success, true);
+  assert.equal(res.details?.groupInfo?.groupName, "派对");
+  assert.equal(res.details?.groupInfo?.groupSize, 8);
+});
+
+afterEach(() => { setActiveWsClient("acct-g3", null); removeMember("acct-g3"); });

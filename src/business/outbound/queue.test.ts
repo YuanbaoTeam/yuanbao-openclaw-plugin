@@ -132,6 +132,24 @@ void test("mergeOnFlush merges text and sends media after", async () => {
   assert.equal(sentItems.some(i => i.type === "media"), true);
 });
 
+void test("merge-text drainNow force-flushes the buffer without closing the session", async () => {
+  const { sender, sentText } = fakeSender();
+  const session = createQueueSession({ sender, strategy: "merge-text", onComplete: () => {}, minChars: 2800, maxChars: 3000 });
+  await session.push({ type: "text", text: "buffered tool-call text" }); // below minChars → buffered
+  assert.deepEqual(sentText, []);
+  await session.drainNow();
+  assert.equal(sentText.join(""), "buffered tool-call text");
+});
+
+void test("merge-text drainNow is a no-op after abort", async () => {
+  const { sender, sentText } = fakeSender();
+  const session = createQueueSession({ sender, strategy: "merge-text", onComplete: () => {} });
+  await session.push({ type: "text", text: "x" });
+  session.abort();
+  await session.drainNow();
+  assert.deepEqual(sentText, []);
+});
+
 // ── error path ───────────────────────────────────────────────────────────────
 void test("merge-text flush with failing sender reports no content sent", async () => {
   const { sender } = fakeSender({ failText: true });

@@ -306,6 +306,40 @@ void test("sendAndWait rejects on request timeout", async () => {
   client.disconnect();
 });
 
+void test("auth failure code triggers onAuthFailed refresh then reconnect", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  let refreshed = false;
+  const client = makeClient({
+    onAuthFailed: async () => { refreshed = true; return { bizId: "yuanbao", uid: "u-1", source: "bot", token: "new-tok" }; },
+  });
+  client.connect();
+  const fake = FakeWebSocket.instances[0];
+  fake.emit("open");
+  // head.status non-zero + rsp.code = 41103 (AUTH_FAILED)
+  fake.emit("message", serverFrame(CMD.AuthBind, PB_MSG_TYPES.AuthBindRsp, { code: 41103 }, 41103));
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(refreshed, true, "onAuthFailed should be invoked");
+  assert.equal(client.getState(), "reconnecting");
+  mock.timers.tick(1000);
+  assert.equal(FakeWebSocket.instances.length, 2, "reconnect with refreshed token");
+  client.disconnect();
+});
+
+void test("retryable auth error reconnects without token refresh", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const client = makeClient();
+  client.connect();
+  const fake = FakeWebSocket.instances[0];
+  fake.emit("open");
+  // head.status non-zero + rsp.code = 50400 (AUTH_RETRYABLE)
+  fake.emit("message", serverFrame(CMD.AuthBind, PB_MSG_TYPES.AuthBindRsp, { code: 50400 }, 50400));
+  assert.equal(client.getState(), "reconnecting");
+  mock.timers.tick(1000);
+  assert.equal(FakeWebSocket.instances.length, 2);
+  client.disconnect();
+});
+
 void test("disconnect after connecting transitions to disconnected and blocks reconnect", () => {
   const client = makeClient();
   client.connect();
