@@ -25,7 +25,7 @@ export interface QueueSessionOptions {
   chunkText?: (text: string, maxChars: number) => string[];
 }
 
-function defaultChunkText(text: string, max: number): string[] {
+export function defaultChunkText(text: string, max: number): string[] {
   if (text.length <= max) {
     return [text];
   }

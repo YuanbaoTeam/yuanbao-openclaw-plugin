@@ -107,7 +107,7 @@ export function getTokenStatus(accountId: string): {
   };
 }
 
-function computeSignature(params: {
+export function computeSignature(params: {
   nonce: string;
   timestamp: string;
   appKey: string;

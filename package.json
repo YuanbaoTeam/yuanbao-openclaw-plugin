@@ -25,6 +25,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "node --experimental-test-module-mocks --import tsx --test src/**/*.test.ts",
+    "test:coverage": "c8 node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",
     "release": "bash scripts/release.sh"
   },
   "dependencies": {
@@ -36,6 +37,7 @@
     "@types/node": "^24.12.2",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
+    "c8": "^11.0.0",
     "eslint": "^9.0.0",
     "openclaw": ">=2026.4.5",
     "tsx": "^4.19.0",

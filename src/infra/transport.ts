@@ -11,6 +11,7 @@ import { createLog } from "../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoMsgBodyElement } from "../types.js";
 import { getMember } from "./cache/member.js";
 import { InMemoryTtlDb } from "./cache/ttl-db.js";
+import { classifyReplyMode } from "./reply-classify.js";
 
 const firstReplyRefDb = new InMemoryTtlDb<string, true>({
   ttlMs: 60 * 1000,
@@ -27,24 +28,21 @@ async function shouldAttachReplyRef(params: {
   refFromAccount?: string;
 }): Promise<boolean> {
   const { account, refMsgId, groupCode, refFromAccount } = params;
-  if (!refMsgId) {
-    return false;
-  }
-
   const mode = account.replyToMode;
-  if (mode === "off") {
+
+  // Resolve the bot's own uid only when a self-quote check can actually fire
+  // (refMsgId present, mode != off, and a sender is known) — keeps the network
+  // lookup off the early-return paths, matching the previous control flow.
+  let botYuanbaoUid: string | null = null;
+  if (refMsgId && mode !== "off" && refFromAccount) {
+    botYuanbaoUid = (await getMember(account.accountId).queryYuanbaoUserId(groupCode)) ?? null;
+  }
+
+  const classification = classifyReplyMode({ mode, refMsgId, refFromAccount, botYuanbaoUid });
+  if (classification === "no") {
     return false;
   }
-
-  // Avoid self-quoting: compare the sender of the replied message
-  if (refFromAccount) {
-    const yuanbaoUserId = await getMember(account.accountId).queryYuanbaoUserId(groupCode);
-    if (yuanbaoUserId && refFromAccount === yuanbaoUserId) {
-      return false;
-    }
-  }
-
-  if (mode === "all") {
+  if (classification === "yes") {
     return true;
   }
 
