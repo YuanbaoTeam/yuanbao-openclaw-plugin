@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the PR base (origin/main) is available for diff-coverage.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -37,7 +40,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Global coverage gate (whole project, thresholds in .c8rc.json) + produces lcov.
       - run: pnpm test:coverage
+
+      # Changed-lines gate (authoritative): new/modified code on this PR must be tested.
+      - name: Changed-lines coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}":"refs/remotes/origin/${{ github.base_ref }}" || git fetch origin main
+          node scripts/diff-coverage.mjs --base "origin/${{ github.base_ref }}" --min 80
 
   build:
     runs-on: ubuntu-latest

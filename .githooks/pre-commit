@@ -1,6 +1,10 @@
 #!/usr/bin/env sh
-# Pre-commit hook: run lint and test before allowing commit.
-# Install: git config core.hooksPath .githooks
+# Pre-commit hook: lint + tests (with coverage) + changed-lines coverage warning.
+# Install once: pnpm hooks:install   (sets core.hooksPath=.githooks)
+#
+# This is a fast LOCAL early-warning. The authoritative gate is CI:
+#   - global coverage thresholds (.c8rc.json)
+#   - changed-lines coverage on PRs (scripts/diff-coverage.mjs vs origin/main)
 
 set -e
 
@@ -8,6 +12,10 @@ echo "🔍 Running lint..."
 pnpm lint
 echo "✅ Lint passed."
 
-echo "🧪 Running tests..."
-pnpm test
-echo "✅ Tests passed."
+echo "🧪 Running tests + coverage..."
+pnpm test:coverage
+echo "✅ Tests + global coverage passed."
+
+echo "📏 Checking changed-line coverage (staged)..."
+pnpm coverage:diff:staged
+echo "✅ Changed-line coverage OK."
