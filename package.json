@@ -28,8 +28,9 @@
     "test:coverage": "c8 node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",
     "coverage:diff": "node scripts/diff-coverage.mjs --base origin/main --min 80",
     "coverage:diff:staged": "node scripts/diff-coverage.mjs --staged --min 80",
-    "hooks:install": "git config core.hooksPath .githooks && echo '✅ git hooks installed (core.hooksPath=.githooks)'",
-    "release": "bash scripts/release.sh"
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "release": "bash scripts/release.sh",
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "protobufjs": "^7.5.4",
