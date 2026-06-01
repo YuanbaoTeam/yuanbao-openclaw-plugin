@@ -79,3 +79,29 @@ void test("gateway auths, reports connected, dispatches a push to the pipeline, 
   await done; // resolves on abort teardown
   assert.ok(statuses.some(s => s.running === false));
 });
+
+void test("push without a runtime is decoded but not dispatched to the pipeline", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const ac = new AbortController();
+  const account = { accountId: "a-2", wsGatewayUrl: "wss://t", wsMaxReconnectAttempts: 3, botId: "", config: {} } as unknown as ResolvedYuanbaoAccount;
+
+  const done = startYuanbaoWsGateway({ account, config: {} as never, abortSignal: ac.signal }); // no runtime
+  await new Promise(r => setImmediate(r));
+  const fake = FakeWebSocket.instances[0];
+  fake.emit("open");
+  fake.emit("message", Buffer.from(encodeConnMsg({ cmdType: CMD_TYPE.Response, cmd: CMD.AuthBind, seqNo: 1, msgId: "s", module: "conn_access", status: 0 }, encodePB(PB_MSG_TYPES.AuthBindRsp, { code: 0, connectId: "c" })!)!));
+  fake.emit("message", pushFrame());
+  await Promise.resolve();
+  assert.equal(inboundCalls.length, 0, "no runtime → message not handled");
+
+  ac.abort();
+  await done;
+});
+
+void test("immediately-aborted signal tears down without connecting further", async () => {
+  const ac = new AbortController();
+  ac.abort(); // already aborted before start
+  const account = { accountId: "a-3", wsGatewayUrl: "wss://t", wsMaxReconnectAttempts: 3, botId: "", config: {} } as unknown as ResolvedYuanbaoAccount;
+  await startYuanbaoWsGateway({ account, config: {} as never, abortSignal: ac.signal, runtime: { channel: {} } as never });
+  // resolves immediately via the aborted-signal fast path
+});

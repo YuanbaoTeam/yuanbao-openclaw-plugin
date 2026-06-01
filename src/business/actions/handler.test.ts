@@ -92,3 +92,24 @@ void test("missing active WS client surfaces an error result", async () => {
   assert.equal(res.ok, false);
   assert.ok(res.error);
 });
+
+void test("media send failure continues (does not abort) and returns ok", async () => {
+  // media items keep going on failure; only text failure aborts.
+  sendResult = { ok: false, error: "media boom" };
+  const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", mediaUrls: ["http://a", "http://b"] } });
+  assert.equal(res.ok, true); // text-less media-only send tolerates media failure
+  assert.equal(sentItems.filter(i => i.type === "media").length, 2);
+});
+
+void test("unresolvable target surfaces an error result", async () => {
+  const res = await handleAction({ cfg, params: { action: "send", message: "hi" } }); // no to/target/context
+  assert.equal(res.ok, false);
+  assert.ok(res.error);
+});
+
+void test("sticker-search short-circuits without creating a sender", async () => {
+  const res = await handleAction({ cfg, to: "user:u-1", params: { action: "sticker-search", query: "smile" } });
+  assert.equal(res.channel, "yuanbao");
+  assert.equal(typeof res.ok, "boolean");
+  assert.equal(sentItems.length, 0);
+});

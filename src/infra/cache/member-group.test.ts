@@ -90,3 +90,38 @@ void test("queryYuanbaoUserId finds the userType=2 member", async () => {
   const uid = await getMember(id).queryYuanbaoUserId("g-1");
   assert.equal(uid, "yb-1");
 });
+
+void test("getMembers second call hits the cache (no second fetch)", async () => {
+  let fetches = 0;
+  const ws = {
+    getState: () => "connected",
+    getGroupMemberList: async () => { fetches++; return { code: 0, message: "", member_list: [{ user_id: "u", nick_name: "N", user_type: 1 }] }; },
+  } as unknown as YuanbaoWsClient;
+  const id = acct(ws);
+  await getMember(id).group.getMembers("g-1");
+  await getMember(id).group.getMembers("g-1");
+  assert.equal(fetches, 1);
+});
+
+void test("queryGroupInfo / queryGroupOwner return null when not connected", async () => {
+  const id = acct(fakeWs({ connected: false }));
+  assert.equal(await getMember(id).queryGroupInfo("g-1"), null);
+  assert.equal(await getMember(id).queryGroupOwner("g-1"), null);
+});
+
+void test("queryYuanbaoUserId returns null with no groupCode and no cache", async () => {
+  const id = acct(fakeWs());
+  assert.equal(await getMember(id).queryYuanbaoUserId(), null);
+});
+
+void test("queryYuanbaoUserId returns null when no yuanbao/bot member exists", async () => {
+  const id = acct(fakeWs({ members: [{ user_id: "u-1", nick_name: "Alice", user_type: 1 }] }));
+  assert.equal(await getMember(id).queryYuanbaoUserId("g-1"), null);
+});
+
+void test("queryYuanbaoUserId caches the resolved uid (second call no groupCode)", async () => {
+  const id = acct(fakeWs({ members: [{ user_id: "yb", nick_name: "Y", user_type: 2 }] }));
+  const m = getMember(id);
+  assert.equal(await m.queryYuanbaoUserId("g-1"), "yb");
+  assert.equal(await m.queryYuanbaoUserId(), "yb"); // cached, no groupCode needed
+});

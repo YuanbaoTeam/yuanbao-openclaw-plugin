@@ -40,6 +40,19 @@ void test("videoHandler.extract returns [video]; buildMsgBody builds TIMVideoFil
   assert.equal(body[0].msg_content!.video_url, "vu");
 });
 
+void test("videoHandler.buildMsgBody includes every optional field when provided", () => {
+  const body = videoHandler.buildMsgBody!({
+    videoUrl: "vu", videoUuid: "vid", videoSize: 1, videoSecond: 2, videoFormat: "mp4",
+    thumbUrl: "tu", thumbUuid: "tid", thumbSize: 3, thumbWidth: 4, thumbHeight: 5, thumbFormat: "png",
+  });
+  const c = body[0].msg_content!;
+  assert.equal(c.video_uuid, "vid");
+  assert.equal(c.video_second, 2);
+  assert.equal(c.thumb_url, "tu");
+  assert.equal(c.thumb_width, 4);
+  assert.equal(c.thumb_format, "png");
+});
+
 void test("soundHandler.extract returns [voice]", () => {
   assert.equal(soundHandler.extract!(ctx, {} as MsgBodyItemType, resData()), "[voice]");
 });

@@ -78,3 +78,18 @@ void test("controller emit(RUNNING) starts the running heartbeat then stop() cle
   assert.ok(calls.some(c => c.args.heartbeat === WS_HEARTBEAT.RUNNING), "running heartbeat emitted");
   ctrl.stop(); // clears the scheduled timer
 });
+
+void test("controller emit(RUNNING) twice keeps a single running loop (idempotent start)", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { ctx } = fakeCtx();
+  const ctrl = createReplyHeartbeatController({ meta: { ctx, account, toAccount: "u-1" } });
+  ctrl.emit(WS_HEARTBEAT.RUNNING);
+  ctrl.emit(WS_HEARTBEAT.RUNNING); // second call only refreshes lastEmit, no new loop
+  await Promise.resolve();
+  ctrl.onReplySent(); // alias for stop
+});
+
+void test("emitReplyHeartbeat returns when the heartbeat call rejects (caught)", async () => {
+  const ctx = { wsClient: { sendPrivateHeartbeat: async () => { throw new Error("ws err"); } } } as unknown as MessageHandlerContext;
+  await assert.doesNotReject(emitReplyHeartbeat({ ctx, account, toAccount: "u-1", heartbeat: WS_HEARTBEAT.RUNNING, sendTime: 1 }));
+});

@@ -243,6 +243,25 @@ void test("decodeSyncInformationRsp preserves msgId + code/msg", () => {
   assert.deepEqual(decodeSyncInformationRsp(bytes, "m-9"), { msgId: "m-9", code: 0, msg: "synced" });
 });
 
+void test("decodeQueryGroupInfoRsp returns undefined group_info when absent", () => {
+  const bytes = encodeBizPB(BIZ_MSG_TYPES.QueryGroupInfoRsp, { code: 0, msg: "ok" })!;
+  const rsp = decodeQueryGroupInfoRsp(bytes, "m");
+  assert.equal(rsp!.group_info, undefined);
+});
+
+void test("decodeSendMessageRsp / heartbeat rsp handle empty payloads (default code/msg)", () => {
+  const c2c = encodeBizPB(BIZ_MSG_TYPES.SendC2CMessageRsp, {})!;
+  assert.deepEqual(decodeSendMessageRsp(c2c, "m"), { msgId: "m", code: 0, message: "" });
+  const pvt = encodeBizPB(BIZ_MSG_TYPES.SendPrivateHeartbeatRsp, {})!;
+  assert.deepEqual(decodeSendPrivateHeartbeatRsp(pvt, "m"), { msgId: "m", code: 0, msg: "", message: "" });
+});
+
+void test("encodeSendC2CMessageReq works without msg_seq / trace_id (optional branches)", () => {
+  const bytes = encodeSendC2CMessageReq({ to_account: "u", msg_body: textBody })!;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as Record<string, any>;
+  assert.equal(back.toAccount, "u");
+});
+
 // ── error branches ────────────────────────────────────────────────────────────
 void test("encodeBizPB returns null for unknown type", () => {
   assert.equal(encodeBizPB("trpc.unknown.NotAType", {}), null);

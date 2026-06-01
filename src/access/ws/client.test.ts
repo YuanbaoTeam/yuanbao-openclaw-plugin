@@ -340,6 +340,57 @@ void test("retryable auth error reconnects without token refresh", async () => {
   client.disconnect();
 });
 
+void test("unrecognized push (empty data) still dispatches raw + ACKs when needAck", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  let dispatched = false;
+  const { client, fake } = connectAndAuth({ onDispatch: () => { dispatched = true; } });
+  const sentBefore = fake.sent.length;
+  const head: PBHead = { cmdType: CMD_TYPE.Push, cmd: "x", seqNo: 3, msgId: "p", module: "m", needAck: true };
+  fake.emit("message", Buffer.from(encodeConnMsg(head, new Uint8Array(0))!));
+  assert.equal(dispatched, true);
+  assert.ok(fake.sent.length > sentBefore, "needAck push should send an ACK");
+  client.disconnect();
+});
+
+void test("unmatched business response is ignored", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const head: PBHead = { cmdType: CMD_TYPE.Response, cmd: "send_c2c_message", seqNo: 4, msgId: "never-sent", module: "m", status: 0 };
+  // no pending request with this msgId → handled gracefully (no throw)
+  assert.doesNotThrow(() => fake.emit("message", Buffer.from(encodeConnMsg(head, encodeBizPB(BIZ_MSG_TYPES.SendC2CMessageRsp, { code: 0 })!)!)));
+  client.disconnect();
+});
+
+void test("business response with undecodable data resolves to a basic response", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const p = client.sendC2CMessage({ to_account: "u", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "x" } }] });
+  await Promise.resolve();
+  const msgId = decodeConnMsg(fake.sent[fake.sent.length - 1])!.head.msgId;
+  const head: PBHead = { cmdType: CMD_TYPE.Response, cmd: "send_c2c_message", seqNo: 5, msgId, module: "m", status: 7 };
+  fake.emit("message", Buffer.from(encodeConnMsg(head, new Uint8Array([0x08, 0xff]))!)); // undecodable
+  const rsp = await p;
+  assert.equal(rsp.code, 7); // basic response uses head.status
+  client.disconnect();
+});
+
+void test("sendBinary fails (rejects send) when socket is not OPEN", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  fake.readyState = FakeWebSocket.CLOSED; // simulate closed socket
+  await assert.rejects(client.sendC2CMessage({ to_account: "u", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "x" } }] }), /not connected/);
+  client.disconnect();
+});
+
+void test("disconnect resolves pending requests with a disconnect response", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client } = connectAndAuth();
+  const p = client.sendC2CMessage({ to_account: "u", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "x" } }] });
+  client.disconnect(); // cleanup resolves pending with code -1
+  const rsp = await p;
+  assert.equal(rsp.code, -1);
+});
+
 void test("disconnect after connecting transitions to disconnected and blocks reconnect", () => {
   const client = makeClient();
   client.connect();

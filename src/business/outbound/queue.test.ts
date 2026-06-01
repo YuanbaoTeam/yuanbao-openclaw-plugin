@@ -117,6 +117,24 @@ void test("merge-text flushes buffered text before sending media", async () => {
   assert.ok(sentItems.some(i => i.type === "media"), "media sent");
 });
 
+void test("merge-text keeps an unclosed code fence buffered until flush", async () => {
+  const { sender, sentText } = fakeSender();
+  const session = createQueueSession({ sender, strategy: "merge-text", onComplete: () => {}, minChars: 1, maxChars: 3000 });
+  await session.push({ type: "text", text: "```js\nconst x = 1;" }); // unclosed fence
+  assert.deepEqual(sentText, [], "unclosed fence must stay buffered");
+  await session.flush(); // force flush
+  assert.ok(sentText.join("").includes("const x = 1;"));
+});
+
+void test("merge-text keeps an in-progress table buffered until flush", async () => {
+  const { sender, sentText } = fakeSender();
+  const session = createQueueSession({ sender, strategy: "merge-text", onComplete: () => {}, minChars: 1, maxChars: 3000 });
+  await session.push({ type: "text", text: "| a | b |" }); // table row in progress
+  assert.deepEqual(sentText, []);
+  await session.flush();
+  assert.ok(sentText.length >= 1);
+});
+
 // ── mergeOnFlush strategy ───────────────────────────────────────────────────
 void test("mergeOnFlush merges text and sends media after", async () => {
   const { sender, sentText, sentItems } = fakeSender();
