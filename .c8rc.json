@@ -21,6 +21,10 @@
     "src/business/commands/log-upload/perform.ts",
     "src/business/commands/log-upload/cos-upload.ts",
     "src/business/commands/log-upload/index.ts",
+    "src/business/utils/media.ts",
+    "src/business/actions/sticker/sticker-cache.ts",
+    "src/business/actions/sticker/init-builtin-stickers.ts",
+    "src/business/tools/remind.ts",
 
     "src/access/ws/index.ts",
     "src/business/actions/index.ts",
@@ -33,8 +37,8 @@
   "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI (upgrade, log-upload perform/cos) are validated by the YuanbaoPBGo E2E suite, not unit tests; the listed index.ts are pure re-export barrels.",
   "reporter": ["text-summary", "text", "lcov"],
   "check-coverage": true,
-  "lines": 76,
-  "statements": 76,
-  "functions": 83,
+  "lines": 85,
+  "statements": 85,
+  "functions": 85,
   "branches": 76
 }
