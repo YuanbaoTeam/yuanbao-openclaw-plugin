@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createQueueSession, defaultChunkText } from "./queue.js";
+import { createMergeTextSessionForTest, createQueueSession, defaultChunkText } from "./queue.js";
 import type { MessageSender, OutboundItem, SendResult } from "./types.js";
 
 /** Records every send call; returns ok by default. */
@@ -177,4 +177,99 @@ void test("merge-text flush with failing sender reports no content sent", async 
   // hasSentContent is set true on push for merge-text; failing send logs but
   // the flag already flipped — assert flush still resolves without throwing.
   assert.equal(typeof hadContent, "boolean");
+});
+
+// ── merge-text streaming + table buffering ───────────────────────────────────
+// Migrated from the legacy test/outbound-queue.test.mjs (which tested dist and
+// was not run by the test glob). These exercise the merge-text drainBuffer
+// table-hold / separator logic in depth.
+
+function streamSession(opts: { minChars?: number; maxChars?: number } = {}) {
+  const sentTexts: string[] = [];
+  const sentMedias: string[] = [];
+  const sender = {
+    sendText: async (text: string) => { sentTexts.push(text); return { ok: true }; },
+    sendMedia: async (url: string) => { sentMedias.push(url); return { ok: true }; },
+    sendSticker: async () => ({ ok: true }),
+    sendRaw: async () => ({ ok: true }),
+    send: async (item: OutboundItem) => {
+      if (item.type === "text") { sentTexts.push(item.text); }
+      else if (item.type === "media") { sentMedias.push(item.mediaUrl); }
+      return { ok: true };
+    },
+    deliver: async () => {},
+  } as unknown as MessageSender;
+  const session = createMergeTextSessionForTest({
+    sender, strategy: "merge-text", onComplete: () => {}, sessionKey: "s",
+    minChars: opts.minChars ?? 2800, maxChars: opts.maxChars ?? 3000,
+  });
+  return { session, sentTexts, sentMedias };
+}
+
+void test("merge-text: a mid-cell split table row is held until the row completes", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 10, maxChars: 2000 });
+  await session.push({ type: "text", text: "| 序号 | 庙" });
+  assert.equal(sentTexts.length, 0);
+  await session.push({ type: "text", text: "号 | 姓名 |" });
+  assert.equal(sentTexts.length, 0);
+  await session.push({ type: "text", text: "\n\nSome paragraph after table" });
+  await session.flush();
+  assert.ok(sentTexts.join("").includes("| 序号 | 庙号 | 姓名 |"));
+});
+
+void test("merge-text: header → separator split row merges correctly", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 200, maxChars: 2000 });
+  await session.push({ type: "text", text: "| 模型 | 评分 |" });
+  await session.push({ type: "text", text: "| --- |" });
+  await session.push({ type: "text", text: " --- |\n| GPT-4 | 95 |" });
+  assert.equal(sentTexts.length, 0, "table still in progress");
+  await session.flush();
+  const all = sentTexts.join("");
+  assert.ok(all.includes("| 模型 | 评分 |") && all.includes("| GPT-4 | 95 |"));
+});
+
+void test("merge-text: consecutive table rows held until a non-table block arrives", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 10, maxChars: 2000 });
+  for (const t of ["| a | b |", "| --- | --- |", "| 1 | 2 |", "| 3 | 4 |"]) {
+    await session.push({ type: "text", text: t });
+    assert.equal(sentTexts.length, 0);
+  }
+  await session.flush();
+  const all = sentTexts.join("");
+  assert.ok(all.includes("| a | b |") && all.includes("| 3 | 4 |"));
+});
+
+void test("merge-text: a large table over maxChars is NOT split mid-table", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 50, maxChars: 200 });
+  const header = "| 日期 | 主队 | 客队 | 主队得分 | 客队得分 | 场馆 |";
+  await session.push({ type: "text", text: header });
+  await session.push({ type: "text", text: "| --- | --- | --- | --- | --- | --- |" });
+  for (let i = 0; i < 10; i++) {
+    await session.push({ type: "text", text: `| 2025-02-0${i} | 快船 | 森林狼 | 121 | 115 | Arena${i} |` });
+  }
+  assert.equal(sentTexts.length, 0, "table held while in progress");
+  await session.flush();
+  const all = sentTexts.join("");
+  assert.ok(all.includes(header) && all.includes("Arena9"));
+});
+
+void test("merge-text: table held, then a trailing paragraph triggers drain", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 50, maxChars: 200 });
+  await session.push({ type: "text", text: "| a | b |" });
+  await session.push({ type: "text", text: "| --- | --- |" });
+  for (let i = 0; i < 15; i++) { await session.push({ type: "text", text: `| d${i} | v${i} |` }); }
+  assert.equal(sentTexts.length, 0);
+  await session.push({ type: "text", text: "\n\nA paragraph after the table." });
+  await session.flush();
+  const all = sentTexts.join("");
+  assert.ok(all.includes("| a | b |") && all.includes("paragraph after"));
+});
+
+void test("merge-text: heading after a table block keeps a blank-line separator", async () => {
+  const { session, sentTexts } = streamSession({ minChars: 10, maxChars: 2000 });
+  await session.push({ type: "text", text: "| 模型 | 评分 |\n|---|---|\n| GPT-4 | ★ |\n| Claude | ☆ |" });
+  await session.push({ type: "text", text: "## 八、推荐\n\n| 场景 | 模型 |\n|---|---|\n| 写作 | Claude |" });
+  await session.flush();
+  const all = sentTexts.join("");
+  assert.ok(all.includes("## 八、推荐\n\n| 场景"), "heading and new table separated by blank line");
 });
