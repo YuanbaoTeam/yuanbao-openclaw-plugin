@@ -84,3 +84,21 @@ void test("sendGroupMsgBody catches a thrown ws error", async () => {
   const r = await sendGroupMsgBody({ account: account({ replyToMode: "off" }), groupCode: "g-1", msgBody: body, wsClient: ws });
   assert.equal(r.ok, false);
 });
+
+void test("sendC2CMsgBody forwards groupCode + fromAccount when provided", async () => {
+  const { ws, c2cArgs } = fakeWs();
+  await sendC2CMsgBody({ account: account(), toAccount: "u-1", msgBody: body, wsClient: ws, groupCode: "g-ctx", fromAccount: "bot" });
+  assert.equal(c2cArgs[0].group_code, "g-ctx");
+  assert.equal(c2cArgs[0].from_account, "bot");
+});
+
+void test("sendGroupMsgBody forwards fromAccount + trace fields", async () => {
+  const { ws, groupArgs } = fakeWs();
+  await sendGroupMsgBody({
+    account: account({ replyToMode: "off" }), groupCode: "g-1", msgBody: body, fromAccount: "bot", wsClient: ws,
+    traceContext: { traceId: "tr", traceparent: "", nextMsgSeq: () => 4 },
+  });
+  assert.equal(groupArgs[0].from_account, "bot");
+  assert.equal(groupArgs[0].trace_id, "tr");
+  assert.equal(groupArgs[0].msg_seq, 4);
+});

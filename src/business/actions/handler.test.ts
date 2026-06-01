@@ -113,3 +113,15 @@ void test("sticker-search short-circuits without creating a sender", async () =>
   assert.equal(typeof res.ok, "boolean");
   assert.equal(sentItems.length, 0);
 });
+
+void test("action read from top-level input + single mediaUrl branch", async () => {
+  // no params.action → falls back to input.action; single `mediaUrl` (not mediaUrls)
+  await handleAction({ cfg, to: "user:u-1", action: "send", params: { mediaUrl: "http://one.png" } } as never);
+  assert.equal(sentItems.filter(i => i.type === "media").length, 1);
+});
+
+void test("react action with sticker_id as an array dispatches a sticker", async () => {
+  await handleAction({ cfg, to: "user:u-1", params: { action: "react", sticker_id: ["s-9", "s-10"] } });
+  assert.equal(sentItems.length, 1);
+  assert.equal(sentItems[0].type, "sticker");
+});

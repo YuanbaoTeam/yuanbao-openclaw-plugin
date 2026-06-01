@@ -77,3 +77,29 @@ void test("list_bots filters yuanbao/bot user types", async () => {
   assert.equal(res.details?.members?.length, 1); // only the userType=2 bot
   removeMember("acct-m4");
 });
+
+void test("list_bots reports failure when no bots are present", async () => {
+  const m = getMember("acct-m5");
+  m.session.upsertUser("m-nobots", { userId: "u-1", nickName: "Alice", lastSeen: Date.now(), userType: 1 });
+  const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-nobots", agentAccountId: "acct-m5" }));
+  const res = await tool!.execute("t", { action: "list_bots", mention: false });
+  assert.equal(res.details?.success, false);
+  removeMember("acct-m5");
+});
+
+void test("find without a name falls back to listing all members", async () => {
+  seed("acct-m6", "m-noname");
+  const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-noname", agentAccountId: "acct-m6" }));
+  const res = await tool!.execute("t", { action: "find", mention: false }); // no `name`
+  assert.equal(res.details?.success, true);
+  assert.equal(res.details?.members?.length, 2);
+  removeMember("acct-m6");
+});
+
+void test("unsupported action returns an error", async () => {
+  seed("acct-m7", "m-bad");
+  const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-bad", agentAccountId: "acct-m7" }));
+  const res = await tool!.execute("t", { action: "nonsense", mention: false });
+  assert.equal(res.details?.success, false);
+  removeMember("acct-m7");
+});

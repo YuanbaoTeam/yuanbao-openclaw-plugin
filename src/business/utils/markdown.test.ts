@@ -43,6 +43,12 @@ void test("mdFence.mergeBlockStreaming strips re-open marker when buffer fence s
   assert.match(merged, /more/);
 });
 
+void test("mdFence.mergeBlockStreaming strips a re-open marker when buffer fence is unclosed (case 3)", () => {
+  const merged = mdFence.mergeBlockStreaming("prefix\n```js\nlet a=1;", "```js\nlet b=2;\n```");
+  assert.match(merged, /let a=1;/);
+  assert.match(merged, /let b=2;/);
+});
+
 // ── mdBlock ──────────────────────────────────────────────────────────────────
 void test("mdBlock.startsWithBlockElement recognizes block starts", () => {
   for (const s of ["# heading", "- item", "1. item", "> quote", "```js", "| a |", "$$x$$", "--- "]) {
@@ -73,6 +79,21 @@ void test("mdBlock.inferSeparator: block element follows paragraph → blank lin
 
 void test("mdBlock.inferSeparator: mid-cell table split → direct concat", () => {
   assert.equal(mdBlock.inferSeparator("| GPT | 88", "% | 90% |"), "");
+});
+
+void test("mdBlock.inferSeparator: unclosed fence/math in buffer → no separator", () => {
+  assert.equal(mdBlock.inferSeparator("```js\ncode", "more"), "");
+  assert.equal(mdBlock.inferSeparator("text $$ a=b", "more"), "");
+});
+
+void test("mdBlock.inferSeparator: table-row split across blocks → single space", () => {
+  // buffer ends with a complete table row; incoming first line ends with | but
+  // doesn't start with | → mid-row split, join with a space.
+  assert.equal(mdBlock.inferSeparator("| a | b |", "c |\n| d |"), " ");
+});
+
+void test("mdBlock.inferSeparator: plain paragraph continuation → no separator", () => {
+  assert.equal(mdBlock.inferSeparator("a sentence", "continues here"), "");
 });
 
 // ── mdAtomic ─────────────────────────────────────────────────────────────────

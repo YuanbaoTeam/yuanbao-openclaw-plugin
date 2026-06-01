@@ -262,6 +262,26 @@ void test("encodeSendC2CMessageReq works without msg_seq / trace_id (optional br
   assert.equal(back.toAccount, "u");
 });
 
+void test("encodeSendGroupMessageReq works without optional fields (falsy branches)", () => {
+  const bytes = encodeSendGroupMessageReq({ group_code: "g", msg_body: textBody })!;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as Record<string, any>;
+  assert.equal(back.groupCode, "g");
+});
+
+void test("encodeSendC2CMessageReq with traceContext sets msgSeq + logExt branches", () => {
+  const bytes = encodeSendC2CMessageReq({ to_account: "u", msg_body: textBody, msg_seq: 9, trace_id: "tr" })!;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as Record<string, any>;
+  assert.equal(Number(back.msgSeq), 9);
+  assert.equal(back.logExt.traceId, "tr");
+});
+
+void test("decodeQueryGroupInfoRsp fills defaults for missing nested fields", () => {
+  const bytes = encodeBizPB(BIZ_MSG_TYPES.QueryGroupInfoRsp, { code: 0, msg: "ok", groupInfo: { groupOwnerUserId: "o" } })!;
+  const rsp = decodeQueryGroupInfoRsp(bytes, "m");
+  assert.equal(rsp!.group_info?.group_name, ""); // || "" branch
+  assert.equal(rsp!.group_info?.group_size, 0);
+});
+
 // ── error branches ────────────────────────────────────────────────────────────
 void test("encodeBizPB returns null for unknown type", () => {
   assert.equal(encodeBizPB("trpc.unknown.NotAType", {}), null);
