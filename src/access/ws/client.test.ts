@@ -113,6 +113,30 @@ void test("heartbeat fires after connect and a ping frame is sent", () => {
   client.disconnect();
 });
 
+void test("missing heartbeat ACKs trigger reconnect after consecutive timeout checks", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const client = makeClient();
+  client.connect();
+  const fake = FakeWebSocket.instances[0];
+  fake.emit("open");
+  fake.emit("message", serverFrame(CMD.AuthBind, PB_MSG_TYPES.AuthBindRsp, { code: 0, connectId: "c" }));
+
+  mock.timers.tick(5000); // send first ping
+  assert.equal(client.getState(), "connected");
+  assert.equal(FakeWebSocket.instances.length, 1);
+
+  mock.timers.tick(4000); // first missing-ACK check: warn, keep connection
+  assert.equal(client.getState(), "connected");
+  assert.equal(FakeWebSocket.instances.length, 1);
+
+  mock.timers.tick(4000); // second consecutive missing-ACK check: reconnect
+  assert.equal(client.getState(), "reconnecting");
+  mock.timers.tick(1000);
+  assert.equal(FakeWebSocket.instances.length, 2, "a new socket should be created after heartbeat timeouts");
+
+  client.disconnect();
+});
+
 void test("retryable close schedules a reconnect (new socket after delay)", () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   const client = makeClient();

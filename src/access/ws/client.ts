@@ -763,6 +763,7 @@ export class YuanbaoWsClient {
     this.lastHeartbeatAt = Date.now();
     this.sendBinary(binary);
     this.log.debug("heartbeat sent");
+    this.scheduleNextPingCheck();
   }
 
   private onPingResponse(head: PBConnMsg["head"], data: Uint8Array): void {
