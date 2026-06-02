@@ -18,17 +18,19 @@ type Captured = {
   onError: (err: unknown, items: unknown[]) => void;
 };
 let captured: Captured;
+let executedContexts: unknown[];
 let abortText = "";
 let btwText = "";
 let ensureDebouncer: typeof import("./index.js").ensureDebouncer;
 
 beforeEach(async () => {
+  executedContexts = [];
   abortText = "/stop";
   btwText = "/btw";
   // Stub the pipeline so the real middleware graph (and its broad SDK imports)
   // is not pulled in — we only test the debouncer's own routing/flush logic.
   mock.module("../../business/pipeline/create.js", {
-    namedExports: { createPipeline: () => ({ execute: async () => {} }) },
+    namedExports: { createPipeline: () => ({ execute: async (ctx: unknown) => { executedContexts.push(ctx); } }) },
   });
   mock.module("openclaw/plugin-sdk/channel-inbound", {
     namedExports: {
@@ -82,22 +84,35 @@ void test("shouldDebounce delegates to the SDK predicate", () => {
   assert.equal(captured.shouldDebounce(item()), false);
 });
 
-void test("onFlush single item runs without throwing", async () => {
-  await assert.doesNotReject(captured.onFlush([item()]));
+void test("onFlush single item executes pipeline with the original message context", async () => {
+  await captured.onFlush([item()]);
+  assert.equal(executedContexts.length, 1);
+  const ctx = executedContexts[0] as { raw: { from_account?: string }; flushedItems: unknown[]; isGroup: boolean };
+  assert.equal(ctx.raw.from_account, "u-1");
+  assert.equal(ctx.flushedItems.length, 1);
+  assert.equal(ctx.isGroup, false);
 });
 
-void test("onFlush merges multiple items without throwing", async () => {
-  await assert.doesNotReject(captured.onFlush([
+void test("onFlush merges multiple items into a synthetic message before pipeline execution", async () => {
+  await captured.onFlush([
     item({ msg: { from_account: "u-1", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "a" } }] } }),
     item({ msg: { from_account: "u-1", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "b" } }] } }),
-  ]));
+  ]);
+  assert.equal(executedContexts.length, 1);
+  const ctx = executedContexts[0] as {
+    raw: { msg_body?: Array<{ msg_content?: { text?: string } }> };
+    flushedItems: unknown[];
+  };
+  assert.equal(ctx.flushedItems.length, 2);
+  assert.deepEqual(ctx.raw.msg_body?.map(elem => elem.msg_content?.text), ["a", "b"]);
 });
 
 void test("onFlush skips when merged content is empty", async () => {
-  await assert.doesNotReject(captured.onFlush([
+  await captured.onFlush([
     item({ msg: { from_account: "u-1", msg_body: [] } }),
     item({ msg: { from_account: "u-1", msg_body: [] } }),
-  ]));
+  ]);
+  assert.equal(executedContexts.length, 0);
 });
 
 void test("onError logs without throwing", () => {

@@ -36,7 +36,7 @@
     "src/business/pipeline/middlewares/index.ts",
     "src/business/tools/index.ts"
   ],
-  "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI (upgrade, log-upload perform/cos) are validated by the YuanbaoPBGo E2E suite, not unit tests; the listed index.ts are pure re-export barrels.",
+  "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI/mixed IO modules (upgrade, log-upload, media upload/download) are validated by YuanbaoPBGo E2E or need pure-helper extraction before being counted; the listed index.ts are pure re-export barrels.",
   "reporter": ["text-summary", "text", "lcov"],
   "check-coverage": true,
   "lines": 90,
