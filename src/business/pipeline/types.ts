@@ -65,6 +65,8 @@ export interface PipelineContext {
   commandAuthorized: boolean;
   rewrittenBody: string;
   hasControlCommand: boolean;
+  /** Parsed command parts: [command, ...args], e.g. ["/new"] or ["/reset", "arg1"]. Empty when not a command. */
+  commandParts: string[];
 
   // -- Populated by resolveMention --
   effectiveWasMentioned: boolean;

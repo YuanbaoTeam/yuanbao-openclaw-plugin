@@ -23,6 +23,7 @@ import type {
   WsGetGroupMemberListResponse,
   WsSyncInformationData,
   WsSyncInformationResponse,
+  WsQueryBotInfoResponse,
 } from "./types.js";
 
 // Module-level logger instance
@@ -104,6 +105,8 @@ export const BIZ_MSG_TYPES = {
   SendGroupHeartbeatRsp: `${PKG}.SendGroupHeartbeatRsp`,
   SyncInformationReq: `${PKG}.SyncInformationReq`,
   SyncInformationRsp: `${PKG}.SyncInformationRsp`,
+  QueryBotInfoReq: `${PKG}.QueryBotInfoReq`,
+  QueryBotInfoRsp: `${PKG}.QueryBotInfoRsp`,
 } as const;
 
 export function encodeBizPB(key: string, value: Record<string, unknown>): Uint8Array | null {
@@ -502,5 +505,39 @@ export function decodeSyncInformationRsp(
     msgId,
     code: decoded.code || 0,
     msg: decoded.msg || "",
+  };
+}
+
+type PBBotInfo = {
+  botId?: string;
+  encryptOwnerId?: string;
+};
+
+type PBQueryBotInfoRsp = {
+  code?: number;
+  message?: string;
+  botInfo?: PBBotInfo;
+};
+
+/** Encode QueryBotInfoReq. */
+export function encodeQueryBotInfoReq(botId: string): Uint8Array | null {
+  return encodeBizPB(BIZ_MSG_TYPES.QueryBotInfoReq, { botId });
+}
+
+/** Decode QueryBotInfoRsp. */
+export function decodeQueryBotInfoRsp(
+  data: Uint8Array | ArrayBuffer,
+  msgId: string,
+): WsQueryBotInfoResponse | null {
+  const decoded = decodeBizPB(BIZ_MSG_TYPES.QueryBotInfoRsp, data) as PBQueryBotInfoRsp | null;
+  if (!decoded) {
+    return null;
+  }
+  return {
+    msgId,
+    code: decoded.code || 0,
+    msg: decoded.message || "",
+    botId: decoded.botInfo?.botId || "",
+    ownerId: decoded.botInfo?.encryptOwnerId || "",
   };
 }

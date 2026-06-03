@@ -539,6 +539,42 @@
                           "id": 2
                         }
                       }
+                    },
+                    "BotInfo": {
+                      "fields": {
+                        "botId": {
+                          "type": "string",
+                          "id": 1
+                        },
+                        "encryptOwnerId": {
+                          "type": "string",
+                          "id": 2
+                        }
+                      }
+                    },
+                    "QueryBotInfoReq": {
+                      "fields": {
+                        "botId": {
+                          "type": "string",
+                          "id": 1
+                        }
+                      }
+                    },
+                    "QueryBotInfoRsp": {
+                      "fields": {
+                        "code": {
+                          "type": "int32",
+                          "id": 1
+                        },
+                        "message": {
+                          "type": "string",
+                          "id": 2
+                        },
+                        "botInfo": {
+                          "type": "BotInfo",
+                          "id": 3
+                        }
+                      }
                     }
                   }
                 }
