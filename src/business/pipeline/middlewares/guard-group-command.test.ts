@@ -31,11 +31,11 @@ function setupMocks(t: any) {
   });
 }
 
-void test("guard-group-command: when guard - executes in group chat", async (t) => {
+void test("guard-group-command: when guard - executes for group command", async (t) => {
   setupMocks(t);
   const { guardGroupCommand } = await import("./guard-group-command.js");
 
-  const ctx = createMockCtx({ isGroup: true });
+  const ctx = createMockCtx({ isGroup: true, hasControlCommand: true } as any);
   assert.equal(guardGroupCommand.when!(ctx), true);
 });
 
@@ -43,27 +43,32 @@ void test("guard-group-command: when guard - skips in C2C", async (t) => {
   setupMocks(t);
   const { guardGroupCommand } = await import("./guard-group-command.js");
 
-  const ctx = createMockCtx({ isGroup: false });
+  const ctx = createMockCtx({ isGroup: false, hasControlCommand: true } as any);
   assert.equal(guardGroupCommand.when!(ctx), false);
 });
 
-void test("guard-group-command: non-owner executes registered command -> abort pipeline", async (t) => {
+void test("guard-group-command: when guard - skips non-command in group", async (t) => {
+  setupMocks(t);
+  const { guardGroupCommand } = await import("./guard-group-command.js");
+
+  const ctx = createMockCtx({ isGroup: true, hasControlCommand: false } as any);
+  assert.equal(guardGroupCommand.when!(ctx), false);
+});
+
+void test("guard-group-command: non-owner + whitelisted command -> reject (owner-only)", async (t) => {
   setupMocks(t);
   const { guardGroupCommand } = await import("./guard-group-command.js");
 
   const ctx = createMockCtx({
     isGroup: true,
-    rawBody: "/some-registered-cmd",
+    hasControlCommand: true,
+    commandParts: ["/new"],
+    rawBody: "/new",
     groupCode: "group-001" as any,
     fromAccount: "user-001",
     raw: { bot_owner_id: "owner-001", from_account: "user-001", msg_id: "msg-001" } as any,
-    core: {
-      channel: {
-        text: { hasControlCommand: () => true },
-      },
-    } as any,
     config: {} as any,
-  });
+  } as any);
   const { next, wasCalled } = createMockNext();
 
   await guardGroupCommand.handler(ctx, next);
@@ -71,23 +76,20 @@ void test("guard-group-command: non-owner executes registered command -> abort p
   assert.equal(wasCalled(), false, "non-owner should abort pipeline");
 });
 
-void test("guard-group-command: owner executes registered command -> pass through", async (t) => {
+void test("guard-group-command: owner + whitelisted command -> pass through", async (t) => {
   setupMocks(t);
   const { guardGroupCommand } = await import("./guard-group-command.js");
 
   const ctx = createMockCtx({
     isGroup: true,
-    rawBody: "/some-registered-cmd",
+    hasControlCommand: true,
+    commandParts: ["/new"],
+    rawBody: "/new",
     groupCode: "group-001" as any,
     fromAccount: "owner-001",
     raw: { bot_owner_id: "owner-001", from_account: "owner-001" } as any,
-    core: {
-      channel: {
-        text: { hasControlCommand: () => true },
-      },
-    } as any,
     config: {} as any,
-  });
+  } as any);
   const { next, wasCalled } = createMockNext();
 
   await guardGroupCommand.handler(ctx, next);
@@ -95,50 +97,23 @@ void test("guard-group-command: owner executes registered command -> pass throug
   assert.equal(wasCalled(), true, "owner should pass through");
 });
 
-void test("guard-group-command: unregistered command -> pass through (treated as plain text)", async (t) => {
+void test("guard-group-command: non-whitelisted command -> reject", async (t) => {
   setupMocks(t);
   const { guardGroupCommand } = await import("./guard-group-command.js");
 
   const ctx = createMockCtx({
     isGroup: true,
-    rawBody: "/random-text",
+    hasControlCommand: true,
+    commandParts: ["/config"],
+    rawBody: "/config",
     groupCode: "group-001" as any,
     fromAccount: "user-001",
-    raw: { bot_owner_id: "owner-001", from_account: "user-001" } as any,
-    core: {
-      channel: {
-        text: { hasControlCommand: () => false },
-      },
-    } as any,
+    raw: { bot_owner_id: "owner-001", from_account: "user-001", msg_id: "msg-001" } as any,
     config: {} as any,
-  });
+  } as any);
   const { next, wasCalled } = createMockNext();
 
   await guardGroupCommand.handler(ctx, next);
 
-  assert.equal(wasCalled(), true, "unregistered command should pass through");
-});
-
-void test("guard-group-command: plain text message -> pass through", async (t) => {
-  setupMocks(t);
-  const { guardGroupCommand } = await import("./guard-group-command.js");
-
-  const ctx = createMockCtx({
-    isGroup: true,
-    rawBody: "你好",
-    groupCode: "group-001" as any,
-    fromAccount: "user-001",
-    raw: { from_account: "user-001" } as any,
-    core: {
-      channel: {
-        text: { hasControlCommand: () => false },
-      },
-    } as any,
-    config: {} as any,
-  });
-  const { next, wasCalled } = createMockNext();
-
-  await guardGroupCommand.handler(ctx, next);
-
-  assert.equal(wasCalled(), true);
+  assert.equal(wasCalled(), false, "non-whitelisted command should abort pipeline");
 });

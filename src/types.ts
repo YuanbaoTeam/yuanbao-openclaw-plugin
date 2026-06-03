@@ -61,6 +61,8 @@ export type ResolvedYuanbaoAccount = {
   appKey?: string;
   appSecret?: string;
   botId?: string;
+  /** Cached after WS connect via QueryBotInfoReq; takes priority over per-message bot_owner_id */
+  botOwnerId?: string;
   apiDomain?: string; // API domain
   wsUrl?: string; // WebSocket URL
   token?: string;

@@ -10,9 +10,11 @@ import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
 
 /**
  * Check whether the message is from the bot owner.
+ * Prefers account.botOwnerId (cached via QueryBotInfoReq) over per-message bot_owner_id.
  */
-function isOwnerMessage(raw: PipelineContext["raw"]): boolean {
-  return Boolean(raw.bot_owner_id && raw.from_account === raw.bot_owner_id);
+function isOwnerMessage(raw: PipelineContext["raw"], accountOwnerId?: string): boolean {
+  const ownerId = accountOwnerId || raw.bot_owner_id;
+  return Boolean(ownerId && raw.from_account === ownerId);
 }
 
 /**
@@ -42,7 +44,7 @@ export const guardSpecialCommand: MiddlewareDescriptor = {
     if (upgradeCmd.matched) {
       ctx.log.info(`[guard-special-command] received ${trimmedBody} command`);
 
-      if (!isOwnerMessage(raw)) {
+      if (!isOwnerMessage(raw, ctx.account.botOwnerId)) {
         ctx.log.warn(`[guard-special-command] non-owner attempted ${trimmedBody}, rejected`, {
           fromAccount,
         });
@@ -91,7 +93,7 @@ export const guardSpecialCommand: MiddlewareDescriptor = {
     if (trimmedBody.startsWith("/issue-log")) {
       ctx.log.info("[guard-special-command] received /issue-log command");
 
-      if (!isOwnerMessage(raw)) {
+      if (!isOwnerMessage(raw, ctx.account.botOwnerId)) {
         ctx.log.warn("[guard-special-command] non-owner attempted /issue-log, rejected", {
           fromAccount,
         });

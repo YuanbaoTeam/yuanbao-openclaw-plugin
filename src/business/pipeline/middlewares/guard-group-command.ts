@@ -11,42 +11,44 @@ import type { YuanbaoMsgBodyElement } from "../../../types.js";
 import { prepareOutboundContent, buildOutboundMsgBody } from "../../messaging/handlers/index.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
-/** Public commands available to all group members */
-const GROUP_PUBLIC_COMMANDS = new Set<string>([]);
+/** Commands allowed in group chat (owner-only) */
+const GROUP_ALLOWED_COMMANDS = new Set<string>([
+  "/new", "/reset", "/retry", "/undo", "/stop",
+  "/approve", "/btw", "/queue",
+]);
 
 export const guardGroupCommand: MiddlewareDescriptor = {
   name: "guard-group-command",
-  when: ctx => ctx.isGroup,
+  when: ctx => ctx.isGroup && ctx.hasControlCommand,
   handler: async (ctx, next) => {
-    const { core, config, rawBody, raw, account, groupCode, fromAccount } = ctx;
-    const q = rawBody.trim().split(/\s+/)
-      .find(part => !part.trim().startsWith("@")) || rawBody;
+    const { commandParts, raw, account, groupCode, fromAccount } = ctx;
+    const cmd = commandParts?.[0]?.toLowerCase() ?? "";
 
-    const hasRegisteredCommand = core.channel.text.hasControlCommand(q, config);
-    const isOwner = Boolean(raw.bot_owner_id && raw.from_account === raw.bot_owner_id);
-    const cmdMatch = q.trim().match(/^\/([a-z_-]+)/i);
+    const ownerId = account.botOwnerId || raw.bot_owner_id;
+    const isOwner = Boolean(ownerId && raw.from_account === ownerId);
 
-    ctx.log.info('[guard-group-command] come in', { hasRegisteredCommand, isOwner, isCmd: !!cmdMatch });
+    ctx.log.info('[guard-group-command] come in', { isOwner, cmd });
 
-    if (hasRegisteredCommand && cmdMatch) {
-      const cmdName = cmdMatch[1].toLowerCase();
-
-      if (!GROUP_PUBLIC_COMMANDS.has(cmdName) && !isOwner) {
-        await sendGroupMsgBody({
-          account,
-          groupCode: groupCode!,
-          msgBody: buildOutboundMsgBody(prepareOutboundContent(
-            `⚠️ /${cmdName} 仅限创建者${!raw?.bot_owner_id ? "并且在私聊模式下" : ""}使用哦~`,
-            groupCode,
-            getMember(account.accountId),
-          )) as YuanbaoMsgBodyElement[],
-          fromAccount: account.botId,
-          refMsgId: raw.msg_id || raw.msg_key || undefined,
-          refFromAccount: fromAccount,
-          wsClient: ctx.wsClient,
-        });
-        return; // Abort pipeline
-      }
+    const allowed = GROUP_ALLOWED_COMMANDS.has(cmd);
+    const rejected = !allowed || !isOwner;
+    if (rejected) {
+      const rejectReason = !allowed
+        ? `⚠️ ${cmd} 暂不支持在群聊中使用，请在私聊中发送`
+        : `⚠️ ${cmd} 仅限创建者使用哦~`;
+      await sendGroupMsgBody({
+        account,
+        groupCode: groupCode!,
+        msgBody: buildOutboundMsgBody(prepareOutboundContent(
+          rejectReason,
+          groupCode,
+          getMember(account.accountId),
+        )) as YuanbaoMsgBodyElement[],
+        fromAccount: account.botId,
+        refMsgId: raw.msg_id || raw.msg_key || undefined,
+        refFromAccount: fromAccount,
+        wsClient: ctx.wsClient,
+      });
+      return;
     }
 
     await next();
