@@ -87,7 +87,7 @@ export const buildContext: MiddlewareDescriptor = {
       BodyForAgent: rewrittenBody,
       ...(isGroup ? { InboundHistory: inboundHistory } : {}),
       RawBody: rewrittenBody,
-      CommandBody: commandParts.length > 0 ? commandParts.join(" ") : rewrittenBody,
+      CommandBody: commandParts?.length > 0 ? commandParts.join(" ") : rewrittenBody,
       From: `yuanbao:${label}`,
       To: `yuanbao:${label}`,
       SessionKey: route.sessionKey,
