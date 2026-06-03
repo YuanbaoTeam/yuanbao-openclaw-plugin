@@ -1,6 +1,6 @@
 {
   "name": "openclaw-plugin-yuanbao",
-  "version": "2.13.5",
+  "version": "2.14.0",
   "type": "module",
   "private": false,
   "packageManager": "pnpm@10.33.2",
