@@ -20,8 +20,10 @@ import {
   decodeSendMessageRsp,
   decodeSendPrivateHeartbeatRsp,
   decodeSyncInformationRsp,
+  decodeQueryBotInfoRsp,
   encodeBizPB,
   encodeGetGroupMemberListReq,
+  encodeQueryBotInfoReq,
   encodeQueryGroupInfoReq,
   encodeSendC2CMessageReq,
   encodeSendGroupHeartbeatReq,
@@ -280,6 +282,44 @@ void test("decodeQueryGroupInfoRsp fills defaults for missing nested fields", ()
   const rsp = decodeQueryGroupInfoRsp(bytes, "m");
   assert.equal(rsp!.group_info?.group_name, ""); // || "" branch
   assert.equal(rsp!.group_info?.group_size, 0);
+});
+
+// ── QueryBotInfo (owner-id query) ───────────────────────────────────────────
+void test("encodeQueryBotInfoReq encodes botId (round-trips via decodeBizPB)", () => {
+  const bytes = encodeQueryBotInfoReq("bot-001")!;
+  const back = decodeBizPB(BIZ_MSG_TYPES.QueryBotInfoReq, bytes) as Record<string, any>;
+  assert.equal(back.botId, "bot-001");
+});
+
+void test("decodeQueryBotInfoRsp maps message→msg and botInfo.{botId,encryptOwnerId}", () => {
+  const bytes = encodeBizPB(BIZ_MSG_TYPES.QueryBotInfoRsp, {
+    code: 0,
+    message: "ok",
+    botInfo: { botId: "bot-001", encryptOwnerId: "owner-xyz" },
+  })!;
+  assert.deepEqual(decodeQueryBotInfoRsp(bytes, "m-1"), {
+    msgId: "m-1",
+    code: 0,
+    msg: "ok",
+    botId: "bot-001",
+    ownerId: "owner-xyz",
+  });
+});
+
+void test("decodeQueryBotInfoRsp fills defaults when botInfo / fields are absent", () => {
+  const bytes = encodeBizPB(BIZ_MSG_TYPES.QueryBotInfoRsp, {})!;
+  assert.deepEqual(decodeQueryBotInfoRsp(bytes, "m-2"), {
+    msgId: "m-2",
+    code: 0,
+    msg: "",
+    botId: "",
+    ownerId: "",
+  });
+});
+
+void test("decodeQueryBotInfoRsp returns null on malformed bytes", () => {
+  const bad = new Uint8Array([0x08, 0xff]);
+  assert.equal(decodeQueryBotInfoRsp(bad, "m"), null);
 });
 
 // ── error branches ────────────────────────────────────────────────────────────

@@ -80,6 +80,31 @@ void test("buildKey: /btw routes to a per-interjection queue", () => {
   assert.equal(k, "direct:a-1:u-1:btw:7");
 });
 
+void test("buildKey: group owner /stop routes to a control queue (bypasses shared group queue)", () => {
+  const k = captured.buildKey(item({
+    isGroup: true,
+    msg: { group_code: "g-1", from_account: "owner-1", bot_owner_id: "owner-1", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "/stop" } }] },
+  }));
+  assert.equal(k, "group:a-1:g-1:control");
+});
+
+void test("buildKey: group non-owner /stop stays on the shared group queue", () => {
+  const k = captured.buildKey(item({
+    isGroup: true,
+    msg: { group_code: "g-1", from_account: "member-2", bot_owner_id: "owner-1", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "/stop" } }] },
+  }));
+  assert.equal(k, "group:a-1:g-1");
+});
+
+void test("buildKey: group owner resolved via cached account.botOwnerId -> control queue", () => {
+  const k = captured.buildKey(item({
+    isGroup: true,
+    account: { accountId: "a-1", botId: "bot-1", botOwnerId: "owner-9", config: {} },
+    msg: { group_code: "g-1", from_account: "owner-9", msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "/stop" } }] },
+  }));
+  assert.equal(k, "group:a-1:g-1:control");
+});
+
 void test("shouldDebounce delegates to the SDK predicate", () => {
   assert.equal(captured.shouldDebounce(item()), false);
 });

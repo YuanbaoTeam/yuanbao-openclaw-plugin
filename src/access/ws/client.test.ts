@@ -314,6 +314,21 @@ void test("syncInformation resolves", async () => {
   client.disconnect();
 });
 
+void test("queryBotInfo round-trips and decodes the bot owner id", async () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const { client, fake } = connectAndAuth();
+  const rsp = await roundTrip(
+    fake,
+    () => client.queryBotInfo("bot-001"),
+    BIZ_MSG_TYPES.QueryBotInfoRsp,
+    { code: 0, message: "ok", botInfo: { botId: "bot-001", encryptOwnerId: "owner-xyz" } },
+  );
+  assert.equal(rsp.code, 0);
+  assert.equal(rsp.botId, "bot-001");
+  assert.equal(rsp.ownerId, "owner-xyz");
+  client.disconnect();
+});
+
 void test("sendC2CMessage rejects when the socket is not connected", async () => {
   const client = makeClient();
   // never connect → no socket
