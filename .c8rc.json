@@ -1,0 +1,46 @@
+{
+  "all": true,
+  "src": ["src"],
+  "extension": [".ts"],
+  "exclude": [
+    "**/*.test.ts",
+    "**/test-helpers/**",
+    "src/**/types.ts",
+    "src/logger.ts",
+    "**/*.proto",
+    "**/*.json",
+    "src/business/actions/sticker/sticker-types.ts",
+
+    "src/channel.ts",
+    "src/channel.setup.ts",
+    "src/channel-shared.ts",
+    "src/setup-core.ts",
+    "src/setup-surface.ts",
+
+    "src/business/commands/upgrade/**",
+    "src/business/commands/log-upload/perform.ts",
+    "src/business/commands/log-upload/cos-upload.ts",
+    "src/business/commands/log-upload/index.ts",
+    "src/business/commands/log-upload/extractor.ts",
+    "src/business/utils/media.ts",
+    "src/business/actions/sticker/sticker-cache.ts",
+    "src/business/actions/sticker/init-builtin-stickers.ts",
+    "src/business/tools/remind.ts",
+
+    "src/access/api.ts",
+    "src/access/ws/index.ts",
+    "src/business/actions/index.ts",
+    "src/business/outbound/index.ts",
+    "src/business/messaging/index.ts",
+    "src/business/pipeline/index.ts",
+    "src/business/pipeline/middlewares/index.ts",
+    "src/business/tools/index.ts"
+  ],
+  "//exclude-rationale": "Declarative wiring (channel*, setup*) + heavy IO/CLI/mixed IO modules (upgrade, log-upload, media upload/download) are validated by YuanbaoPBGo E2E or need pure-helper extraction before being counted; the listed index.ts are pure re-export barrels.",
+  "reporter": ["text-summary", "text", "lcov"],
+  "check-coverage": true,
+  "lines": 90,
+  "statements": 90,
+  "functions": 95,
+  "branches": 80
+}

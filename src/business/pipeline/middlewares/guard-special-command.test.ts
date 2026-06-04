@@ -165,6 +165,42 @@ void test("guard-special-command: normal message -> pass through", async (t) => 
   assert.equal(wasCalled(), true);
 });
 
+void test("guard-special-command: owner resolved via account.botOwnerId (no per-message bot_owner_id) -> pass through", async (t) => {
+  setupMocks(t);
+  const { guardSpecialCommand } = await import("./guard-special-command.js");
+
+  const ctx = createMockCtx({
+    rawBody: "/issue-log",
+    fromAccount: "owner-001",
+    isGroup: false,
+    account: { botOwnerId: "owner-001" } as any,
+    raw: { from_account: "owner-001" } as any, // no bot_owner_id on the message
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await guardSpecialCommand.handler(ctx, next);
+
+  assert.equal(wasCalled(), true, "cached account.botOwnerId should identify the owner");
+});
+
+void test("guard-special-command: account.botOwnerId takes priority over stale raw.bot_owner_id", async (t) => {
+  setupMocks(t);
+  const { guardSpecialCommand } = await import("./guard-special-command.js");
+
+  const ctx = createMockCtx({
+    rawBody: "/issue-log",
+    fromAccount: "real-owner",
+    isGroup: false,
+    account: { botOwnerId: "real-owner" } as any,
+    raw: { bot_owner_id: "stale-owner", from_account: "real-owner" } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await guardSpecialCommand.handler(ctx, next);
+
+  assert.equal(wasCalled(), true, "account.botOwnerId wins over per-message bot_owner_id");
+});
+
 void test("guard-special-command: /yuanbaobot-upgrade is also an upgrade command", async (t) => {
   setupMocks(t);
   const { guardSpecialCommand } = await import("./guard-special-command.js");

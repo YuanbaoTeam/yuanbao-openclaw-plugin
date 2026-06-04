@@ -1,61 +1,37 @@
 /**
- * Unit tests for chat-history.ts: recordMediaHistory and chatMediaHistories LRU eviction.
+ * Unit tests for messaging/chat-history.ts — chat-key derivation and the media
+ * history LRU (skip-empty, append, eviction over capacity).
  */
 
 import assert from "node:assert/strict";
-import test from "node:test";
-import { recordMediaHistory, chatMediaHistories } from "./chat-history.js";
+import test, { afterEach } from "node:test";
+import { chatMediaHistories, deriveChatKey, recordMediaHistory } from "./chat-history.js";
 
-void test("recordMediaHistory writes media history", () => {
-  // Clear
-  chatMediaHistories.clear();
+afterEach(() => chatMediaHistories.clear());
 
-  recordMediaHistory("group-001", {
-    sender: "user-1",
-    timestamp: Date.now(),
-    medias: [{ url: "https://example.com/img.png" }],
-  });
-
-  const list = chatMediaHistories.get("group-001");
-  assert.ok(list);
-  assert.equal(list.length, 1);
-  assert.equal(list[0].sender, "user-1");
-
-  // Clear
-  chatMediaHistories.clear();
+void test("deriveChatKey formats group vs direct keys", () => {
+  assert.equal(deriveChatKey(true, "g-1"), "group:g-1");
+  assert.equal(deriveChatKey(false, undefined, "u-1"), "direct:u-1");
+  assert.equal(deriveChatKey(false), "direct:unknown");
+  assert.equal(deriveChatKey(true, undefined, "u-1"), "direct:u-1"); // group flag but no code → direct
 });
 
-void test("recordMediaHistory skips empty medias", () => {
-  chatMediaHistories.clear();
-
-  recordMediaHistory("group-002", {
-    sender: "user-1",
-    timestamp: Date.now(),
-    medias: [],
-  });
-
-  assert.equal(chatMediaHistories.has("group-002"), false);
-
-  chatMediaHistories.clear();
+void test("recordMediaHistory skips entries with no media", () => {
+  recordMediaHistory("group:g-1", { sender: "u", timestamp: 1, medias: [] });
+  assert.equal(chatMediaHistories.has("group:g-1"), false);
 });
 
-void test("recordMediaHistory LRU evicts entries exceeding limit", () => {
-  chatMediaHistories.clear();
+void test("recordMediaHistory appends entries", () => {
+  recordMediaHistory("group:g-1", { sender: "u", timestamp: 1, medias: [{ url: "http://a" }] });
+  recordMediaHistory("group:g-1", { sender: "u", timestamp: 2, medias: [{ url: "http://b" }] });
+  assert.equal(chatMediaHistories.get("group:g-1")!.length, 2);
+});
 
-  // Write 55 entries (limit is 50)
+void test("recordMediaHistory evicts oldest beyond the per-chat cap (50)", () => {
   for (let i = 0; i < 55; i++) {
-    recordMediaHistory("group-lru", {
-      sender: `user-${i}`,
-      timestamp: Date.now(),
-      medias: [{ url: `https://example.com/img-${i}.png` }],
-    });
+    recordMediaHistory("group:g-1", { sender: "u", timestamp: i, medias: [{ url: `http://${i}` }] });
   }
-
-  const list = chatMediaHistories.get("group-lru");
-  assert.ok(list);
-  assert.equal(list.length, 50, "should evict oldest 5 entries, keeping 50");
-  // Oldest should be user-5 (first 5 evicted)
-  assert.equal(list[0].sender, "user-5");
-
-  chatMediaHistories.clear();
+  const list = chatMediaHistories.get("group:g-1")!;
+  assert.equal(list.length, 50);
+  assert.equal(list[0].timestamp, 5); // first 5 evicted
 });

@@ -120,6 +120,92 @@ void test("guard-command: non-control command -> pass through", async (t) => {
   assert.equal(ctx.hasControlCommand, false);
 });
 
+void test("guard-command: group control command WITHOUT @bot -> not a control command, passes through", async (t) => {
+  setupMocks(t, { gateResult: { commandAuthorized: false, shouldBlock: true } });
+  const { guardCommand } = await import("./guard-command.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: false,
+    rawBody: "/stop",
+    raw: { msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "/stop" } }] } as any,
+    core: {
+      channel: {
+        commands: { shouldHandleTextCommands: () => true },
+        text: { hasControlCommand: () => true },
+      },
+    } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await guardCommand.handler(ctx, next);
+
+  assert.equal(wasCalled(), true, "no @bot in group => treated as plain text, must pass through");
+  assert.equal(ctx.hasControlCommand, false, "control command requires @bot in group");
+});
+
+void test("guard-command: group control command WITH @bot + authorized -> sets commandParts, passes", async (t) => {
+  setupMocks(t, { gateResult: { commandAuthorized: true, shouldBlock: false } });
+  const { guardCommand } = await import("./guard-command.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: true,
+    rawBody: "@bot /stop",
+    raw: { msg_body: [{ msg_type: "TIMTextElem", msg_content: { text: "/stop" } }] } as any,
+    core: {
+      channel: {
+        commands: { shouldHandleTextCommands: () => true },
+        text: { hasControlCommand: () => true },
+      },
+    } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await guardCommand.handler(ctx, next);
+
+  assert.equal(wasCalled(), true, "@bot + authorized should pass through");
+  assert.equal(ctx.hasControlCommand, true);
+  assert.deepEqual(ctx.commandParts, ["/stop"]);
+});
+
+void test("guard-command: group extracts TIMTextElem-only text (skips @mention custom elems)", async (t) => {
+  setupMocks(t, { gateResult: { commandAuthorized: true, shouldBlock: false } });
+  const { guardCommand } = await import("./guard-command.js");
+
+  let detectedText = "";
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: true,
+    // rawBody carries the @mention noise that would break command matching
+    rawBody: "@元宝 /new",
+    raw: {
+      msg_body: [
+        { msg_type: "TIMCustomElem", msg_content: { data: "@元宝" } },
+        { msg_type: "TIMTextElem", msg_content: { text: "/new" } },
+      ],
+    } as any,
+    core: {
+      channel: {
+        commands: { shouldHandleTextCommands: () => true },
+        text: {
+          hasControlCommand: (text: string) => {
+            detectedText = text;
+            return true;
+          },
+        },
+      },
+    } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await guardCommand.handler(ctx, next);
+
+  assert.equal(detectedText, "/new", "command detection should run on TIMTextElem-only text");
+  assert.equal(wasCalled(), true);
+  assert.deepEqual(ctx.commandParts, ["/new"]);
+});
+
 void test("guard-command: DM policy closed + not in allowFrom -> shouldBlock", async (t) => {
   setupMocks(t, {
     gateCallback: (opts: any) => {

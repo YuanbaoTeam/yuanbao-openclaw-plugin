@@ -6,7 +6,21 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { looksLikeYuanbaoId, parseTarget } from "./targets.js";
+import { buildMessageToolHints, looksLikeYuanbaoId, normalizeTarget, parseTarget } from "./targets.js";
+
+void test("normalizeTarget strips the yuanbao: prefix and trims, undefined for empty", () => {
+  assert.equal(normalizeTarget("  yuanbao:123  "), "123");
+  assert.equal(normalizeTarget("YUANBAO:abc"), "abc");
+  assert.equal(normalizeTarget("plain"), "plain");
+  assert.equal(normalizeTarget("   "), undefined);
+});
+
+void test("buildMessageToolHints returns the agent prompt hint lines", () => {
+  const hints = buildMessageToolHints();
+  assert.ok(Array.isArray(hints));
+  assert.ok(hints.length >= 1);
+  assert.ok(hints.some(h => h.includes("sticker")));
+});
 
 void test("looksLikeYuanbaoId recognizes valid Base64 format IDs", () => {
   // Length >= 16, length is multiple of 4, Base64 charset only
