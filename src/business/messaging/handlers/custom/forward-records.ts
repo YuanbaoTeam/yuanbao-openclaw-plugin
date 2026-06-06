@@ -5,10 +5,9 @@
  * and the full structured detail in `msg_content.ext_map` (protobuf field 999).
  * The ext_map value is a base64-encoded protobuf `ForwardMsgData`.
  *
- * This module turns that detail into a structured JSON tuple list
- * (`[sender, content]`) and appends contained images/files to the shared
- * `medias` list so the existing download pipeline fetches them — matching how
- * imageHandler / fileHandler already behave.
+ * This module turns that detail into readable chat-record lines and appends
+ * contained images/files to the shared `medias` list so the existing download
+ * pipeline fetches them — matching how imageHandler / fileHandler already behave.
  */
 
 import { sanitizeMediaFilename } from "../../../utils/media.js";
@@ -66,7 +65,7 @@ const FORWARD_KEY_PREFIX = "wexin_forward_msg_";
 /** Cap the number of records folded into a prompt to keep it bounded. */
 const MAX_RECORDS = 100;
 
-const HEADER_RECORDS = "以下为用户的聊天记录，数组每项代表[用户昵称, 聊天内容]";
+const HEADER_RECORDS = "以下为用户的聊天记录";
 
 /**
  * Extract the `ForwardMsgData` from a `msg_content.ext_map`.
@@ -135,17 +134,14 @@ export function buildForwardRecordsText(
   if (senderNickname) {
     lines.push(`当前用户的昵称为${senderNickname}`);
   }
+  lines.push(HEADER_RECORDS);
 
-  const records: Array<[string, string]> = [];
   for (const msg of msgList) {
     const sender = msg.sender ?? "";
     const parts = buildMessageParts(msg, resData);
     const body = parts.length > 0 ? parts.join("  ") : (msg.plainText ?? "");
-    records.push([sender, body]);
+    lines.push(`${sender}：${body}`);
   }
-
-  lines.push(HEADER_RECORDS);
-  lines.push(JSON.stringify(records));
 
   return lines.join("\n");
 }

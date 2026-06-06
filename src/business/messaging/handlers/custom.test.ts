@@ -94,10 +94,8 @@ void test("customHandler extract parses elem_type 1009 forwarded chat record", (
   const result = customHandler.extract(ctx, elem, resData);
   assert.ok(result?.startsWith("当前用户的昵称为小明"));
   assert.ok(result?.includes("以下为用户的聊天记录"));
-  const records = JSON.parse(result!.split("\n")[2]) as Array<[string, string]>;
-  assert.equal(records.length, 1);
-  assert.equal(records[0][0], "Alice");
-  assert.ok(records[0][1].includes("fixture-image.jpg"));
+  assert.ok(result!.split("\n")[2].startsWith("Alice：[image:"));
+  assert.ok(result!.includes("fixture-image.jpg"));
   assert.equal(resData.medias.length, 1);
   assert.equal(
     resData.medias[0].url,

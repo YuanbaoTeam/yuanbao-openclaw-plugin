@@ -96,12 +96,9 @@ void test("buildForwardRecordsText builds header + lines and collects image medi
   assert.ok(text);
   const lines = text!.split("\n");
   assert.equal(lines[0], "当前用户的昵称为小明");
-  assert.equal(lines[1], "以下为用户的聊天记录，数组每项代表[用户昵称, 聊天内容]");
-  const records = JSON.parse(lines[2]) as Array<[string, string]>;
-  assert.equal(records.length, 2);
-  assert.equal(records[0][0], "Alice");
-  assert.ok(records[0][1].startsWith("[image:"));
-  assert.deepEqual(records[1], ["Bob", "fixture text"]);
+  assert.equal(lines[1], "以下为用户的聊天记录");
+  assert.ok(lines[2].startsWith("Alice：[image:"));
+  assert.equal(lines[3], "Bob：fixture text");
 
   assert.equal(resData.medias.length, 1);
   assert.equal(resData.medias[0].mediaType, "image");
@@ -116,18 +113,16 @@ void test("buildForwardRecordsText builds header + lines and collects image medi
 void test("buildForwardRecordsText omits nickname header when sender unknown", () => {
   const resData = makeResData();
   const text = buildForwardRecordsText({ sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 1, text: "hi" }] }] }, resData);
-  assert.equal(text!.split("\n")[0], "以下为用户的聊天记录，数组每项代表[用户昵称, 聊天内容]");
+  assert.equal(text!.split("\n")[0], "以下为用户的聊天记录");
 });
 
-void test("buildForwardRecordsText preserves newlines inside record text via JSON tuples", () => {
+void test("buildForwardRecordsText writes record text as plain lines", () => {
   const resData = makeResData();
   const text = buildForwardRecordsText(
     { sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 1, text: "第一行\n第二行" }] }] },
     resData,
   );
-  const lines = text!.split("\n");
-  assert.equal(lines.length, 2);
-  assert.deepEqual(JSON.parse(lines[1]), [["A", "第一行\n第二行"]]);
+  assert.equal(text, "以下为用户的聊天记录\nA：第一行\n第二行");
 });
 
 void test("buildForwardRecordsText collects file media and link urls", () => {
@@ -201,7 +196,7 @@ void test("buildForwardRecordsText downloads code attachments as file media", ()
   assert.equal(resData.medias[0].mediaType, "file");
   assert.equal(resData.medias[0].mediaName, "CONTRIBUTING.md");
   assert.equal(resData.medias[0].url, "https://example.invalid/CONTRIBUTING.md");
-  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[file:CONTRIBUTING.md]"]]);
+  assert.equal(text!.split("\n")[1], "A：[file:CONTRIBUTING.md]");
 });
 
 void test("buildForwardRecordsText downloads video as file media", () => {
@@ -225,7 +220,7 @@ void test("buildForwardRecordsText downloads video as file media", () => {
   assert.equal(resData.medias[0].mediaType, "file");
   assert.equal(resData.medias[0].mediaName, "clip.mp4");
   assert.equal(resData.medias[0].url, "https://example.invalid/video.mp4");
-  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[video:clip.mp4]"]]);
+  assert.equal(text!.split("\n")[1], "A：[video:clip.mp4]");
 });
 
 void test("buildForwardRecordsText falls back to plainText when no msgContent", () => {
@@ -234,7 +229,7 @@ void test("buildForwardRecordsText falls back to plainText when no msgContent", 
     { sub_type: 1, msg: [{ sender: "A", plainText: "[Sticker]" }] },
     resData,
   );
-  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[Sticker]"]]);
+  assert.equal(text!.split("\n")[1], "A：[Sticker]");
   assert.equal(resData.medias.length, 0);
 });
 
@@ -244,7 +239,7 @@ void test("buildForwardRecordsText marks nested forward records", () => {
     { sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 3 }] }] },
     resData,
   );
-  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[嵌套聊天记录]"]]);
+  assert.equal(text!.split("\n")[1], "A：[嵌套聊天记录]");
 });
 
 void test("buildForwardRecordsText returns undefined for empty msg list", () => {
@@ -256,5 +251,5 @@ void test("buildForwardRecordsText caps records at 100", () => {
   const resData = makeResData();
   const msg = Array.from({ length: 110 }, (_, i) => ({ sender: `u${i}`, msgContent: [{ type: 1, text: `m${i}` }] }));
   const text = buildForwardRecordsText({ sub_type: 1, msg }, resData);
-  assert.equal(JSON.parse(text!.split("\n")[1]).length, 100);
+  assert.equal(text!.split("\n").slice(1).length, 100);
 });
