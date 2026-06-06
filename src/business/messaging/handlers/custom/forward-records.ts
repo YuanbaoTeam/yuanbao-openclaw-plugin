@@ -187,8 +187,8 @@ function buildMessageParts(msg: ForwardMsg, resData: ExtractTextFromMsgBodyResul
 
 /**
  * Resolve a single multimedia item to a text placeholder and, for downloadable
- * media (image/file/video-as-file), push it to `resData.medias`. Link shares
- * are recorded in `resData.linkUrls` for link understanding.
+ * media (image/file/code/video-as-file), push it to `resData.medias`. Link
+ * shares are recorded in `resData.linkUrls` for link understanding.
  */
 function appendMedia(media: ForwardMultimedia, resData: ExtractTextFromMsgBodyResult): string {
   const mediaType = (media.type || media.doc_type || "").toLowerCase();
@@ -205,6 +205,7 @@ function appendMedia(media: ForwardMultimedia, resData: ExtractTextFromMsgBodyRe
       return `[image:${mediaName}]`;
     }
     case "file":
+    case "code":
     case "document": {
       if (!url) {
         return `[file:${media.file_name || "file"}]`;

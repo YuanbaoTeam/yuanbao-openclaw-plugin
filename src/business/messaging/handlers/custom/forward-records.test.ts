@@ -180,6 +180,30 @@ void test("buildForwardRecordsText supports alternate media URL fields", () => {
   assert.ok(text!.includes("[link] 链接卡片 https://example.com/link"));
 });
 
+void test("buildForwardRecordsText downloads code attachments as file media", () => {
+  const resData = makeResData();
+  const text = buildForwardRecordsText(
+    {
+      sub_type: 1,
+      msg: [
+        {
+          sender: "A",
+          msgContent: [
+            { type: 2, multimedia: [{ type: "code", url: "https://example.invalid/CONTRIBUTING.md", file_name: "CONTRIBUTING.md" }] },
+          ],
+        },
+      ],
+    },
+    resData,
+  );
+
+  assert.equal(resData.medias.length, 1);
+  assert.equal(resData.medias[0].mediaType, "file");
+  assert.equal(resData.medias[0].mediaName, "CONTRIBUTING.md");
+  assert.equal(resData.medias[0].url, "https://example.invalid/CONTRIBUTING.md");
+  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[file:CONTRIBUTING.md]"]]);
+});
+
 void test("buildForwardRecordsText downloads video as file media", () => {
   const resData = makeResData();
   const text = buildForwardRecordsText(
