@@ -35,6 +35,11 @@ message MsgContent {
     string  url = 10;                // File download URL
     uint32  file_size = 11;           // File size in bytes
     string  file_name = 12;           // File name
+
+    // Extension map. Used by WeChat forwarded chat records (elem_type 1009):
+    // key   = wexin_forward_msg_[forward_msg_id]_[userid]
+    // value = base64-encoded protobuf ForwardMsgData
+    map<string, string> ext_map = 999;
 }
 
 // Message body element (maps to YuanbaoMsgBodyElement)

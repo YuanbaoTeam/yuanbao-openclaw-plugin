@@ -107,6 +107,8 @@ export type YuanbaoMsgBodyElement = {
     url?: string; // file download URL
     file_size?: number; // file size (bytes)
     file_name?: string; // file name
+    /** Extension map, e.g. WeChat forwarded chat record detail for elem_type 1009. */
+    ext_map?: Record<string, string>;
     // Extensible fields for other message types
     [key: string]: unknown;
   };

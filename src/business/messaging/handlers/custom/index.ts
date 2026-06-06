@@ -13,6 +13,7 @@ import type {
   MsgBodyItemType,
   ExtractTextFromMsgBodyResult,
 } from "../types.js";
+import { buildForwardRecordsText, parseForwardMsgData } from "./forward-records.js";
 import { extractLinkCard, extractLinkCardUrls } from "./link-card.js";
 
 /**
@@ -92,14 +93,38 @@ export const customHandler: MessageElemHandler = {
             }
             return extractLinkCard(customContent);
           }
+          case 1009: {
+            // WeChat forwarded chat record: detail lives in msg_content.ext_map.
+            const extMap = elem.msg_content?.ext_map as Record<string, unknown> | undefined;
+            const extEntries = extMap ? Object.entries(extMap) : [];
+            const forwardData = parseForwardMsgData(extMap, ctx.fromAccount);
+            const summary = typeof customContent?.text === "string" ? customContent.text : undefined;
+            if (forwardData) {
+              const text = buildForwardRecordsText(forwardData, resData, ctx.senderNickname);
+              if (text) {
+                log.info("forwarded chat record parsed", {
+                  recordCount: forwardData.msg?.length ?? 0,
+                  mediaCount: resData.medias.length,
+                  linkCount: resData.linkUrls.length,
+                });
+                return text;
+              }
+            }
+            // Fallback: use the truncated summary so the AI still gets context.
+            log.warn("forwarded chat record parse failed", {
+              hasExtMap: Boolean(extMap),
+              extMapKeyCount: extEntries.length,
+              extMapValueTypes: extEntries.map(([, value]) => typeof value),
+              hasSummary: Boolean(summary),
+            });
+            return summary || "用户转发了一条聊天记录，但插件未收到详细内容";
+          }
           default:
             return FALLBACK_TEXT;
         }
       } catch {
         // JSON parse failed, fall back to placeholder
-        log.debug("TIMCustomElem data JSON parse failed", {
-          data: elem.msg_content?.data,
-        });
+        log.debug("TIMCustomElem data JSON parse failed");
       }
     }
     return FALLBACK_TEXT;

@@ -9,6 +9,10 @@ import type { ResolvedYuanbaoAccount } from "../../types.js";
 /** Message processing context */
 export type MessageHandlerContext = {
   groupCode?: string;
+  /** User ID/account that sent the message; used for ext_map key matching. */
+  fromAccount?: string;
+  /** Display name of the message sender; used by forwarded-record parsing. */
+  senderNickname?: string;
   account: ResolvedYuanbaoAccount;
   config: OpenClawConfig;
   core: PluginRuntime;

@@ -68,6 +68,23 @@ void test("toProtoMsgBody → fromProtoMsgBody round-trips a fully-populated ele
   assert.equal((c.image_info_array as unknown[]).length, 1);
 });
 
+void test("toProtoMsgBody → fromProtoMsgBody round-trips ext_map (forwarded record detail)", () => {
+  const extMap = { wexin_forward_msg_fid_u1: "CAEiBG1pbmUqAwoBbQ==" };
+  const body: YuanbaoMsgBodyElement[] = [
+    { msg_type: "TIMCustomElem", msg_content: { data: JSON.stringify({ elem_type: 1009 }), ext_map: extMap } },
+  ];
+  const back = fromProtoMsgBody(toProtoMsgBody(body));
+  assert.deepEqual(back[0].msg_content.ext_map, extMap);
+});
+
+void test("fromProtoMsgBody omits empty ext_map", () => {
+  const body: YuanbaoMsgBodyElement[] = [
+    { msg_type: "TIMCustomElem", msg_content: { data: "{}", ext_map: {} } },
+  ];
+  const back = fromProtoMsgBody(toProtoMsgBody(body));
+  assert.equal(back[0].msg_content.ext_map, undefined);
+});
+
 void test("fromProtoMsgBody returns [] for non-array input", () => {
   assert.deepEqual(fromProtoMsgBody(undefined as unknown as []), []);
   assert.deepEqual(fromProtoMsgBody([]), []);
