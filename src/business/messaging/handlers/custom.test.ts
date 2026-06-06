@@ -85,8 +85,8 @@ void test("customHandler extract parses elem_type 1009 forwarded chat record", (
     msg_content: {
       data: JSON.stringify({ elem_type: 1009, text: "[聊天记录] 摘要" }),
       ext_map: {
-        wexin_forward_msg_8bd2b7dc615111f1bbb45254003930f1_f9aed05b77aa4b1ba860b50b836bb57e:
-          "CAEiCeael+mUkOa2myqKAhovW+WbvueJh10g5b6u5L+h5Zu+54mHXzIwMjYwNjA2MTA0MzM3XzE1NzQzNC5qcGci1gEIAhrRAQoFaW1hZ2USaWh0dHBzOi8veXVhbmJhby50ZXN0Lmh1bnl1YW4ud29hLmNvbS9hcGkvcmVzb3VyY2UvZG93bmxvYWQ/cmVzb3VyY2VJZD00NmEwYmY3OTRkMjYxNmE0YTBkNjBmNTE4YzdmOTliNF8wMCIm5b6u5L+h5Zu+54mHXzIwMjYwNjA2MTA0MzM3XzE1NzQzNC5qcGcorskLMIAKOLINeiM0NmEwYmY3OTRkMjYxNmE0YTBkNjBmNTE4YzdmOTliNF8wMMIBBWltYWdl",
+        wexin_forward_msg_fixture_user:
+          "CAEiEUZvcndhcmRlciBGaXh0dXJlKpABCgVBbGljZRoZW2ltYWdlXSBmaXh0dXJlLWltYWdlLmpwZyJsCAIaaAoFaW1hZ2USMmh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL3Jlc291cmNlL2ZpeHR1cmUtaW1hZ2UuanBnIhFmaXh0dXJlLWltYWdlLmpwZ3oQZml4dHVyZS1tZWRpYS1pZMIBBWltYWdl",
       },
     },
   };
@@ -94,11 +94,14 @@ void test("customHandler extract parses elem_type 1009 forwarded chat record", (
   const result = customHandler.extract(ctx, elem, resData);
   assert.ok(result?.startsWith("当前用户的昵称为小明"));
   assert.ok(result?.includes("以下为用户的聊天记录"));
-  assert.ok(result?.includes("微信图片_20260606104337_157434.jpg"));
+  const records = JSON.parse(result!.split("\n")[2]) as Array<[string, string]>;
+  assert.equal(records.length, 1);
+  assert.equal(records[0][0], "Alice");
+  assert.ok(records[0][1].includes("fixture-image.jpg"));
   assert.equal(resData.medias.length, 1);
   assert.equal(
     resData.medias[0].url,
-    "https://yuanbao.test.hunyuan.woa.com/api/resource/download?resourceId=46a0bf794d2616a4a0d60f518c7f99b4_00",
+    "https://example.invalid/resource/fixture-image.jpg",
   );
 });
 

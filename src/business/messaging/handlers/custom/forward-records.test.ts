@@ -16,20 +16,20 @@ function makeResData(): ExtractTextFromMsgBodyResult {
 
 const sampleData = {
   sub_type: 1,
-  nick_name: "绘梨衣",
+  nick_name: "Forwarder Fixture",
   msg: [
     {
-      sender: "绘梨衣",
-      plainText: "[Photo] Weixinimage_20260604134715_46281.jpg",
+      sender: "Alice",
+      plainText: "[image] fixture-image.jpg",
       msgContent: [
         {
           type: 2,
           multimedia: [
             {
               type: "image",
-              url: "https://hunyuan.tencent.com/api/resource/download?resourceId=378737b947f1822c1e8d0b6d0b344fae_19",
-              file_name: "Weixinimage_20260604134715_46281.jpg",
-              media_id: "378737b947f1822c1e8d0b6d0b344fae_19",
+              url: "https://example.invalid/resource/fixture-image.jpg",
+              file_name: "fixture-image.jpg",
+              media_id: "fixture-media-id",
               doc_type: "image",
             },
           ],
@@ -37,32 +37,31 @@ const sampleData = {
       ],
     },
     {
-      sender: "LK7",
-      plainText: "我滴乖大型 suv",
-      msgContent: [{ type: 1, text: "我滴乖大型 suv" }],
+      sender: "Bob",
+      plainText: "fixture text",
+      msgContent: [{ type: 1, text: "fixture text" }],
     },
   ],
 };
 
-const PRODUCTION_FORWARD_PROTO =
-  "CAEiCeael+mUkOa2myqKAhovW+WbvueJh10g5b6u5L+h5Zu+54mHXzIwMjYwNjA2MTA0MzM3XzE1NzQzNC5qcGci1gEIAhrRAQoFaW1hZ2USaWh0dHBzOi8veXVhbmJhby50ZXN0Lmh1bnl1YW4ud29hLmNvbS9hcGkvcmVzb3VyY2UvZG93bmxvYWQ/cmVzb3VyY2VJZD00NmEwYmY3OTRkMjYxNmE0YTBkNjBmNTE4YzdmOTliNF8wMCIm5b6u5L+h5Zu+54mHXzIwMjYwNjA2MTA0MzM3XzE1NzQzNC5qcGcorskLMIAKOLINeiM0NmEwYmY3OTRkMjYxNmE0YTBkNjBmNTE4YzdmOTliNF8wMMIBBWltYWdl";
+const FIXTURE_FORWARD_PROTO =
+  "CAEiEUZvcndhcmRlciBGaXh0dXJlKpABCgVBbGljZRoZW2ltYWdlXSBmaXh0dXJlLWltYWdlLmpwZyJsCAIaaAoFaW1hZ2USMmh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL3Jlc291cmNlL2ZpeHR1cmUtaW1hZ2UuanBnIhFmaXh0dXJlLWltYWdlLmpwZ3oQZml4dHVyZS1tZWRpYS1pZMIBBWltYWdl";
 
 // ── parseForwardMsgData ─────────────────────────────────────────────────────
-void test("parseForwardMsgData decodes base64 protobuf payloads from production ext_map", () => {
+void test("parseForwardMsgData decodes base64 protobuf payloads from fixture ext_map", () => {
   const extMap = {
-    wexin_forward_msg_8bd2b7dc615111f1bbb45254003930f1_f9aed05b77aa4b1ba860b50b836bb57e:
-      PRODUCTION_FORWARD_PROTO,
+    wexin_forward_msg_fixture_user: FIXTURE_FORWARD_PROTO,
   };
 
   const data = parseForwardMsgData(extMap);
   assert.equal(data?.sub_type, 1);
-  assert.equal(data?.nick_name, "林锐涛");
+  assert.equal(data?.nick_name, "Forwarder Fixture");
   assert.equal(data?.msg?.length, 1);
-  assert.equal(data?.msg?.[0]?.plainText, "[图片] 微信图片_20260606104337_157434.jpg");
+  assert.equal(data?.msg?.[0]?.plainText, "[image] fixture-image.jpg");
   assert.equal(data?.msg?.[0]?.msgContent?.[0]?.multimedia?.[0]?.type, "image");
   assert.equal(
     data?.msg?.[0]?.msgContent?.[0]?.multimedia?.[0]?.url,
-    "https://yuanbao.test.hunyuan.woa.com/api/resource/download?resourceId=46a0bf794d2616a4a0d60f518c7f99b4_00",
+    "https://example.invalid/resource/fixture-image.jpg",
   );
 });
 
@@ -77,7 +76,7 @@ void test("parseForwardMsgData prefers the key matching the userId suffix", () =
 
 void test("parseForwardMsgData ignores non-forward keys and non-record sub_types", () => {
   const extMap = {
-    other_key: PRODUCTION_FORWARD_PROTO,
+    other_key: FIXTURE_FORWARD_PROTO,
     wexin_forward_msg_x_u: "EAIqAA==",
   };
   assert.equal(parseForwardMsgData(extMap), undefined);
@@ -97,16 +96,18 @@ void test("buildForwardRecordsText builds header + lines and collects image medi
   assert.ok(text);
   const lines = text!.split("\n");
   assert.equal(lines[0], "当前用户的昵称为小明");
-  assert.equal(lines[1], "转发者微信昵称：绘梨衣");
-  assert.equal(lines[2], "以下为用户的聊天记录");
-  assert.ok(lines[3].startsWith("绘梨衣：[image:"));
-  assert.equal(lines[4], "LK7：我滴乖大型 suv");
+  assert.equal(lines[1], "以下为用户的聊天记录，数组每项代表[用户昵称, 聊天内容]");
+  const records = JSON.parse(lines[2]) as Array<[string, string]>;
+  assert.equal(records.length, 2);
+  assert.equal(records[0][0], "Alice");
+  assert.ok(records[0][1].startsWith("[image:"));
+  assert.deepEqual(records[1], ["Bob", "fixture text"]);
 
   assert.equal(resData.medias.length, 1);
   assert.equal(resData.medias[0].mediaType, "image");
   assert.equal(
     resData.medias[0].url,
-    "https://hunyuan.tencent.com/api/resource/download?resourceId=378737b947f1822c1e8d0b6d0b344fae_19",
+    "https://example.invalid/resource/fixture-image.jpg",
   );
   // placeholder name must match the recorded media name
   assert.ok(text!.includes(`[image:${resData.medias[0].mediaName}]`));
@@ -115,7 +116,18 @@ void test("buildForwardRecordsText builds header + lines and collects image medi
 void test("buildForwardRecordsText omits nickname header when sender unknown", () => {
   const resData = makeResData();
   const text = buildForwardRecordsText({ sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 1, text: "hi" }] }] }, resData);
-  assert.equal(text!.split("\n")[0], "以下为用户的聊天记录");
+  assert.equal(text!.split("\n")[0], "以下为用户的聊天记录，数组每项代表[用户昵称, 聊天内容]");
+});
+
+void test("buildForwardRecordsText preserves newlines inside record text via JSON tuples", () => {
+  const resData = makeResData();
+  const text = buildForwardRecordsText(
+    { sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 1, text: "第一行\n第二行" }] }] },
+    resData,
+  );
+  const lines = text!.split("\n");
+  assert.equal(lines.length, 2);
+  assert.deepEqual(JSON.parse(lines[1]), [["A", "第一行\n第二行"]]);
 });
 
 void test("buildForwardRecordsText collects file media and link urls", () => {
@@ -174,7 +186,7 @@ void test("buildForwardRecordsText falls back to plainText when no msgContent", 
     { sub_type: 1, msg: [{ sender: "A", plainText: "[Sticker]" }] },
     resData,
   );
-  assert.equal(text!.split("\n").at(-1), "A：[Sticker]");
+  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[Sticker]"]]);
   assert.equal(resData.medias.length, 0);
 });
 
@@ -184,7 +196,7 @@ void test("buildForwardRecordsText marks nested forward records", () => {
     { sub_type: 1, msg: [{ sender: "A", msgContent: [{ type: 3 }] }] },
     resData,
   );
-  assert.ok(text!.includes("A：[嵌套聊天记录]"));
+  assert.deepEqual(JSON.parse(text!.split("\n")[1]), [["A", "[嵌套聊天记录]"]]);
 });
 
 void test("buildForwardRecordsText returns undefined for empty msg list", () => {
@@ -192,10 +204,9 @@ void test("buildForwardRecordsText returns undefined for empty msg list", () => 
   assert.equal(buildForwardRecordsText({ sub_type: 1, msg: [] }, resData), undefined);
 });
 
-void test("buildForwardRecordsText caps records at 50", () => {
+void test("buildForwardRecordsText caps records at 100", () => {
   const resData = makeResData();
-  const msg = Array.from({ length: 60 }, (_, i) => ({ sender: `u${i}`, msgContent: [{ type: 1, text: `m${i}` }] }));
+  const msg = Array.from({ length: 110 }, (_, i) => ({ sender: `u${i}`, msgContent: [{ type: 1, text: `m${i}` }] }));
   const text = buildForwardRecordsText({ sub_type: 1, msg }, resData);
-  // header line + 50 record lines
-  assert.equal(text!.split("\n").length, 51);
+  assert.equal(JSON.parse(text!.split("\n")[1]).length, 100);
 });
