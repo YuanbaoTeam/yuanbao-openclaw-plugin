@@ -36,6 +36,11 @@ import {
 import { WS_HEARTBEAT } from "./types.js";
 import type { YuanbaoMsgBodyElement } from "../../types.js";
 
+// protobufjs decodes to a loosely-typed object whose nested fields are accessed
+// freely in assertions; a permissive shape keeps the round-trip tests readable.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DecodedPB = Record<string, any>;
+
 const textBody: YuanbaoMsgBodyElement[] = [
   { msg_type: "TIMTextElem", msg_content: { text: "hello" } },
 ];
@@ -108,7 +113,7 @@ void test("encodeSendC2CMessageReq encodes target + body + seq", () => {
     trace_id: "t-1", msg_body: textBody,
   });
   assert.ok(bytes);
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as DecodedPB;
   assert.equal(back.toAccount, "u-2");
   assert.equal(back.fromAccount, "bot");
   assert.equal(Number(back.msgSeq), 3); // int64 → protobufjs Long
@@ -121,7 +126,7 @@ void test("encodeSendGroupMessageReq encodes group + ref + body", () => {
     group_code: "g-1", from_account: "bot", ref_msg_id: "ref-1", msg_body: textBody,
   });
   assert.ok(bytes);
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as DecodedPB;
   assert.equal(back.groupCode, "g-1");
   assert.equal(back.refMsgId, "ref-1");
   assert.equal(back.msgBody[0].msgContent.text, "hello");
@@ -132,7 +137,7 @@ void test("encodeSendPrivateHeartbeatReq dual-writes fromAccount/fromtAccount", 
     from_account: "bot", to_account: "u-1", heartbeat: WS_HEARTBEAT.RUNNING,
   });
   assert.ok(bytes);
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendPrivateHeartbeatReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendPrivateHeartbeatReq, bytes) as DecodedPB;
   assert.equal(back.fromAccount, "bot");
   assert.equal(back.heartbeat, WS_HEARTBEAT.RUNNING);
 });
@@ -142,15 +147,15 @@ void test("encodeSendGroupHeartbeatReq encodes group heartbeat", () => {
     from_account: "bot", to_account: "u-1", group_code: "g-1", send_time: 123, heartbeat: WS_HEARTBEAT.FINISH,
   });
   assert.ok(bytes);
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupHeartbeatReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupHeartbeatReq, bytes) as DecodedPB;
   assert.equal(back.groupCode, "g-1");
   assert.equal(Number(back.sendTime), 123); // int64 → protobufjs Long
 });
 
 void test("encodeQueryGroupInfoReq / encodeGetGroupMemberListReq carry groupCode", () => {
-  const q = decodeBizPB(BIZ_MSG_TYPES.QueryGroupInfoReq, encodeQueryGroupInfoReq({ group_code: "g-1" })!) as Record<string, any>;
+  const q = decodeBizPB(BIZ_MSG_TYPES.QueryGroupInfoReq, encodeQueryGroupInfoReq({ group_code: "g-1" })!) as DecodedPB;
   assert.equal(q.groupCode, "g-1");
-  const m = decodeBizPB(BIZ_MSG_TYPES.GetGroupMemberListReq, encodeGetGroupMemberListReq({ group_code: "g-2" })!) as Record<string, any>;
+  const m = decodeBizPB(BIZ_MSG_TYPES.GetGroupMemberListReq, encodeGetGroupMemberListReq({ group_code: "g-2" })!) as DecodedPB;
   assert.equal(m.groupCode, "g-2");
 });
 
@@ -160,7 +165,7 @@ void test("encodeSyncInformationReq includes commandData when provided", () => {
     commandData: { botCommands: [{ name: "/new", description: "new" }], pluginCommands: [] },
   });
   assert.ok(bytes);
-  const back = decodeBizPB(BIZ_MSG_TYPES.SyncInformationReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SyncInformationReq, bytes) as DecodedPB;
   assert.equal(back.botVersion, "1.0");
   assert.equal(back.commandData.botCommands[0].name, "/new");
 });
@@ -277,19 +282,19 @@ void test("decodeSendMessageRsp / heartbeat rsp handle empty payloads (default c
 
 void test("encodeSendC2CMessageReq works without msg_seq / trace_id (optional branches)", () => {
   const bytes = encodeSendC2CMessageReq({ to_account: "u", msg_body: textBody })!;
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as DecodedPB;
   assert.equal(back.toAccount, "u");
 });
 
 void test("encodeSendGroupMessageReq works without optional fields (falsy branches)", () => {
   const bytes = encodeSendGroupMessageReq({ group_code: "g", msg_body: textBody })!;
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as DecodedPB;
   assert.equal(back.groupCode, "g");
 });
 
 void test("encodeSendC2CMessageReq with traceContext sets msgSeq + logExt branches", () => {
   const bytes = encodeSendC2CMessageReq({ to_account: "u", msg_body: textBody, msg_seq: 9, trace_id: "tr" })!;
-  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendC2CMessageReq, bytes) as DecodedPB;
   assert.equal(Number(back.msgSeq), 9);
   assert.equal(back.logExt.traceId, "tr");
 });
@@ -304,7 +309,7 @@ void test("decodeQueryGroupInfoRsp fills defaults for missing nested fields", ()
 // ── QueryBotInfo (owner-id query) ───────────────────────────────────────────
 void test("encodeQueryBotInfoReq encodes botId (round-trips via decodeBizPB)", () => {
   const bytes = encodeQueryBotInfoReq("bot-001")!;
-  const back = decodeBizPB(BIZ_MSG_TYPES.QueryBotInfoReq, bytes) as Record<string, any>;
+  const back = decodeBizPB(BIZ_MSG_TYPES.QueryBotInfoReq, bytes) as DecodedPB;
   assert.equal(back.botId, "bot-001");
 });
 
