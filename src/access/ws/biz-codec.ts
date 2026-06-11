@@ -151,6 +151,7 @@ export function toProtoMsgBody(elements: YuanbaoMsgBodyElement[]): Record<string
         url: c.url,
         fileSize: c.file_size,
         fileName: c.file_name,
+        extMap: c.ext_map,
       },
     };
   });
@@ -200,6 +201,9 @@ export function fromProtoMsgBody(elements: Array<Record<string, unknown>>): Yuan
     }
     if (mc?.fileName) {
       content.file_name = mc.fileName;
+    }
+    if (mc?.extMap && Object.keys(mc.extMap as Record<string, unknown>).length > 0) {
+      content.ext_map = mc.extMap;
     }
 
     return {

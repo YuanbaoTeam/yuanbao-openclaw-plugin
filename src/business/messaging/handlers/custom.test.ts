@@ -13,6 +13,7 @@ import type { ExtractTextFromMsgBodyResult } from "./types.js";
 function makeMockCtx(botId = "bot-001"): MessageHandlerContext {
   return {
     account: { botId },
+    fromAccount: "user1",
     config: {},
     core: {},
     log: { info: () => {}, warn: () => {}, error: () => {}, verbose: () => {} },
@@ -73,6 +74,54 @@ void test("customHandler extract returns unsupported placeholder for non-@ custo
   };
 
   assert.equal(customHandler.extract(ctx, elem, resData), "[当前消息暂不支持查看]");
+});
+
+void test("customHandler extract parses elem_type 1009 forwarded chat record", () => {
+  const ctx = { ...makeMockCtx(), senderNickname: "小明" } as unknown as MessageHandlerContext;
+  const resData = makeResData();
+
+  const elem = {
+    msg_type: "TIMCustomElem",
+    msg_content: {
+      data: JSON.stringify({ elem_type: 1009, text: "[聊天记录] 摘要" }),
+      ext_map: {
+        wexin_forward_msg_fixture_user:
+          "CAEiEUZvcndhcmRlciBGaXh0dXJlKpABCgVBbGljZRoZW2ltYWdlXSBmaXh0dXJlLWltYWdlLmpwZyJsCAIaaAoFaW1hZ2USMmh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL3Jlc291cmNlL2ZpeHR1cmUtaW1hZ2UuanBnIhFmaXh0dXJlLWltYWdlLmpwZ3oQZml4dHVyZS1tZWRpYS1pZMIBBWltYWdl",
+      },
+    },
+  };
+
+  const result = customHandler.extract(ctx, elem, resData);
+  assert.ok(result?.startsWith("当前用户的昵称为小明"));
+  assert.ok(result?.includes("以下为用户的聊天记录"));
+  assert.ok(result!.split("\n")[2].startsWith("Alice：[image:"));
+  assert.ok(result!.includes("fixture-image.jpg"));
+  assert.equal(resData.medias.length, 1);
+  assert.equal(
+    resData.medias[0].url,
+    "https://example.invalid/resource/fixture-image.jpg",
+  );
+});
+
+void test("customHandler extract falls back to 1009 summary when ext_map missing", () => {
+  const ctx = makeMockCtx();
+  const resData = makeResData();
+  const elem = {
+    msg_type: "TIMCustomElem",
+    msg_content: { data: JSON.stringify({ elem_type: 1009, text: "[聊天记录] 摘要文本" }) },
+  };
+  assert.equal(customHandler.extract(ctx, elem, resData), "[聊天记录] 摘要文本");
+  assert.equal(resData.medias.length, 0);
+});
+
+void test("customHandler extract uses non-placeholder fallback when 1009 summary is missing", () => {
+  const ctx = makeMockCtx();
+  const resData = makeResData();
+  const elem = {
+    msg_type: "TIMCustomElem",
+    msg_content: { data: JSON.stringify({ elem_type: 1009 }) },
+  };
+  assert.equal(customHandler.extract(ctx, elem, resData), "用户转发了一条聊天记录，但插件未收到详细内容");
 });
 
 void test("customHandler buildMsgBody constructs custom message", () => {

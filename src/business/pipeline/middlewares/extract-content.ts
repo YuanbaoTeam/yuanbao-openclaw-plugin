@@ -20,15 +20,22 @@ export const extractContent: MiddlewareDescriptor = {
       ctx.groupCode = raw.private_from_group_code;
     }
 
-    // Build minimal ctx compatible with extractTextFromMsgBody's MessageHandlerContext
-    // Note: MessageHandlerContext.log needs verbose method, but ModuleLog doesn't have it
+    // Build minimal ctx compatible with extractTextFromMsgBody's MessageHandlerContext.
+    // Pass the real logger through so element-level diagnostics are not swallowed.
     const minCtx = {
       account: ctx.account,
       config: ctx.config,
       core: ctx.core,
-      log: { info: () => {}, warn: () => {}, error: () => {}, verbose: () => {} },
+      log: {
+        info: ctx.log.info.bind(ctx.log),
+        warn: ctx.log.warn.bind(ctx.log),
+        error: ctx.log.error.bind(ctx.log),
+        verbose: ctx.log.debug.bind(ctx.log),
+      },
       wsClient: ctx.wsClient,
       groupCode: ctx.groupCode,
+      fromAccount: ctx.fromAccount,
+      senderNickname: ctx.senderNickname,
     };
 
     const { rawBody, isAtBot, medias, mentions, linkUrls } = extractTextFromMsgBody(
