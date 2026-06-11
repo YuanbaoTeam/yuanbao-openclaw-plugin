@@ -47,12 +47,12 @@ function makeUpgradeCommand(name: string, description: string): OpenClawPluginCo
   };
 }
 
-export const yuanbaoUpgradeCommand = makeUpgradeCommand(
+export const yuanbaoUpgradeCommand: OpenClawPluginCommandDefinition = makeUpgradeCommand(
   UPGRADE_COMMAND_NAMES[0].slice(1),
   "升级 yuanbao 插件到最新正式版本",
 );
 
-export const yuanbaobotUpgradeCommand = makeUpgradeCommand(
+export const yuanbaobotUpgradeCommand: OpenClawPluginCommandDefinition = makeUpgradeCommand(
   UPGRADE_COMMAND_NAMES[1].slice(1),
   "升级 yuanbao 插件到最新正式版本（别名）",
 );
