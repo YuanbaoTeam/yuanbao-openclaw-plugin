@@ -170,6 +170,46 @@ void test("dispatch-reply: AI returns nothing + has fallbackReply -> send fallba
   assert.equal(sentFallback, true, "should send fallback reply");
 });
 
+void test("dispatch-reply: AI returns nothing but delivered via action -> no fallback", async (t) => {
+  let sentFallback = false;
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+
+  const ctx = createDispatchCtx({
+    _deliverPayloads: [],
+    account: {
+      accountId: "bot-001",
+      botId: "bot-001",
+      disableBlockStreaming: false,
+      fallbackReply: "我暂时无法回答",
+    },
+    // Simulate a sticker/react reply delivered via handleAction (bypasses queueSession),
+    // which marks the trace context within the agent run.
+    traceContext: {
+      traceId: "t-1",
+      traceparent: "00-x-y-01",
+      nextMsgSeq: () => undefined,
+      markActionDelivered: () => {},
+      hasActionDelivered: () => true,
+    },
+    sender: {
+      sendText: async () => {
+        sentFallback = true;
+      },
+    },
+    queueSession: {
+      push: async () => {},
+      flush: async () => false,
+      abort: () => {},
+    },
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentFallback, false, "should not send fallback when delivered via action");
+});
+
 void test("dispatch-reply: dispatch error -> abort queue and throw", async (t) => {
   let aborted = false;
   setupMocks(t);
