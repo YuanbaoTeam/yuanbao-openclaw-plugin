@@ -17,6 +17,7 @@ import { createLog } from "../../logger.js";
 import { getYuanbaoRuntime } from "../../runtime.js";
 import { createMessageSender } from "../outbound/create-sender.js";
 import type { OutboundItem } from "../outbound/types.js";
+import { getActiveTraceContext } from "../trace/context.js";
 import type { ActionParams } from "./resolve-target.js";
 import { resolveActionTarget } from "./resolve-target.js";
 import { searchSticker } from "./sticker/send.js";
@@ -163,8 +164,14 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
           };
         }
         log.error(`${item.type} send failed: ${result.error}`);
-      } else if (result.messageId) {
-        lastMessageId = result.messageId;
+      } else {
+        // Mark outbound delivered on the active agent-run trace context so
+        // dispatch-reply won't mistake an action-only reply (e.g. a sticker
+        // with no text) for an empty reply and send the fallback text.
+        getActiveTraceContext()?.markActionDelivered();
+        if (result.messageId) {
+          lastMessageId = result.messageId;
+        }
       }
     }
 

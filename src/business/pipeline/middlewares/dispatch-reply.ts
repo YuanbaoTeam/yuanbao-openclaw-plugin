@@ -241,7 +241,12 @@ export const dispatchReply: MiddlewareDescriptor = {
 
       // ⭐ Flush outbound queue
       const flushed = await queueSession.flush();
-      if (!flushed && !hasSentContent && !ctx.abortSignal?.aborted) {
+      // The model may reply purely through a message action (e.g. sticker/react)
+      // which is delivered via handleAction and bypasses queueSession entirely.
+      // Such deliveries mark the agent-run trace context, so treat them as real
+      // outbound content and skip the fallback reply.
+      const deliveredViaAction = ctx.traceContext?.hasActionDelivered() ?? false;
+      if (!flushed && !hasSentContent && !deliveredViaAction && !ctx.abortSignal?.aborted) {
         const { fallbackReply } = account;
         if (fallbackReply) {
           ctx.log.warn("[dispatch-reply] AI returned no reply content, using fallback reply");

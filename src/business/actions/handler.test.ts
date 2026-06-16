@@ -13,6 +13,7 @@ import type { ActionParams } from "./resolve-target.js";
 import type { OutboundItem, SendResult } from "../outbound/types.js";
 import { setYuanbaoRuntime } from "../../runtime.js";
 import { setActiveWsClient } from "../../access/ws/runtime.js";
+import { resolveTraceContext, runWithTraceContext } from "../trace/context.js";
 
 let sentItems: OutboundItem[];
 let sendResult: SendResult;
@@ -124,4 +125,26 @@ void test("react action with sticker_id as an array dispatches a sticker", async
   await handleAction({ cfg, to: "user:u-1", params: { action: "react", sticker_id: ["s-9", "s-10"] } });
   assert.equal(sentItems.length, 1);
   assert.equal(sentItems[0].type, "sticker");
+});
+
+void test("successful action send marks the active trace context as delivered", async () => {
+  const trace = resolveTraceContext({ traceId: "t-1" });
+  assert.equal(trace.hasActionDelivered(), false);
+
+  await runWithTraceContext(trace, async () => {
+    await handleAction({ cfg, to: "user:u-1", params: { action: "sticker", stickerId: "s-9" } });
+  });
+
+  assert.equal(trace.hasActionDelivered(), true);
+});
+
+void test("failed sticker send does not mark the trace context as delivered", async () => {
+  sendResult = { ok: false, error: "sticker boom" };
+  const trace = resolveTraceContext({ traceId: "t-2" });
+
+  await runWithTraceContext(trace, async () => {
+    await handleAction({ cfg, to: "user:u-1", params: { action: "sticker", stickerId: "s-9" } });
+  });
+
+  assert.equal(trace.hasActionDelivered(), false);
 });
