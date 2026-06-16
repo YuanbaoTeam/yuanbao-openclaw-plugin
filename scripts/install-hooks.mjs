@@ -13,7 +13,7 @@
 
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 
 try {
   // Use the REAL .git dir (NOT --git-path hooks, which honors core.hooksPath and
