@@ -110,7 +110,7 @@
 
 ### 4.4 版本兼容（已就绪，保持）
 
-`upstream-compat.yml`：拉最新 OpenClaw → 重跑 `lint + test + build`，matrix `2026.4.5` / `latest`。
+`upstream-compat.yml`：拉最新 OpenClaw → 重跑 `lint + test + build`，matrix `2026.5.7` / `latest`。
 其含金量取决于单测+集成的覆盖质量。
 
 ### 4.5 协议契约（一期不做，后续增强）

@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        openclaw-version: ['2026.4.5', 'latest']
+        openclaw-version: ['2026.5.7', 'latest']
     steps:
       - uses: actions/checkout@v4
 
