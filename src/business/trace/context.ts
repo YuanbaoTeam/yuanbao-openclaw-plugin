@@ -8,6 +8,15 @@ export type YuanbaoTraceContext = {
   seqId?: string;
   /** Auto-incremented based on inbound seqId */
   nextMsgSeq: () => number | undefined;
+  /**
+   * Mark that an outbound message was successfully delivered via a message
+   * action (e.g. sticker/react/send) during this agent run. Used by
+   * dispatch-reply to avoid sending the fallback reply when the model already
+   * replied through an action rather than the deliver callback.
+   */
+  markActionDelivered: () => void;
+  /** Whether any action-driven outbound succeeded within this agent run. */
+  hasActionDelivered: () => boolean;
 };
 
 const traceStorage = new AsyncLocalStorage<YuanbaoTraceContext>();
@@ -81,6 +90,12 @@ export function resolveTraceContext(params: {
     return baseSeq + seqCounter;
   };
 
+  let actionDelivered = false;
+  const markActionDelivered = (): void => {
+    actionDelivered = true;
+  };
+  const hasActionDelivered = (): boolean => actionDelivered;
+
   const log = createLog("trace");
   log.debug("[msg-trace] resolve context", {
     traceId,
@@ -92,6 +107,8 @@ export function resolveTraceContext(params: {
     traceId,
     traceparent: buildTraceparent(traceId),
     nextMsgSeq,
+    markActionDelivered,
+    hasActionDelivered,
     ...(seqId ? { seqId } : {}),
   };
 }
