@@ -154,3 +154,48 @@ void test("build-context: uses fromAccount when senderNickname is empty", async 
   const payload = getFinalizedPayload();
   assert.equal(payload.SenderName, "user-001");
 });
+
+void test("build-context: UntrustedContext always contains system time", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    account: { accountId: "bot-001", botId: "bot-001", historyLimit: 0, markdownHintEnabled: false },
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  assert.ok(
+    Array.isArray(payload.UntrustedContext) && payload.UntrustedContext[0].includes("[Current Time]"),
+    "UntrustedContext should always contain [Current Time]",
+  );
+});
+
+void test("build-context: uses raw.msg_time as envelope timestamp when available", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  let capturedTimestamp: Date | undefined;
+  const { ctx } = createBuildCtx({
+    raw: { msg_id: "msg-005", msg_time: 1718530000 },
+    core: {
+      channel: {
+        reply: {
+          formatAgentEnvelope: (opts: any) => {
+            capturedTimestamp = opts.timestamp;
+            return String(opts.body ?? "");
+          },
+          finalizeInboundContext: (opts: any) => opts,
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  assert.ok(capturedTimestamp instanceof Date, "timestamp should be a Date");
+  assert.equal(capturedTimestamp!.getTime(), 1718530000 * 1000);
+});
