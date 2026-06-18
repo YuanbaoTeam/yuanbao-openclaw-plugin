@@ -299,10 +299,10 @@ function resolveCronBase(params: RemindParams, intent: 'remind' | 'task'): CronB
 
 /** Builds a Gateway job config for a one-time job. */
 function buildOnceJob(params: RemindParams, time: TimeSpec, to: string, accountId: string, intent: 'remind' | 'task') {
-  const { name, atMs, message } = resolveOnceBase(params, time, intent);
+  const { name, atStr: at, message } = resolveOnceBase(params, time, intent);
   return {
     name,
-    schedule: { kind: 'at' as const, atMs },
+    schedule: { kind: 'at' as const, at },
     sessionTarget: 'isolated' as const,
     wakeMode: 'now' as const,
     deleteAfterRun: true,
@@ -502,7 +502,7 @@ async function executeGateway(
       if (isCronExpression(p.time!)) {
         const job = buildCronJob({ ...p, content: p.content!.trim() }, resolvedTo!, accountId, intent);
         try {
-          const cronResult = await gatewayTool('cron.add', { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, { job });
+          const cronResult = await gatewayTool('cron.add', { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, job);
           const typeLabel = intent === 'task' ? '循环任务' : '周期提醒';
           return json({
             status: 'ok',
@@ -521,7 +521,7 @@ async function executeGateway(
 
       const job = buildOnceJob({ ...p, content: p.content!.trim() }, timeResult.timeSpec, resolvedTo!, accountId, intent);
       try {
-        const cronResult = await gatewayTool('cron.add', { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, { job });
+        const cronResult = await gatewayTool('cron.add', { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, job);
         return json({
           status: 'ok',
           action: 'add',
