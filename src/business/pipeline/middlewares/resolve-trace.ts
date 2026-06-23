@@ -13,11 +13,14 @@ export const resolveTrace: MiddlewareDescriptor = {
     ctx.traceContext = resolveTraceContext({
       traceId: ctx.raw.trace_id,
       seqId: ctx.raw.seq_id ?? ctx.raw.msg_seq,
+      messageId: ctx.raw.msg_id ?? ctx.raw.msg_seq,
+      messageSeq: ctx.raw.msg_seq,
     });
 
     ctx.log.debug("[resolve-trace] trace context resolved", {
       traceId: ctx.traceContext.traceId,
       seqId: ctx.traceContext.seqId ?? "(none)",
+      messageId: ctx.traceContext.messageId ?? "(none)",
     });
 
     await next();

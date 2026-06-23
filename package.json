@@ -7,6 +7,16 @@
   "description": "Tencent YuanBao intelligent bot channel plugin",
   "license": "MIT",
   "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./trace": {
+      "types": "./dist/trace-api.d.ts",
+      "import": "./dist/trace-api.js"
+    }
+  },
   "files": [
     "dist",
     "openclaw.plugin.json",
@@ -22,6 +32,8 @@
   "author": "Tencent YuanBao Team",
   "scripts": {
     "build": "tsc",
+    "build:watch": "tsc --watch --preserveWatchOutput",
+    "watch": "pnpm build:watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",

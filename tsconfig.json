@@ -18,6 +18,7 @@
   "include": [
     "index.ts",
     "api.ts",
+    "trace-api.ts",
     "runtime-api.ts",
     "setup-entry.ts",
     "src/**/*.ts"

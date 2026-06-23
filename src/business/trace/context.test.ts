@@ -5,6 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createDiagnosticTraceContextFromActiveScope } from "openclaw/plugin-sdk/diagnostic-runtime";
 import { generateTraceId, getActiveTraceContext, resolveTraceContext, runWithTraceContext } from "./context.js";
 
 void test("generateTraceId returns a 32-char lowercase hex string", () => {
@@ -19,6 +20,8 @@ void test("resolveTraceContext keeps a valid inbound 32-hex traceId in tracepare
   assert.equal(ctx.traceId, traceId);
   assert.equal(ctx.seqId, "100");
   assert.match(ctx.traceparent, new RegExp(`^00-${traceId}-[0-9a-f]{16}-01$`));
+  assert.equal(ctx.diagnosticTrace?.traceId, traceId);
+  assert.equal(ctx.diagnosticTrace?.spanId, ctx.traceparent.split("-")[2]);
 });
 
 void test("resolveTraceContext generates a traceId when absent", () => {
@@ -49,4 +52,15 @@ void test("runWithTraceContext exposes the context via getActiveTraceContext", a
   const seen = await runWithTraceContext(ctx, async () => getActiveTraceContext());
   assert.equal(seen, ctx);
   assert.equal(getActiveTraceContext(), undefined); // restored after
+});
+
+void test("runWithTraceContext binds OpenClaw diagnostic trace scope", async () => {
+  const traceId = "abcdef0123456789abcdef0123456789";
+  const ctx = resolveTraceContext({ traceId });
+
+  const child = await runWithTraceContext(ctx, async () => createDiagnosticTraceContextFromActiveScope());
+
+  assert.equal(child.traceId, ctx.diagnosticTrace?.traceId);
+  assert.equal(child.parentSpanId, ctx.diagnosticTrace?.spanId);
+  assert.notEqual(child.spanId, ctx.diagnosticTrace?.spanId);
 });

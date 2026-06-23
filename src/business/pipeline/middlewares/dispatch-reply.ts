@@ -103,7 +103,7 @@ export const dispatchReply: MiddlewareDescriptor = {
       });
 
       // ⭐ Step 3: Dispatch reply (deliver callback with info.kind)
-      // Wrap with runWithTraceContext to ensure AI request fetch interceptor auto-injects X-Traceparent header
+      // Wrap with runWithTraceContext so OpenClaw diagnostics and downstream requests share the Yuanbao trace.
       const doDispatchReply = () => core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
         ctx: ctxPayload,
         cfg: config,
