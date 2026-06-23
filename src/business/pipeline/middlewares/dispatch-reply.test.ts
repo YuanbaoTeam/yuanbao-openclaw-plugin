@@ -278,8 +278,92 @@ void test("dispatch-reply: tool-kind deliver is not sent to user", async (t) => 
 
   await dispatchReply.handler(ctx, next);
 
-  // Tool kind should not be pushed
   const textItems = pushedItems.filter((i) => i.type === "text");
   assert.equal(textItems.length, 1, "only block kind should be pushed");
-  assert.ok(textItems[0].text.includes("最终回复"));
+  assert.equal(textItems[0].text, "\n\n最终回复", "text after tool call should be paragraph-separated");
+});
+
+void test("dispatch-reply: skips duplicate block deliver when partial stream is active", async (t) => {
+  const pushedItems: any[] = [];
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+
+  const ctx = createDispatchCtx({
+    core: {
+      channel: {
+        text: { convertMarkdownTables: (text: string) => text },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: async (args: any) => {
+            await args.replyOptions?.onPartialReply?.({ text: "full html page content" });
+            const deliver = args.dispatcherOptions?.deliver;
+            await deliver?.({ text: "<div>chunk one" }, { kind: "block" });
+            await deliver?.({ text: "<div>chunk two tail" }, { kind: "block" });
+          },
+        },
+      },
+    } as any,
+    queueSession: {
+      push: async (item: any) => {
+        pushedItems.push(item);
+      },
+      flush: async () => true,
+      abort: () => {},
+    },
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const textItems = pushedItems.filter((i) => i.type === "text");
+  assert.equal(textItems.length, 1);
+  assert.equal(textItems[0].text, "full html page content");
+});
+
+void test("dispatch-reply: repairs spurious newline in onPartialReply after onReasoningEnd", async (t) => {
+  const pushedItems: any[] = [];
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+
+  const prefix = "来一首不一样的 🦞\n\n---\n\n**《闺怨》**\n\n庭前花";
+  const sdkPartialAfterReasoning = `${prefix}\n落春将暮，\n独倚栏杆望归路。`;
+  const expectedText = `${prefix}落春将暮，\n独倚栏杆望归路。`;
+  const sdkPartialLater = `${sdkPartialAfterReasoning}\n千里江山云缥缈，`;
+  const expectedLater = `${expectedText}\n千里江山云缥缈，`;
+  const coalescedDeliverText = `${prefix}\n\n落春将暮，\n独倚栏杆望归路。\n千里江山云缥缈，`;
+
+  const ctx = createDispatchCtx({
+    core: {
+      channel: {
+        text: { convertMarkdownTables: (text: string) => text },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: async (args: any) => {
+            await args.replyOptions?.onPartialReply?.({ text: prefix });
+            await args.replyOptions?.onReasoningEnd?.();
+            await args.replyOptions?.onPartialReply?.({ text: sdkPartialAfterReasoning });
+            await args.replyOptions?.onPartialReply?.({ text: sdkPartialLater });
+            const deliver = args.dispatcherOptions?.deliver;
+            await deliver?.({ text: coalescedDeliverText }, { kind: "block" });
+          },
+        },
+      },
+    } as any,
+    queueSession: {
+      push: async (item: any) => {
+        pushedItems.push(item);
+      },
+      flush: async () => true,
+      abort: () => {},
+    },
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const textItems = pushedItems.filter((i) => i.type === "text");
+  assert.equal(textItems.length, 1);
+  assert.equal(textItems[0].text, expectedLater);
+  assert.ok(!textItems[0].text.includes("庭前花\n落春"));
+  assert.ok(!textItems[0].text.includes("庭前花\n\n落春"));
 });

@@ -17,6 +17,9 @@ import { createLog } from "../../../logger.js";
 import { PLUGIN_ID, readInstalledVersion } from "../../commands/upgrade/utils.js";
 import { createReplyHeartbeatController } from "../../outbound/heartbeat.js";
 import { runWithTraceContext } from "../../trace/context.js";
+import {
+  repairAllThinkingBoundaryJoins,
+} from "../repair-thinking-boundary-join.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 export const dispatchReply: MiddlewareDescriptor = {
@@ -82,6 +85,43 @@ export const dispatchReply: MiddlewareDescriptor = {
     // Track deliver kind transitions, detect tool-call boundaries
     let prevDeliverKind: string | null = null;
     let hasSentContent = false;
+    // onPartialReply cumulative text may insert spurious newlines at thinking boundaries.
+    let pendingPartialSegments: string[] = [];
+    let currentPartialText = "";
+    let hasPartialStream = false;
+    let reasoningBoundaryPrefixes: string[] = [];
+
+    const snapshotPartialText = () =>
+      (currentPartialText
+        ? [...pendingPartialSegments, currentPartialText]
+        : [...pendingPartialSegments]
+      ).join("");
+
+    const clearPartialText = () => {
+      pendingPartialSegments = [];
+      currentPartialText = "";
+      hasPartialStream = false;
+      reasoningBoundaryPrefixes = [];
+    };
+
+    const applyPartialReplyText = (incoming: string) => {
+      const text = repairAllThinkingBoundaryJoins(reasoningBoundaryPrefixes, incoming);
+      hasPartialStream = true;
+      currentPartialText = text;
+    };
+
+    const pushOutboundText = async (rawText: string, options?: { isAfterToolCall?: boolean }) => {
+      const text = core.channel.text.convertMarkdownTables(rawText, tableMode);
+      const trimmedText = text.trim();
+      if (!trimmedText) {
+        return;
+      }
+      await queueSession.push({
+        type: "text",
+        text: options?.isAfterToolCall ? `\n\n${text}` : text,
+      });
+      hasSentContent = true;
+    };
 
     try {
       // ⭐ Step 1: Record inbound session
@@ -128,10 +168,6 @@ export const dispatchReply: MiddlewareDescriptor = {
 
             // Normalize payload
             const normalized = normalizeOutboundReplyPayload(payload);
-            ctx.log.info("[dispatch-reply] received reply data", {
-              kind: info.kind,
-              model_output: normalized.text,
-            });
 
             // ⭐ Tool-kind deliver is tool execution result, not sent to user
             // Only update prevDeliverKind to track block→tool→block transitions
@@ -140,27 +176,42 @@ export const dispatchReply: MiddlewareDescriptor = {
               return;
             }
 
-            // Convert Markdown tables
-            const text = core.channel.text.convertMarkdownTables(
-              normalized.text ?? "",
-              tableMode,
-            );
             const mediaUrls = resolveOutboundMediaUrls(normalized);
-
-            const trimmedText = text.trim();
-
-            // Use real info.kind to track block→tool→block transitions
             const prevKind = prevDeliverKind;
             prevDeliverKind = info.kind;
 
-            // Push text
+            // Partial stream is the text source of truth. SDK block streaming may call
+            // deliver multiple times with incremental chunks; pushing here duplicates content.
+            if (hasPartialStream && (info.kind === "block" || info.kind === "final")) {
+              ctx.log.info("[dispatch-reply] deferring text to partial stream end", {
+                kind: info.kind,
+                partialLen: snapshotPartialText().length,
+              });
+
+              for (const mediaUrl of mediaUrls) {
+                if (mediaUrl) {
+                  await queueSession.push({ type: "media", mediaUrl });
+                  hasSentContent = true;
+                }
+              }
+
+              heartbeat.emit(WS_HEARTBEAT.RUNNING);
+              return;
+            }
+
+            const rawText = normalized.text ?? "";
+            ctx.log.info("[dispatch-reply] received reply data", {
+              kind: info.kind,
+              model_output: rawText,
+              usedPartialStream: false,
+            });
+
+            const trimmedText = rawText.trim();
+
+            // Push text from deliver when no partial stream is available
             if (trimmedText) {
               const isAfterToolCall = info.kind === "block" && prevKind !== null && prevKind !== "block";
-              await queueSession.push({
-                type: "text",
-                text: isAfterToolCall ? `\n\n${text}` : text,
-              });
-              hasSentContent = true;
+              await pushOutboundText(rawText, { isAfterToolCall });
             }
 
             // Push media
@@ -194,13 +245,35 @@ export const dispatchReply: MiddlewareDescriptor = {
           onAgentRunStart: () => {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
+          onPartialReply: (payload) => {
+            const text = typeof payload.text === "string" ? payload.text : "";
+            if (!text) {
+              return;
+            }
+            applyPartialReplyText(text);
+          },
+          onReasoningEnd: () => {
+            const prefix = snapshotPartialText();
+            if (prefix) {
+              reasoningBoundaryPrefixes.push(prefix);
+            }
+          },
           onAssistantMessageStart: () => {
+            if (currentPartialText) {
+              pendingPartialSegments.push(currentPartialText);
+              currentPartialText = "";
+            }
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           // ⭐ Force-flush buffered text before tool_call starts,
           // so user doesn't have to wait until session.flush() to see pre-tool AI output
           onToolStart: async () => {
             try {
+              const collected = snapshotPartialText();
+              if (collected.trim()) {
+                await pushOutboundText(collected);
+                clearPartialText();
+              }
               await queueSession.drainNow();
             } catch (err) {
               ctx.log.error("[dispatch-reply] onToolStart drainNow failed, skipping", {
@@ -216,6 +289,12 @@ export const dispatchReply: MiddlewareDescriptor = {
         await runWithTraceContext(ctx.traceContext, doDispatchReply);
       } else {
         await doDispatchReply();
+      }
+
+      const remainingPartial = snapshotPartialText();
+      if (remainingPartial.trim()) {
+        await pushOutboundText(remainingPartial);
+        clearPartialText();
       }
 
       // ⭐ Append /status version info before flush.
