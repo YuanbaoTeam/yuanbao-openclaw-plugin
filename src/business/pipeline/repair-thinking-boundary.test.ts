@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   repairAllThinkingBoundaryJoins,
+  repairSandwichText,
   repairThinkingBoundaryJoin,
-  repairThinkingBoundaryNewlines,
 } from "./repair-thinking-boundary.js";
 
 // ── repairThinkingBoundaryJoin ──────────────────────────────────────────────
@@ -58,6 +58,31 @@ void test("repairThinkingBoundaryJoin: no-op when prefix already ends with newli
   assert.equal(repairThinkingBoundaryJoin(prefix, incoming), incoming);
 });
 
+void test("repairThinkingBoundaryJoin: preserves \\n before markdown heading", () => {
+  const prefix = "# 🎬 场景 Markdown 文档演示\n\n---";
+  const incoming = `${prefix}\n## 📚 场景一：用户引导流程`;
+  assert.equal(repairThinkingBoundaryJoin(prefix, incoming), incoming);
+});
+
+void test("repairThinkingBoundaryJoin: preserves \\n before table row", () => {
+  const prefix = "一些文本内容";
+  const incoming = `${prefix}\n| 列1 | 列2 |`;
+  assert.equal(repairThinkingBoundaryJoin(prefix, incoming), incoming);
+});
+
+void test("repairThinkingBoundaryJoin: preserves \\n before list item", () => {
+  const prefix = "功能列表：";
+  const incoming = `${prefix}\n- 第一项`;
+  assert.equal(repairThinkingBoundaryJoin(prefix, incoming), incoming);
+});
+
+void test("repairThinkingBoundaryJoin: still removes \\n before plain text", () => {
+  assert.equal(
+    repairThinkingBoundaryJoin("Hi Shun！", "Hi Shun！\n🦞 有啥需要帮忙的？"),
+    "Hi Shun！🦞 有啥需要帮忙的？",
+  );
+});
+
 void test("repairThinkingBoundaryJoin: no-op when incoming does not extend prefix", () => {
   assert.equal(repairThinkingBoundaryJoin("hello", "world"), "world");
 });
@@ -86,99 +111,100 @@ void test("repairAllThinkingBoundaryJoins: no-op with empty prefixes", () => {
   assert.equal(repairAllThinkingBoundaryJoins([], "any text\n更多"), "any text\n更多");
 });
 
-// ── repairThinkingBoundaryNewlines (sandwich fallback) ──────────────────────
+// ── repairSandwichText ──────────────────────────────────────────────────────
 
-void test("repairThinkingBoundaryNewlines: removes \\n after CJK punctuation (、)", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("写代码、查文档、\ndebug、聊聊技术"),
-    "写代码、查文档、debug、聊聊技术",
+void test("repairSandwichText: no-op when no single newlines in delta", () => {
+  const result = repairSandwichText("prefix", "prefix suffix no newline");
+  assert.equal(result.repaired, "prefix suffix no newline");
+  assert.equal(result.brokenFragment, "");
+});
+
+void test("repairSandwichText: no-op when delta has only paragraph breaks", () => {
+  const result = repairSandwichText("prefix", "prefix\n\nnext paragraph");
+  assert.equal(result.repaired, "prefix\n\nnext paragraph");
+  assert.equal(result.brokenFragment, "");
+});
+
+void test("repairSandwichText: removes single spurious newline (empty snapshot)", () => {
+  const result = repairSandwichText("", "Hi Shun！\n🦞 有啥需要帮忙的？");
+  assert.equal(result.repaired, "Hi Shun！🦞 有啥需要帮忙的？");
+  assert.equal(result.brokenFragment, "Hi Shun！\n🦞 有啥需要帮忙的？");
+  assert.equal(result.repairedFragment, "Hi Shun！🦞 有啥需要帮忙的？");
+});
+
+void test("repairSandwichText: removes single spurious newline (non-empty snapshot)", () => {
+  const snapshot = "前文内容";
+  const text = "前文内容后续\n文字";
+  const result = repairSandwichText(snapshot, text);
+  assert.equal(result.repaired, "前文内容后续文字");
+  assert.equal(result.brokenFragment, "后续\n文字");
+  assert.equal(result.repairedFragment, "后续文字");
+});
+
+void test("repairSandwichText: no-op when single \\n is between two complete table rows", () => {
+  // | 名称 | 类型 |\n|------|------| — the \n is intentional table formatting
+  const input = "| 名称 | 类型 | 说明 |\n|------|------|";
+  const result = repairSandwichText("", input);
+  assert.equal(result.repaired, input);
+  assert.equal(result.brokenFragment, "");
+});
+
+void test("repairSandwichText: removes single \\n inside an incomplete table cell", () => {
+  // | 🐍\nPython | ... — the \n is mid-cell (lineBefore = "| 🐍" doesn't end with |)
+  const input = "| 🐍\nPython | 简洁 | AI |\n|---|---|---|\n| ⚡ JS | 全栈 | Web |";
+  const result = repairSandwichText("", input);
+  assert.ok(!result.repaired.includes("🐍\nPython"), "mid-cell break should be removed");
+  assert.ok(result.repaired.includes("🐍Python"), "emoji and name joined");
+});
+
+void test("repairSandwichText: table — merges broken separator even when prev row looks complete", () => {
+  // "|------|------|" looks complete (ends with |) but is actually missing one column cell.
+  // "------|\n" is the continuation. This is the harder case.
+  const input = "| 名称 | 类型 | 说明 |\n|------|------|\n------|\n| Dev🦞 | AI | 助手 |\n| Jes | 人类 | 起名 |";
+  const result = repairSandwichText("", input);
+  assert.ok(result.brokenFragment !== "", "should have detected a repairable fragment");
+  assert.ok(!result.repaired.includes("|------|\n------|\n"), "broken separator row should be merged");
+  assert.ok(result.repaired.includes("|------|------|"), "separator row joined");
+});
+
+void test("repairSandwichText: table — merges broken separator row (|---\\n-|---|)", () => {
+  const input = "| Git 命令 | 作用 |\n|------------\n-|------|\n| `git status` | 查看状态 |";
+  const result = repairSandwichText("", input);
+  assert.ok(
+    !result.repaired.includes("------------\n-|"),
+    "broken separator should be merged",
   );
+  assert.ok(result.repaired.includes("------------|------"), "separator row merged");
+  assert.ok(result.repaired.includes("git status"), "data rows preserved");
 });
 
-void test("repairThinkingBoundaryNewlines: removes \\n after CJK char", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("来了\n！🦞"),
-    "来了！🦞",
-  );
+void test("repairSandwichText: table — preserves paragraph breaks", () => {
+  const input = "| A | B |\n|---|---|\n| x | y |\n\n段落分隔后的内容";
+  const result = repairSandwichText("", input);
+  assert.ok(result.repaired.includes("\n\n段落"), "paragraph break preserved");
 });
 
-void test("repairThinkingBoundaryNewlines: removes \\n after emoji", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("🦞\n你好"),
-    "🦞你好",
-  );
+void test("repairSandwichText: multiple non-table single newlines — no-op (fallback)", () => {
+  // Multiple spurious newlines in non-table content: not handled yet, leave unchanged
+  const input = "行一\n行二\n行三";
+  const result = repairSandwichText("", input);
+  assert.equal(result.repaired, input);
+  assert.equal(result.brokenFragment, "");
 });
 
-void test("repairThinkingBoundaryNewlines: preserves \\n\\n paragraph breaks", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("你好～ 🦞\n\n有什么可以帮你的？"),
-    "你好～ 🦞\n\n有什么可以帮你的？",
-  );
+void test("repairSandwichText: no-op when snapshot does not match text", () => {
+  const result = repairSandwichText("completely different", "unrelated text\n here");
+  // Falls back to delta = entire text, single \n -> removes it
+  assert.equal(result.repaired, "unrelated text here");
 });
 
-void test("repairThinkingBoundaryNewlines: preserves ，\\n verse line break", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("枫落吴江秋水寒，\n孤帆远影入云端。"),
-    "枫落吴江秋水寒，\n孤帆远影入云端。",
-  );
-});
+void test("repairSandwichText: brokenFragment/repairedFragment enable replay", () => {
+  const input = "Hi Shun！\n🦞 有啥需要帮忙的？";
+  const first = repairSandwichText("", input);
+  assert.equal(first.repaired, "Hi Shun！🦞 有啥需要帮忙的？");
 
-void test("repairThinkingBoundaryNewlines: preserves markdown list items", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("功能：\n- 写代码\n- 查文档\n- Debug"),
-    "功能：\n- 写代码\n- 查文档\n- Debug",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: preserves markdown heading after \\n", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("介绍\n## 功能\n内容"),
-    "介绍\n## 功能\n内容",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: preserves ordered list", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("步骤：\n1. 第一步\n2. 第二步"),
-    "步骤：\n1. 第一步\n2. 第二步",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: preserves unordered list with *", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("功能：\n* 写代码\n* 查文档"),
-    "功能：\n* 写代码\n* 查文档",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: preserves blockquote", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("引用：\n> 这是引用内容"),
-    "引用：\n> 这是引用内容",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: preserves complete table rows", () => {
-  assert.equal(
-    repairThinkingBoundaryNewlines("表格：\n| 列1 | 列2 |\n| --- | --- |"),
-    "表格：\n| 列1 | 列2 |\n| --- | --- |",
-  );
-});
-
-void test("repairThinkingBoundaryNewlines: removes mid-cell break in table", () => {
-  const input = "| 🐍\nPython | 简洁 | AI |";
-  const expected = "| 🐍Python | 简洁 | AI |";
-  assert.equal(repairThinkingBoundaryNewlines(input), expected);
-});
-
-void test("repairThinkingBoundaryNewlines: mixed real scenario", () => {
-  const input = "你好 Jes！🦞\n\n有什么我可以帮你的吗？写代码、查文档、\ndebug、或者聊聊技术问题都行。";
-  const expected = "你好 Jes！🦞\n\n有什么我可以帮你的吗？写代码、查文档、debug、或者聊聊技术问题都行。";
-  assert.equal(repairThinkingBoundaryNewlines(input), expected);
-});
-
-void test("repairThinkingBoundaryNewlines: mixed with markdown list", () => {
-  const input = "嘿，Dev开发🦞来了\n！🦞\n\n功能：\n- 写代码\n- Debug\n随时问我";
-  const expected = "嘿，Dev开发🦞来了！🦞\n\n功能：\n- 写代码\n- Debug\n随时问我";
-  assert.equal(repairThinkingBoundaryNewlines(input), expected);
+  // Later partial extends the text (SDK sends cumulative, still broken)
+  const laterBroken = "Hi Shun！\n🦞 有啥需要帮忙的？更多内容";
+  const replayed = laterBroken.replace(first.brokenFragment, first.repairedFragment);
+  assert.equal(replayed, "Hi Shun！🦞 有啥需要帮忙的？更多内容");
 });

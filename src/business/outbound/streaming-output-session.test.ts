@@ -46,6 +46,23 @@ void test("streaming: large update triggers immediate chunk send", async () => {
   assert.equal(sent.join(""), bigText.slice(0, sent.join("").length));
 });
 
+void test("streaming: code block split adds opening fence to later chunks", async () => {
+  const { sender, sent } = fakeSender();
+  // 200-char code block body, split at maxChars=100
+  const codeLines = Array.from({ length: 20 }, (_, i) => `line${i + 1} = "value_${i + 1}"`).join("\n");
+  const codeBlock = "```python\n" + codeLines + "\n```";
+  const session = createStreamingOutputSession({ sender, minChars: 50, maxChars: 100 });
+  await session.update(codeBlock);
+  await session.finalize();
+  assert.ok(sent.length >= 2, "should have split the code block");
+  for (const chunk of sent) {
+    assert.ok(chunk.includes("```"), `each chunk should contain fence markers, got: ${JSON.stringify(chunk)}`);
+  }
+  // Last chunk must have an opening fence
+  const lastChunk = sent.at(-1)!;
+  assert.ok(lastChunk.startsWith("```"), `last chunk must start with opening fence, got: ${JSON.stringify(lastChunk)}`);
+});
+
 void test("streaming: finalize returns true when content sent", async () => {
   const { sender } = fakeSender();
   const session = createStreamingOutputSession({ sender });
@@ -176,6 +193,88 @@ void test("boundary repair: repair persists across multiple subsequent updates",
   await session.update(`${prefix}\n落春将暮，\n独倚栏杆。\n千里江山，`);
   await session.finalize();
   assert.ok(!sent[0].includes("庭前花\n落春"), "mid-word newline should be removed in later update too");
+});
+
+// ── sandwich repair (no-snapshot / table) ───────────────────────────────────
+
+void test("sandwich repair: single spurious \\n removed after 2nd onReasoningEnd", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  // 1st onReasoningEnd — no prior partial
+  session.markReasoningBoundary();
+  // onPartialReply — broken text with single \n
+  await session.update("Hi Shun！\n🦞 有啥需要帮忙的？");
+  // 2nd onReasoningEnd — sandwich confirmed, triggers repair
+  session.markReasoningBoundary();
+  await session.finalize();
+  assert.equal(sent.length, 1);
+  assert.ok(!sent[0].includes("Shun！\n🦞"), "spurious newline should be removed");
+  assert.ok(sent[0].includes("Shun！🦞"), "characters should be joined");
+});
+
+void test("sandwich repair: subsequent partial replay fixes still-broken text", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  session.markReasoningBoundary();
+  await session.update("Hi Shun！\n🦞 有啥需要帮忙的？");
+  session.markReasoningBoundary();
+  // SDK sends another cumulative partial with the same original \n
+  await session.update("Hi Shun！\n🦞 有啥需要帮忙的？更多内容");
+  await session.finalize();
+  assert.ok(!sent[0].includes("Shun！\n🦞"), "spurious newline removed in replay");
+  assert.ok(sent[0].includes("Shun！🦞"), "characters joined in replay");
+  assert.ok(sent[0].includes("更多内容"), "additional content preserved");
+});
+
+void test("sandwich repair: table mid-cell break is merged", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  session.markReasoningBoundary();
+  // onPartialReply: table with broken cell
+  const broken = "| 🐍\nPython | 简洁 | AI |\n|---|---|---|\n| ⚡ JS | 全栈 | Web |";
+  await session.update(broken);
+  session.markReasoningBoundary();
+  await session.finalize();
+  assert.ok(!sent[0].includes("🐍\nPython"), "broken cell should be merged");
+  assert.ok(sent[0].includes("🐍Python"), "emoji and name joined");
+});
+
+void test("sandwich repair: table separator row break is merged", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  session.markReasoningBoundary();
+  const broken = "| Git 命令 | 作用 |\n|------------\n-|------|\n| `git status` | 查看状态 |";
+  await session.update(broken);
+  session.markReasoningBoundary();
+  await session.finalize();
+  assert.ok(!sent[0].includes("------------\n-|"), "broken separator should be merged");
+  assert.ok(sent[0].includes("git status"), "data rows preserved");
+});
+
+void test("sandwich repair: spurious \\n at join point of next partial is removed", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  session.markReasoningBoundary();  // 1st onReasoningEnd, no prior text
+  // text1: first partial after 1st reasoning end (no \n issue in text1 itself)
+  await session.update("你好 Jes！🦞\n\n有啥需要帮忙的？代码、文档、");
+  session.markReasoningBoundary();  // 2nd onReasoningEnd, sandwich confirmed
+  // text2: next partial — delta starts with \n (spurious join artifact)
+  await session.update("你好 Jes！🦞\n\n有啥需要帮忙的？代码、文档、\nbug、或者聊聊技术问题都行。");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+  assert.ok(!sent[0].includes("文档、\nbug"), "spurious \\n at join point should be removed");
+  assert.ok(sent[0].includes("文档、bug"), "text should be joined without spurious \\n");
+  assert.ok(sent[0].includes("\n\n"), "paragraph break should be preserved");
+});
+
+void test("sandwich repair: paragraph \\n\\n is preserved", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 5000 });
+  session.markReasoningBoundary();
+  await session.update("你好～ 🦞\n\n有什么可以帮你的？");
+  session.markReasoningBoundary();
+  await session.finalize();
+  assert.ok(sent[0].includes("\n\n"), "paragraph break should be preserved");
 });
 
 // ── appendText ──────────────────────────────────────────────────────────────

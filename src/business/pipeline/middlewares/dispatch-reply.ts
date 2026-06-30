@@ -216,9 +216,8 @@ export const dispatchReply: MiddlewareDescriptor = {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           onPartialReply: async (payload: { text?: string }) => {
-            ctx.log.debug(`[DEBUG][dispatch-reply] [onPartialReply]`, { ...payload });
             const text = typeof payload.text === "string" ? payload.text : "";
-            ctx.log.debug(`[DEBUG][dispatch-reply] [onPartialReply] text="${text?.replace(/\n/g, "↵")}"`);
+            ctx.log.debug(`[DEBUG][dispatch-reply] [onPartialReply] text="${text?.replace(/\n/g, "↵").slice(0, 200)}"`);
             if (!text) {
               ctx.log.debug(`[DEBUG][dispatch-reply] [onPartialReply] 文本为空，跳过`);
               return;

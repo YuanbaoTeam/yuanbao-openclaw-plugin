@@ -41,6 +41,15 @@ export function repairThinkingBoundaryJoin(prefix: string, incoming: string): st
     return incoming;
   }
 
+  // For a single \n: preserve if the next line starts with a markdown block element.
+  // Removing it would produce invalid/malformed markdown (e.g. "---## Heading").
+  if (!suffix.startsWith("\n\n")) {
+    const afterNewline = suffix.slice(1);
+    if (/^#{1,6}\s|^\||^```|^>\s|^\*\s|^- |^\d+[.)]\s/.test(afterNewline)) {
+      return incoming;
+    }
+  }
+
   if (suffix.startsWith("\n\n")) {
     return prefix + suffix.replace(/^\n+/, "");
   }
@@ -63,43 +72,144 @@ export function repairAllThinkingBoundaryJoins(prefixes: readonly string[], inco
   return text;
 }
 
+// ── Sandwich repair ─────────────────────────────────────────────────────────
+
+export interface SandwichRepairResult {
+  /** Full repaired text */
+  repaired: string;
+  /** The broken fragment inside the delta (may be empty if nothing changed) */
+  brokenFragment: string;
+  /** The repaired replacement for brokenFragment */
+  repairedFragment: string;
+}
+
 /**
- * Aggressive newline repair for sandwich scenarios where no prefix snapshot exists.
- *
- * Since we KNOW the text was produced during a thinking-interleaved generation,
- * any single \n (not \n\n) is likely a </think> boundary artifact UNLESS it is
- * one of these intentional patterns:
- *   - Paragraph break: \n\n (preserved by the negative lookahead)
- *   - Markdown block start: the line after \n starts with -, *, #, |, >, digit+.
- *   - Verse line after Chinese comma: ，\n
+ * Count single newlines in `text` — newlines that are NOT part of a \n\n pair.
  */
-export function repairThinkingBoundaryNewlines(text: string): string {
-  const MD_NON_TABLE_RE = /^[\s]*[-*#>]/;
-  const MD_ORDERED_RE = /^[\s]*\d+[.)]/;
+function findSingleNewlines(text: string): number[] {
+  const positions: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (
+      text[i] === "\n"
+      && text[i + 1] !== "\n"
+      && (i === 0 || text[i - 1] !== "\n")
+    ) {
+      positions.push(i);
+    }
+  }
+  return positions;
+}
 
-  function isCompleteTableRow(line: string): boolean {
+/**
+ * Detect whether `text` looks like a (possibly broken) markdown table.
+ * We consider it a table if it contains `|` AND has a separator pattern (---)
+ * OR more than one `|`-prefixed line.
+ */
+function looksLikeTable(text: string): boolean {
+  if (!text.includes("|")) return false;
+  if (/---/.test(text)) return true;
+  const pipeLines = text.split("\n").filter(l => l.trim().startsWith("|"));
+  return pipeLines.length >= 2;
+}
+
+/**
+ * Merge broken table rows back into complete rows.
+ *
+ * A row is "broken" when a thinking-boundary \n was inserted mid-row.
+ * Two conditions identify a merge target:
+ *   1. Previous line starts with | but does NOT end with | (incomplete row)
+ *   2. Current line does not start with | but ends with |, AND prev line is also incomplete
+ */
+function repairBrokenTableRows(text: string): string {
+  const lines = text.split("\n");
+  const merged: string[] = [];
+
+  for (const line of lines) {
     const trimmed = line.trim();
-    return trimmed.startsWith("|") && trimmed.endsWith("|");
+    const prevRaw = merged.at(-1) ?? "";
+    const prevTrimmed = prevRaw.trim();
+
+    const prevStartsPipe = prevTrimmed.startsWith("|");
+    const prevEndsPipe = prevTrimmed.endsWith("|");
+    const curStartsPipe = trimmed.startsWith("|");
+    const curEndsPipe = trimmed.endsWith("|");
+
+    if (merged.length > 0 && prevStartsPipe && !prevEndsPipe) {
+      // Previous line is an incomplete table row — append current line to it
+      merged[merged.length - 1] = prevRaw + line;
+    } else if (merged.length > 0 && !curStartsPipe && curEndsPipe && prevStartsPipe) {
+      // Current line is a table row fragment (ends with | but doesn't start with |).
+      // This handles broken separators: "|------|------|" + "\n" + "------|"
+      // The prev.endsWith("|") check is intentionally removed: "|------|------|"
+      // looks complete but may be a truncated multi-column separator.
+      merged[merged.length - 1] = prevRaw + line;
+    } else {
+      merged.push(line);
+    }
   }
 
-  function isMarkdownLine(line: string): boolean {
-    if (line.trim().startsWith("|")) return isCompleteTableRow(line);
-    return MD_NON_TABLE_RE.test(line) || MD_ORDERED_RE.test(line);
+  return merged.join("\n");
+}
+
+/**
+ * Sandwich repair: called when we confirm the pattern
+ *   onReasoningEnd(1st) → onPartialReply(text) → onReasoningEnd(2nd)
+ *
+ * @param snapshot - cumulativeText at the time of the 1st onReasoningEnd (may be empty)
+ * @param text     - cumulativeText after the onPartialReply (may contain spurious \n)
+ * @returns SandwichRepairResult with full repaired text and before/after fragment pair
+ */
+export function repairSandwichText(snapshot: string, text: string): SandwichRepairResult {
+  const noChange: SandwichRepairResult = { repaired: text, brokenFragment: "", repairedFragment: "" };
+
+  // Determine the delta — the portion of text that is new since the snapshot
+  let prefix: string;
+  let delta: string;
+  if (snapshot && text.startsWith(snapshot)) {
+    prefix = snapshot;
+    delta = text.slice(snapshot.length);
+  } else {
+    prefix = "";
+    delta = text;
   }
 
-  return text.replace(/\n/g, (match, offset) => {
-    if (text[offset + 1] === "\n") return match;
-    if (text[offset - 1] === "\n") return match;
+  if (!delta) return noChange;
 
-    if (text[offset - 1] === "，") return match;
+  const singleNLPositions = findSingleNewlines(delta);
 
-    const lineAfter = text.slice(offset + 1).split("\n")[0] ?? "";
-    if (isMarkdownLine(lineAfter)) return match;
+  if (singleNLPositions.length === 0) {
+    return noChange;
+  }
 
-    const lineBeforeStart = text.lastIndexOf("\n", offset - 1) + 1;
-    const lineBefore = text.slice(lineBeforeStart, offset);
-    if (isMarkdownLine(lineBefore)) return match;
+  let repairedDelta: string;
 
-    return "";
-  });
+  if (singleNLPositions.length === 1) {
+    // Simple case: one spurious \n — remove it, UNLESS it separates two complete
+    // table rows (| ... | \n | ... |), which is intentional table formatting.
+    const pos = singleNLPositions[0]!;
+    const lineBeforeStart = delta.lastIndexOf("\n", pos - 1) + 1;
+    const lineBefore = delta.slice(lineBeforeStart, pos).trim();
+    const lineAfter = (delta.slice(pos + 1).split("\n")[0] ?? "").trim();
+    const isCompleteTableRow = (line: string) => line.startsWith("|") && line.endsWith("|");
+    if (isCompleteTableRow(lineBefore) && isCompleteTableRow(lineAfter)) {
+      return noChange;
+    }
+    repairedDelta = delta.slice(0, pos) + delta.slice(pos + 1);
+  } else {
+    // Multiple single newlines: try content-type-aware repair
+    if (looksLikeTable(delta)) {
+      repairedDelta = repairBrokenTableRows(delta);
+    } else {
+      // No handler yet for this content type — leave unchanged
+      return noChange;
+    }
+  }
+
+  if (repairedDelta === delta) return noChange;
+
+  return {
+    repaired: prefix + repairedDelta,
+    brokenFragment: delta,
+    repairedFragment: repairedDelta,
+  };
 }

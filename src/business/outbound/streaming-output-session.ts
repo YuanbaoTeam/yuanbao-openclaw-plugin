@@ -15,9 +15,11 @@
  *   SDK fires onReasoningEnd twice in succession when a <think> block ends.
  *   The onPartialReply text between these two calls contains spurious \n injected
  *   at the thinking boundary. Detection uses a "sandwich" pattern:
- *     onReasoningEnd(1st) → onPartialReply → onReasoningEnd(2nd)
- *   The 2nd onReasoningEnd triggers the repair by comparing cumulativeText
- *   with the snapshot taken at the 1st onReasoningEnd.
+ *     onReasoningEnd(1st) -> onPartialReply -> onReasoningEnd(2nd)
+ *   The 2nd onReasoningEnd triggers repair via repairSandwichText().
+ *   The repair records brokenFragment/repairedFragment so subsequent
+ *   onPartialReply updates (which still carry the original broken text from
+ *   the SDK) can be fixed via a simple string replace.
  */
 
 import { createLog } from "../../logger.js";
@@ -25,7 +27,8 @@ import { mdFence, mdBlock, mdAtomic, mdTable } from "../utils/markdown.js";
 import {
   repairAllThinkingBoundaryJoins,
   repairThinkingBoundaryJoin,
-  repairThinkingBoundaryNewlines,
+  repairSandwichText,
+  type SandwichRepairResult,
 } from "../pipeline/repair-thinking-boundary.js";
 import type { MessageSender } from "./types.js";
 
@@ -71,9 +74,9 @@ function defaultChunkText(text: string, max: number): string[] {
 }
 
 function debugSnippet(text: string, n = 30): string {
-  const safe = text.replace(/\n/g, "↵").replace(/\r/g, "↩");
+  const safe = text.replace(/\n/g, "\u21b5").replace(/\r/g, "\u21a9");
   if (safe.length <= n * 2 + 5) return safe;
-  return `${safe.slice(0, n)}…${safe.slice(-n)}`;
+  return `${safe.slice(0, n)}\u2026${safe.slice(-n)}`;
 }
 
 export function createStreamingOutputSession(opts: StreamingOutputSessionOptions): StreamingOutputSession {
@@ -96,19 +99,18 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   let hasSentContent = false;
   let receivedPartial = false;
 
-  // Thinking boundary repair state (prefix-based, for mid-stream boundaries)
+  // Prefix-based repair: for thinking boundaries encountered mid-stream
   const reasoningBoundaryPrefixes: string[] = [];
 
-  // Sandwich detection state:
-  //   consecutiveReasoningEndCount tracks how many onReasoningEnd fired since
-  //   the last onPartialReply. When it reaches 2, we know a sandwich occurred
-  //   and the cumulativeText contains spurious \n.
+  // Sandwich repair state:
+  //   consecutiveReasoningEndCount — how many onReasoningEnd have fired
+  //   since the last onPartialReply (reset after 2nd fires)
   let consecutiveReasoningEndCount = 0;
   let textAtFirstReasoningEnd = "";
-  // Once a sandwich has been detected and repaired, ALL subsequent onPartialReply
-  // updates must also be repaired (SDK keeps sending cumulative text with the
-  // original spurious \n).
-  let sandwichRepairActive = false;
+  // Records brokenFragment -> repairedFragment from the last sandwich repair.
+  // Used to replay the fix on subsequent onPartialReply calls (which the SDK
+  // continues to send with the original broken text).
+  let sandwichRepair: SandwichRepairResult | null = null;
 
   let sendChain: Promise<void> = Promise.resolve();
 
@@ -138,6 +140,74 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
     }
   }
 
+  /**
+   * Compute the code-fence state at a given offset in the full text.
+   * Used to determine whether the next chunk-to-send starts inside a fence.
+   */
+  function computeFenceStateAt(text: string): { inFence: boolean; fenceLang: string } {
+    let inFence = false;
+    let fenceLang = "";
+    for (const line of text.split("\n")) {
+      if (line.startsWith("```")) {
+        if (inFence) { inFence = false; fenceLang = ""; }
+        else { inFence = true; fenceLang = line.slice(3).trim(); }
+      }
+    }
+    return { inFence, fenceLang };
+  }
+
+  /**
+   * When a code block is split across multiple chunks, each chunk that starts
+   * inside a fence must have the appropriate opening fence prepended, and each
+   * chunk that ends inside a fence (but is not the last chunk) must have a
+   * closing fence appended so the recipient sees well-formed code blocks.
+   *
+   * @param initialFenceState  fence state at the start of the first chunk
+   *                           (from previously sent text, if any)
+   */
+  function repairChunkFences(
+    rawChunks: string[],
+    initialFenceState: { inFence: boolean; fenceLang: string } = { inFence: false, fenceLang: "" },
+  ): string[] {
+    if (rawChunks.length === 0) return rawChunks;
+
+    const result: string[] = [];
+    let fenceOpen = initialFenceState.inFence;
+    let fenceLang = initialFenceState.fenceLang;
+
+    for (let i = 0; i < rawChunks.length; i++) {
+      const chunk = rawChunks[i]!;
+
+      // Compute exit fence state by scanning the original chunk content
+      let exitFence = fenceOpen;
+      let exitLang = fenceLang;
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("```")) {
+          if (exitFence) { exitFence = false; exitLang = ""; }
+          else { exitFence = true; exitLang = line.slice(3).trim(); }
+        }
+      }
+
+      let out = chunk;
+
+      // Prepend opening fence if this chunk starts inside a fence
+      if (fenceOpen) {
+        out = (fenceLang ? `\`\`\`${fenceLang}\n` : "```\n") + out;
+      }
+
+      // Append closing fence if this chunk ends inside a fence (not the last chunk)
+      if (exitFence && i < rawChunks.length - 1) {
+        out = out + "\n```";
+      }
+
+      result.push(out);
+      fenceOpen = exitFence;
+      fenceLang = exitLang;
+    }
+
+    return result;
+  }
+
   async function drainUnsent(force: boolean): Promise<void> {
     const fullText = cumulativeText + appendedSuffix;
     const unsent = fullText.slice(sentIndex);
@@ -149,62 +219,53 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
         log.debug(`[DEBUG][${sessionKey}] 未发送字数不足（${unsent.length} < ${minChars}），继续等待`);
         return;
       }
-      if (!isSplitSafe(fullText)) {
+      // Check only the UNSENT portion — already-sent text may have closed fences/tables.
+      if (!isSplitSafe(unsent)) {
         log.debug(`[DEBUG][${sessionKey}] 文本分割不安全（代码块/表格未闭合），等待更多内容`);
         return;
       }
     }
 
-    const sanitized = mdTable.sanitize(unsent);
-    const chunks = chunkText(sanitized, maxChars);
+    // Chunk the ORIGINAL (unsanitized) unsent text so that sentIndex offsets stay
+    // accurate — mdTable.sanitize may change text length, which would break the index.
+    const chunks = chunkText(unsent, maxChars);
 
-    if (!force && chunks.length <= 1 && unsent.length < minChars) return;
-
-    log.debug(`[DEBUG][${sessionKey}] 开始排出缓冲，force=${force}，分片数=${chunks.length}，未发字数=${unsent.length}`);
-
-    if (force || chunks.length <= 1) {
-      sentIndex = fullText.length;
-      for (const chunk of chunks) {
-        if (aborted) return;
-        await sendChunk(chunk);
-      }
-    } else {
-      const toSend = chunks.slice(0, -1);
-      const sent = toSend.join("").length;
-      sentIndex += sent;
-      log.debug(`[DEBUG][${sessionKey}] 发送前 ${toSend.length} 个分片，保留末尾片（长度 ${chunks.at(-1)?.length ?? 0}）`);
-      for (const chunk of toSend) {
-        if (aborted) return;
-        await sendChunk(chunk);
-      }
-    }
-  }
-
-  /** 执行三明治修复：在第 2 个 onReasoningEnd 时修复 cumulativeText 中的错误换行 */
-  function repairSandwich(): void {
-    const before = cumulativeText;
-    if (!before) {
-      log.debug(`[DEBUG][${sessionKey}] [三明治修复] cumulativeText 为空，跳过`);
+    // Non-forced: only send when content overflows one message.
+    // If it fits in a single message, wait for flushNow()/finalize() to avoid
+    // sending mid-sentence content just because minChars chars accumulated.
+    if (!force && chunks.length <= 1) {
+      log.debug(`[DEBUG][${sessionKey}] 内容可单条发送（${unsent.length} 字），等待强制 flush 避免截断`);
       return;
     }
 
-    log.debug(`[DEBUG][${sessionKey}] [三明治修复] 快照="${debugSnippet(textAtFirstReasoningEnd, 30)}"（长度=${textAtFirstReasoningEnd.length}），当前="${debugSnippet(before, 50)}"`);
+    log.debug(`[DEBUG][${sessionKey}] 开始排出缓冲，force=${force}，分片数=${chunks.length}，未发字数=${unsent.length}`);
 
-    if (textAtFirstReasoningEnd) {
-      const repaired = repairThinkingBoundaryJoin(textAtFirstReasoningEnd, before);
-      if (repaired !== before) {
-        cumulativeText = repaired;
-        log.debug(`[DEBUG][${sessionKey}] [三明治修复-前缀匹配] 修复后="${debugSnippet(repaired, 50)}"`);
-      } else {
-        log.debug(`[DEBUG][${sessionKey}] [三明治修复-前缀匹配] 无变化`);
+    // Determine fence state at the current send position (start of unsent text)
+    const fenceState = computeFenceStateAt(fullText.slice(0, sentIndex));
+
+    if (force) {
+      sentIndex = fullText.length;
+      // Sanitize and re-chunk the full unsent text for actual delivery
+      const sanitized = mdFence.stripOuter(mdTable.sanitize(unsent));
+      const finalChunks = repairChunkFences(chunkText(sanitized, maxChars), fenceState);
+      for (const chunk of finalChunks) {
+        if (aborted) return;
+        await sendChunk(chunk);
       }
     } else {
-      const repaired = repairThinkingBoundaryNewlines(before);
-      if (repaired !== before) {
-        cumulativeText = repaired;
-        log.debug(`[DEBUG][${sessionKey}] [三明治修复-CJK兜底] 修复后="${debugSnippet(repaired, 50)}"`);
-      } else {
-        log.debug(`[DEBUG][${sessionKey}] [三明治修复-CJK兜底] 无变化（正则未匹配）`);
+      // chunks.length > 1: send all but last, keep last in buffer.
+      // Use lengths from the ORIGINAL chunks to advance sentIndex correctly.
+      const toSend = chunks.slice(0, -1);
+      const sentLength = toSend.join("").length;
+      sentIndex += sentLength;
+      log.debug(`[DEBUG][${sessionKey}] 发送前 ${toSend.length} 个分片，保留末尾片（长度 ${chunks.at(-1)?.length ?? 0}）`);
+      // Sanitize and repair fences on the chunks actually sent.
+      // We operate on all original chunks (including the last kept-in-buffer chunk)
+      // so that repairChunkFences can correctly track fence state across the boundary.
+      const sanitizedChunks = repairChunkFences(chunks.map(c => mdTable.sanitize(c)), fenceState);
+      for (let ci = 0; ci < toSend.length; ci++) {
+        if (aborted) return;
+        await sendChunk(sanitizedChunks[ci]!);
       }
     }
   }
@@ -214,21 +275,21 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       if (aborted) return;
       receivedPartial = true;
 
-      // Step 1: 对已有的边界前缀做精确修复（针对流中间的 thinking 边界）
+      // Step 1: prefix-based repair (for mid-stream thinking boundaries)
       let repaired = repairAllThinkingBoundaryJoins(reasoningBoundaryPrefixes, text);
 
-      // Step 2: 如果三明治修复已激活，持续对后续 partial 做 newline 清理
-      // （SDK 后续 partial 仍携带原始错误 \n，需要每次都修复）
-      if (sandwichRepairActive) {
+      // Step 2: replay the sandwich repair using brokenFragment -> repairedFragment
+      // (SDK keeps sending cumulative text with original spurious \n)
+      if (sandwichRepair?.brokenFragment) {
         const before = repaired;
-        repaired = repairThinkingBoundaryNewlines(repaired);
+        repaired = repaired.replace(sandwichRepair.brokenFragment, sandwichRepair.repairedFragment);
         if (repaired !== before) {
-          log.debug(`[DEBUG][${sessionKey}] [三明治持续修复] 修复前="${debugSnippet(before, 40)}"，修复后="${debugSnippet(repaired, 40)}"`);
+          log.debug(`[DEBUG][${sessionKey}] [三明治重放修复] 修复前末尾="${debugSnippet(before, 40)}"，修复后="${debugSnippet(repaired, 40)}"`);
         }
       }
 
       if (repaired !== text) {
-        log.debug(`[DEBUG][${sessionKey}] [修复完成] 修复前="${debugSnippet(text, 40)}"，修复后="${debugSnippet(repaired, 40)}"`);
+        log.debug(`[DEBUG][${sessionKey}] [修复完成] 修复前末尾="${debugSnippet(text, 40)}"，修复后="${debugSnippet(repaired, 40)}"`);
       } else {
         log.debug(`[DEBUG][${sessionKey}] [partial更新] 长度=${text.length}，边界前缀数=${reasoningBoundaryPrefixes.length}，末尾="${debugSnippet(text, 40)}"`);
       }
@@ -244,7 +305,6 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       consecutiveReasoningEndCount++;
 
       if (consecutiveReasoningEndCount === 1) {
-        // 第 1 次：保存快照
         textAtFirstReasoningEnd = cumulativeText;
         if (cumulativeText) {
           reasoningBoundaryPrefixes.push(cumulativeText);
@@ -253,12 +313,35 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
           log.debug(`[DEBUG][${sessionKey}] [reasoning边界-第1次] 无累积文本，快照为空`);
         }
       } else if (consecutiveReasoningEndCount === 2) {
-        // 第 2 次（三明治确认）：修复 cumulativeText 中被 thinking 边界插入的错误 \n
+        // Sandwich confirmed — repair the cumulativeText
         log.debug(`[DEBUG][${sessionKey}] [reasoning边界-第2次] 检测到三明治结构，执行修复`);
-        repairSandwich();
-        sandwichRepairActive = true;
-        log.debug(`[DEBUG][${sessionKey}] [reasoning边界-第2次] 三明治修复已激活，后续 partial 将持续修复`);
-        // 重置计数，后续可能还有新的三明治
+
+        if (!cumulativeText) {
+          log.debug(`[DEBUG][${sessionKey}] [reasoning边界-第2次] cumulativeText 为空，跳过`);
+        } else {
+          log.debug(`[DEBUG][${sessionKey}] [三明治修复] 快照="${debugSnippet(textAtFirstReasoningEnd, 30)}"（长度=${textAtFirstReasoningEnd.length}），当前="${debugSnippet(cumulativeText, 50)}"`);
+
+          const result = repairSandwichText(textAtFirstReasoningEnd, cumulativeText);
+
+          if (result.brokenFragment) {
+            cumulativeText = result.repaired;
+            sandwichRepair = result;
+            log.debug(`[DEBUG][${sessionKey}] [三明治修复-成功] 修复后="${debugSnippet(result.repaired, 50)}"，broken="${debugSnippet(result.brokenFragment, 30)}"→repaired="${debugSnippet(result.repairedFragment, 30)}"`);
+          } else {
+            log.debug(`[DEBUG][${sessionKey}] [三明治修复-无变化] 未发现可修复的单换行`);
+          }
+
+          // Push the (possibly repaired) cumulativeText as a boundary prefix.
+          // This handles the JOIN POINT between text1 and text2: the next
+          // onPartialReply will have delta = text2.slice(text1.length), and if
+          // that delta starts with \n, repairAllThinkingBoundaryJoins will strip it.
+          if (cumulativeText && !cumulativeText.endsWith("\n")) {
+            reasoningBoundaryPrefixes.push(cumulativeText);
+            log.debug(`[DEBUG][${sessionKey}] [三明治修复] 已将文本记为边界前缀（长度=${cumulativeText.length}），用于修复后续 partial 的拼接点`);
+          }
+        }
+
+        // Reset for potential future sandwiches
         consecutiveReasoningEndCount = 0;
         textAtFirstReasoningEnd = "";
       }
@@ -283,9 +366,10 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       const remaining = fullText.slice(sentIndex).trim();
       log.debug(`[DEBUG][${sessionKey}] [finalize] 剩余未发字数=${remaining.length}，已发送=${hasSentContent}`);
       if (remaining) {
+        const fenceState = computeFenceStateAt(fullText.slice(0, sentIndex));
         const sanitized = mdFence.stripOuter(mdTable.sanitize(remaining));
-        const chunks = chunkText(sanitized, maxChars);
-        log.debug(`[DEBUG][${sessionKey}] [finalize] 分片数=${chunks.length}`);
+        const chunks = repairChunkFences(chunkText(sanitized, maxChars), fenceState);
+        log.debug(`[DEBUG][${sessionKey}] [finalize] 分片数=${chunks.length}，起始fence=${fenceState.inFence ? fenceState.fenceLang || "yes" : "no"}`);
         for (const chunk of chunks) {
           if (aborted) break;
           await sendChunk(chunk);
