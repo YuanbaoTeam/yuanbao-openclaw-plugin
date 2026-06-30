@@ -9,10 +9,14 @@
 const CLAUSE_COMMA_RE = /，$/;
 const CLAUSE_OR_SENTENCE_END_RE = /[.!?。！？…，、；：]$/;
 
-/** join 后的单 `\n` 若紧接 `---` 分割线或 `- ` 列表项，应保留 */
+/** Preserve a single `\n` when followed by a standalone `---` rule or `- ` list item (not table `------|` continuations). */
 function shouldPreserveJoinNewline(afterNewline: string): boolean {
   const line = afterNewline.trimStart();
-  if (/^(?:-{3,}|-\s)/.test(line)) {
+  const firstLine = (line.split("\n")[0] ?? "").trim();
+  if (/^-\s/.test(line)) {
+    return true;
+  }
+  if (/^-{3,}\s*$/.test(firstLine)) {
     return true;
   }
   return /^#{1,6}\s|^\||^```|^>\s|^\*\s|^\d+[.)]\s/.test(line);

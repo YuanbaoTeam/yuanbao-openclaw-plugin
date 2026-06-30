@@ -84,6 +84,15 @@ void test("repairThinkingBoundaryJoin: preserves \\n before horizontal rule", ()
   );
 });
 
+void test("repairThinkingBoundaryJoin: removes spurious nl in broken table separator", () => {
+  const prefix = "| 名称 | 类型 | 说明 |\n|------|------|";
+  const incoming = `${prefix}\n------|\n| Dev | AI |`;
+  assert.equal(
+    repairThinkingBoundaryJoin(prefix, incoming),
+    `${prefix}------|\n| Dev | AI |`,
+  );
+});
+
 void test("repairThinkingBoundaryJoin: still removes \\n before plain text", () => {
   assert.equal(
     repairThinkingBoundaryJoin("Hi Shun！", "Hi Shun！\n🦞 有啥需要帮忙的？"),
