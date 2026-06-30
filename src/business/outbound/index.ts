@@ -3,6 +3,6 @@
  */
 
 export { createMessageSender } from "./create-sender.js";
-export { createQueueSession } from "./queue.js";
-export type { QueueSession, QueueSessionOptions } from "./queue.js";
+export { createStreamingOutputSession } from "./streaming-output-session.js";
+export type { StreamingOutputSession, StreamingOutputSessionOptions } from "./streaming-output-session.js";
 export type { OutboundItem, SendResult, SendParams, MessageSender } from "./types.js";

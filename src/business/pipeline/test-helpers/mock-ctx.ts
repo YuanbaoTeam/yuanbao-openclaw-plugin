@@ -79,7 +79,6 @@ export function createMockCtx(overrides: DeepPartial<PipelineContext> = {}): Pip
     previousTimestamp: undefined,
     ctxPayload: undefined,
     sender: undefined,
-    queueSession: undefined,
     action: undefined,
   };
 
