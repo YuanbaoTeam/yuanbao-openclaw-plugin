@@ -3,8 +3,9 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStreamingOutputSession } from "./streaming-output-session.js";
+import { createStreamingOutputSession, defaultChunkText } from "./streaming-output-session.js";
 import type { MessageSender, SendResult } from "./types.js";
+import { chunkMarkdownText } from "./test-helpers/openclaw-chunk.js";
 
 function fakeSender(): { sender: MessageSender; sent: string[] } {
   const sent: string[] = [];
@@ -19,6 +20,27 @@ function fakeSender(): { sender: MessageSender; sent: string[] } {
   };
   return { sender, sent };
 }
+
+void test("defaultChunkText prefers newline boundaries", () => {
+  const lines = Array.from({ length: 30 }, (_, i) => `line-${i}-${"a".repeat(20)}`).join("\n");
+  const chunks = defaultChunkText(lines, 200);
+  assert.ok(chunks.length > 1);
+  assert.equal(chunks.join(""), lines);
+  let offset = 0;
+  for (const chunk of chunks.slice(0, -1)) {
+    offset += chunk.length;
+    if (offset < lines.length) {
+      assert.equal(lines[offset - 1], "\n", "inter-chunk break should follow a newline");
+    }
+  }
+});
+
+void test("defaultChunkText hard-splits only when a single line exceeds max", () => {
+  const text = "a".repeat(250);
+  const chunks = defaultChunkText(text, 100);
+  assert.equal(chunks.join(""), text);
+  assert.ok(chunks.length >= 3);
+});
 
 // ── basic streaming (disableBlockStreaming=false) ────────────────────────────
 
@@ -37,30 +59,223 @@ void test("streaming: finalize sends buffered content", async () => {
   assert.deepEqual(sent, ["short text"]);
 });
 
+void test("streaming: single chunk at minChars stays buffered until finalize", async () => {
+  const { sender, sent } = fakeSender();
+  const text = "x".repeat(900);
+  const session = createStreamingOutputSession({ sender, minChars: 800, maxChars: 1200 });
+  await session.update(text);
+  assert.equal(sent.length, 0, "one chunk may be incomplete — wait for finalize");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0], text);
+});
+
 void test("streaming: large update triggers immediate chunk send", async () => {
   const { sender, sent } = fakeSender();
-  const bigText = "x".repeat(3000);
+  const bigText = Array.from({ length: 200 }, (_, i) => `row ${i}: ${"x".repeat(10)}`).join("\n");
   const session = createStreamingOutputSession({ sender, minChars: 50, maxChars: 1000 });
   await session.update(bigText);
-  assert.ok(sent.length >= 2, "should have sent chunks during update");
-  assert.equal(sent.join(""), bigText.slice(0, sent.join("").length));
+  assert.ok(sent.length >= 1, "should stream at newline boundary during update");
+  await session.finalize();
+  assert.equal(sent.join(""), bigText);
+});
+
+void test("streaming: large text is split by maxChars", async () => {
+  const { sender, sent } = fakeSender();
+  const bigText = "x".repeat(250);
+  const session = createStreamingOutputSession({ sender, minChars: 50, maxChars: 100 });
+  await session.update(bigText);
+  await session.finalize();
+  assert.ok(sent.length >= 2, "should have split the text");
+  assert.equal(sent.join(""), bigText);
+});
+
+void test("streaming: single chunk under maxChars is not sent during update", async () => {
+  const { sender, sent } = fakeSender();
+  const css = "        .card {\n" + "            line-height: 1.5;\n".repeat(40);
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 800,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(css.slice(0, 801));
+  assert.deepEqual(sent, [], "801 chars in one chunk — still streaming, do not send");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+});
+
+void test("streaming: unclosed fence under maxChars stays buffered until closed or finalize", async () => {
+  const { sender, sent } = fakeSender();
+  const partial = "```js\n" + "x".repeat(500);
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 100,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(partial);
+  assert.deepEqual(sent, [], "mid-fence under maxChars should not stream yet");
+  await session.update(partial + "\n```");
+  assert.deepEqual(sent, [], "closed block in one chunk — still wait until >1 chunk or finalize");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+});
+
+void test("streaming: unclosed fence over maxChars sends complete chunks only", async () => {
+  const { sender, sent } = fakeSender();
+  const partial = "```js\n" + "y".repeat(1300);
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 100,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(partial);
+  assert.ok(sent.length >= 1, "multiple chunks — send all but last");
+  await session.finalize();
+  assert.ok(sent.join("").includes("y".repeat(100)), "finalize sends tail");
+});
+
+void test("streaming: unclosed math under maxChars stays buffered until closed or finalize", async () => {
+  const { sender, sent } = fakeSender();
+  const partial = "$$ E = mc^2 + " + "x".repeat(500);
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 100,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(partial);
+  assert.deepEqual(sent, [], "mid-math under maxChars should not stream yet");
+  await session.update(partial + " $$");
+  assert.deepEqual(sent, [], "closed math in one chunk — still wait until >1 chunk or finalize");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+});
+
+void test("streaming: unclosed math over maxChars sends complete chunks only", async () => {
+  const { sender, sent } = fakeSender();
+  const partial = "$$ " + "z".repeat(1300);
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 100,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(partial);
+  assert.ok(sent.length >= 1, "multiple chunks — send all but last");
+  await session.finalize();
+  assert.ok(sent.join("").includes("z".repeat(100)), "finalize sends tail");
+});
+
+void test("streaming: streams only when chunkText yields multiple chunks", async () => {
+  const { sender, sent } = fakeSender();
+  const lines = Array.from({ length: 80 }, (_, i) => `line${i + 1} = "value_${String(i).padStart(3, "0")}";`).join("\n");
+  const partial = "```html\n" + lines;
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 100,
+    maxChars: 1200,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update("intro\n\n" + partial);
+  assert.ok(sent.length >= 1, "should stream once chunkText splits into >1 chunk");
+  const totalBeforeFinalize = sent.join("").length;
+  await session.finalize();
+  assert.ok(sent.join("").length > totalBeforeFinalize, "finalize sends remaining tail");
 });
 
 void test("streaming: code block split adds opening fence to later chunks", async () => {
   const { sender, sent } = fakeSender();
-  // 200-char code block body, split at maxChars=100
   const codeLines = Array.from({ length: 20 }, (_, i) => `line${i + 1} = "value_${i + 1}"`).join("\n");
   const codeBlock = "```python\n" + codeLines + "\n```";
-  const session = createStreamingOutputSession({ sender, minChars: 50, maxChars: 100 });
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 50,
+    maxChars: 100,
+    chunkText: chunkMarkdownText,
+  });
   await session.update(codeBlock);
   await session.finalize();
   assert.ok(sent.length >= 2, "should have split the code block");
   for (const chunk of sent) {
     assert.ok(chunk.includes("```"), `each chunk should contain fence markers, got: ${JSON.stringify(chunk)}`);
   }
-  // Last chunk must have an opening fence
   const lastChunk = sent.at(-1)!;
   assert.ok(lastChunk.startsWith("```"), `last chunk must start with opening fence, got: ${JSON.stringify(lastChunk)}`);
+});
+
+void test("streaming: plan splits on newlines not mid-line", async () => {
+  const { sender, sent } = fakeSender();
+  const text = [
+    "line one is here",
+    "line two is here",
+    "line three is here",
+    "line four is here",
+    "line five is here",
+  ].join("\n");
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 30,
+    maxChars: 50,
+    chunkText: (t) => [t],
+  });
+  await session.update(text);
+  await session.finalize();
+  for (const chunk of sent) {
+    for (const line of chunk.split("\n")) {
+      if (!line) continue;
+      assert.ok(
+        text.includes(line),
+        `chunk contains partial line fragment: ${JSON.stringify(line)}`,
+      );
+    }
+  }
+  assert.equal(sent.join(""), text);
+});
+
+void test("streaming: finalize does not wrap markdown tail in code fence", async () => {
+  const { sender, sent } = fakeSender();
+  const prefix = "intro\n```html\nbody { color: red; }\n";
+  const suffix = "```\n\n---\n\n**说明** here";
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 20,
+    maxChars: 80,
+    chunkText: (t, max) => {
+      if (t.length <= max) return [t];
+      const breakAt = t.lastIndexOf("\n", max);
+      const idx = breakAt > 0 ? breakAt + 1 : max;
+      return [t.slice(0, idx), t.slice(idx)];
+    },
+  });
+  await session.update(prefix + suffix);
+  await session.flushNow();
+  await session.finalize();
+  const tailMsg = sent.at(-1)!;
+  assert.ok(tailMsg.includes("**说明**"));
+  assert.ok(!tailMsg.startsWith("```html"), `markdown tail should not reopen fence: ${JSON.stringify(tailMsg)}`);
+});
+
+void test("streaming: mid-fence finalize prepends opening fence", async () => {
+  const { sender, sent } = fakeSender();
+  const part1 = "intro\n```html\n@keyframes pulse {\n  0% { opacity: 1; }\n";
+  const part2 = "  100% { opacity: 0; }\n}\n</style>\n```\n\ndone";
+  const session = createStreamingOutputSession({
+    sender,
+    minChars: 40,
+    maxChars: 80,
+    chunkText: chunkMarkdownText,
+  });
+  await session.update(part1);
+  await session.flushNow();
+  await session.update(part1 + part2);
+  await session.finalize();
+  const joined = sent.join("");
+  assert.ok(joined.includes("@keyframes pulse"), "pulse keyframes should be present");
+  assert.ok(joined.includes("100% { opacity: 0; }"), "tail of block should be present");
+  assert.ok(sent.some(c => c.startsWith("```html")), "a mid-stream chunk should reopen the html fence");
 });
 
 void test("streaming: finalize returns true when content sent", async () => {
@@ -104,7 +319,7 @@ void test("streaming: flushNow then update sends new content in finalize", async
   await session.flushNow();
   await session.update("part one part two");
   await session.finalize();
-  assert.deepEqual(sent, ["part one", "part two"]);
+  assert.deepEqual(sent, ["part one", " part two"]);
 });
 
 void test("streaming: flushNow on empty session is no-op", async () => {
@@ -149,6 +364,20 @@ void test("buffered: finalize splits oversized text", async () => {
 });
 
 // ── thinking boundary repair ─────────────────────────────────────────────────
+
+void test("streaming: sandwich repair triggers drain without next partial", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createStreamingOutputSession({ sender, minChars: 10, maxChars: 5000 });
+  const prefix = "Hi Shun！又是";
+  await session.update(prefix);
+  session.markReasoningBoundary();
+  await session.update(`${prefix}\n你，有什么新鲜事？`);
+  session.markReasoningBoundary();
+  assert.deepEqual(sent, [], "single chunk not sent during stream");
+  await session.finalize();
+  assert.ok(sent.length >= 1, "sandwich-repaired text sent on finalize");
+  assert.ok(!sent.join("").includes("又是\n你"), "spurious newline removed");
+});
 
 void test("boundary repair: removes mid-word newline after onReasoningEnd", async () => {
   const { sender, sent } = fakeSender();
@@ -275,18 +504,6 @@ void test("sandwich repair: paragraph \\n\\n is preserved", async () => {
   session.markReasoningBoundary();
   await session.finalize();
   assert.ok(sent[0].includes("\n\n"), "paragraph break should be preserved");
-});
-
-// ── appendText ──────────────────────────────────────────────────────────────
-
-void test("appendText: suffix is included in finalize output", async () => {
-  const { sender, sent } = fakeSender();
-  const session = createStreamingOutputSession({ sender, minChars: 5000 });
-  await session.update("main content");
-  session.appendText("\n\n🤖 Bot: v1.0");
-  await session.finalize();
-  assert.ok(sent[0].includes("main content"), "main content present");
-  assert.ok(sent[0].includes("🤖 Bot: v1.0"), "suffix present");
 });
 
 // ── abort ────────────────────────────────────────────────────────────────────

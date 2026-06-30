@@ -1,9 +1,7 @@
 /**
  * Unit tests for dispatch-reply middleware.
  *
- * The new implementation uses StreamingOutputSession internally and calls
- * sender.sendText() / sender.sendMedia() directly. Tests assert on sent text
- * rather than queue push items.
+ * dispatch-reply middleware tests (StreamingOutputSession + sender).
  */
 
 import assert from "node:assert/strict";
@@ -279,7 +277,7 @@ void test("dispatch-reply: onToolStart flushes buffered text before tool call", 
   assert.ok(sentTexts.some(t => t.includes("AI pre-tool text")), "pre-tool text should be sent");
 });
 
-// ── fallback: no onPartialReply ──────────────────────────────────────────────
+// ── deliver text fallback (no onPartialReply) ───────────────────────────────
 
 void test("dispatch-reply: uses deliver text when no onPartialReply (SDK fallback)", async (t) => {
   setupMocks(t);
@@ -297,8 +295,7 @@ void test("dispatch-reply: uses deliver text when no onPartialReply (SDK fallbac
         session: { recordInboundSession: async () => {} },
         reply: {
           dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver }) => {
-            // Only deliver, no onPartialReply
-            await deliver?.({ text: "fallback text" }, { kind: "block" });
+            await deliver?.({ text: "fallback deliver text" }, { kind: "block" });
           }),
         },
       },
@@ -308,7 +305,134 @@ void test("dispatch-reply: uses deliver text when no onPartialReply (SDK fallbac
 
   await dispatchReply.handler(ctx, next);
 
-  assert.ok(sentTexts.some(t => t.includes("fallback text")), "should use deliver text as fallback");
+  assert.ok(sentTexts.some(t => t.includes("fallback deliver text")), "should use deliver text as fallback");
+});
+
+void test("dispatch-reply: deliver text ignored when onPartialReply already received", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "from partial" });
+            await deliver?.({ text: "duplicate from deliver" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentTexts.filter(t => t.includes("from partial")).length, 1);
+  assert.ok(!sentTexts.some(t => t.includes("duplicate from deliver")), "deliver text must not duplicate partial");
+});
+
+void test("dispatch-reply: /status deliver fallback appends bot version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver }) => {
+            await deliver?.({ text: "运行正常" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const joined = sentTexts.join("");
+  assert.ok(joined.includes("运行正常"));
+  assert.ok(joined.includes("🤖 Bot: yuanbaobot("), "status suffix should append on deliver fallback");
+});
+
+void test("dispatch-reply: /status with onPartialReply does not append bot version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "状态 OK" });
+            await deliver?.({ text: "状态 OK" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const joined = sentTexts.join("");
+  assert.ok(joined.includes("状态 OK"));
+  assert.ok(!joined.includes("🤖 Bot: yuanbaobot("), "status suffix only on deliver fallback");
+});
+
+void test("dispatch-reply: /status with no partial and no deliver text skips version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async () => {
+            // no onPartialReply, no deliver text
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentTexts.length, 0);
+  assert.ok(!sentTexts.some(t => t.includes("🤖 Bot: yuanbaobot(")));
 });
 
 // ── media delivery ───────────────────────────────────────────────────────────

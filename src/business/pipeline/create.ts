@@ -48,7 +48,7 @@ export function createPipeline(): MessagePipeline {
       .use(resolveTrace) // Parse trace context (trace_id / seq_id -> ctx.traceContext)
       .use(buildContext) // SDK finalizeInboundContext + group history context
       // Phase 5: Sender preparation & AI dispatch
-      .use(prepareSender) // Create MessageSender + QueueSession
+      .use(prepareSender)
       .use(dispatchReply)
   ); // ⭐ SDK dispatchInboundReplyWithBase
 }

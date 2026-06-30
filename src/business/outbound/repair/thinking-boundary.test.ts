@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createRepairThinkingBoundary,
   repairAllThinkingBoundaryJoins,
   repairSandwichText,
   repairThinkingBoundaryJoin,
-} from "./repair-thinking-boundary.js";
+} from "./thinking-boundary.js";
 
 // ── repairThinkingBoundaryJoin ──────────────────────────────────────────────
 
@@ -142,7 +143,6 @@ void test("repairSandwichText: removes single spurious newline (non-empty snapsh
 });
 
 void test("repairSandwichText: no-op when single \\n is between two complete table rows", () => {
-  // | 名称 | 类型 |\n|------|------| — the \n is intentional table formatting
   const input = "| 名称 | 类型 | 说明 |\n|------|------|";
   const result = repairSandwichText("", input);
   assert.equal(result.repaired, input);
@@ -150,7 +150,6 @@ void test("repairSandwichText: no-op when single \\n is between two complete tab
 });
 
 void test("repairSandwichText: removes single \\n inside an incomplete table cell", () => {
-  // | 🐍\nPython | ... — the \n is mid-cell (lineBefore = "| 🐍" doesn't end with |)
   const input = "| 🐍\nPython | 简洁 | AI |\n|---|---|---|\n| ⚡ JS | 全栈 | Web |";
   const result = repairSandwichText("", input);
   assert.ok(!result.repaired.includes("🐍\nPython"), "mid-cell break should be removed");
@@ -158,8 +157,6 @@ void test("repairSandwichText: removes single \\n inside an incomplete table cel
 });
 
 void test("repairSandwichText: table — merges broken separator even when prev row looks complete", () => {
-  // "|------|------|" looks complete (ends with |) but is actually missing one column cell.
-  // "------|\n" is the continuation. This is the harder case.
   const input = "| 名称 | 类型 | 说明 |\n|------|------|\n------|\n| Dev🦞 | AI | 助手 |\n| Jes | 人类 | 起名 |";
   const result = repairSandwichText("", input);
   assert.ok(result.brokenFragment !== "", "should have detected a repairable fragment");
@@ -170,10 +167,7 @@ void test("repairSandwichText: table — merges broken separator even when prev 
 void test("repairSandwichText: table — merges broken separator row (|---\\n-|---|)", () => {
   const input = "| Git 命令 | 作用 |\n|------------\n-|------|\n| `git status` | 查看状态 |";
   const result = repairSandwichText("", input);
-  assert.ok(
-    !result.repaired.includes("------------\n-|"),
-    "broken separator should be merged",
-  );
+  assert.ok(!result.repaired.includes("------------\n-|"), "broken separator should be merged");
   assert.ok(result.repaired.includes("------------|------"), "separator row merged");
   assert.ok(result.repaired.includes("git status"), "data rows preserved");
 });
@@ -185,7 +179,6 @@ void test("repairSandwichText: table — preserves paragraph breaks", () => {
 });
 
 void test("repairSandwichText: multiple non-table single newlines — no-op (fallback)", () => {
-  // Multiple spurious newlines in non-table content: not handled yet, leave unchanged
   const input = "行一\n行二\n行三";
   const result = repairSandwichText("", input);
   assert.equal(result.repaired, input);
@@ -194,7 +187,6 @@ void test("repairSandwichText: multiple non-table single newlines — no-op (fal
 
 void test("repairSandwichText: no-op when snapshot does not match text", () => {
   const result = repairSandwichText("completely different", "unrelated text\n here");
-  // Falls back to delta = entire text, single \n -> removes it
   assert.equal(result.repaired, "unrelated text here");
 });
 
@@ -203,8 +195,29 @@ void test("repairSandwichText: brokenFragment/repairedFragment enable replay", (
   const first = repairSandwichText("", input);
   assert.equal(first.repaired, "Hi Shun！🦞 有啥需要帮忙的？");
 
-  // Later partial extends the text (SDK sends cumulative, still broken)
   const laterBroken = "Hi Shun！\n🦞 有啥需要帮忙的？更多内容";
   const replayed = laterBroken.replace(first.brokenFragment, first.repairedFragment);
   assert.equal(replayed, "Hi Shun！🦞 有啥需要帮忙的？更多内容");
+});
+
+// ── createRepairThinkingBoundary ────────────────────────────────────────────
+
+void test("createRepairThinkingBoundary: applyPartialReply uses recorded prefixes", () => {
+  const repair = createRepairThinkingBoundary();
+  const prefix = "Hi Shun！又是";
+  repair.markReasoningEnd(prefix);
+  const broken = `${prefix}\n你，有什么新鲜事？`;
+  assert.equal(repair.applyPartialReply(broken), `${prefix}你，有什么新鲜事？`);
+});
+
+void test("createRepairThinkingBoundary: markReasoningEnd sandwich then applyPartialReply replay", () => {
+  const repair = createRepairThinkingBoundary();
+  repair.markReasoningEnd("");
+  const broken = "Hi Shun！\n🦞 有啥需要帮忙的？";
+  const { cumulativeText, repairedBySandwich } = repair.markReasoningEnd(broken);
+  assert.equal(repairedBySandwich, true);
+  assert.equal(cumulativeText, "Hi Shun！🦞 有啥需要帮忙的？");
+
+  const laterBroken = "Hi Shun！\n🦞 有啥需要帮忙的？更多内容";
+  assert.equal(repair.applyPartialReply(laterBroken), "Hi Shun！🦞 有啥需要帮忙的？更多内容");
 });

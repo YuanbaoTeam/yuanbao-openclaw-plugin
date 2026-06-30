@@ -65,6 +65,20 @@ void test("prepareOutboundContent empty text returns empty array", () => {
   assert.deepEqual(prepareOutboundContent(undefined as unknown as string), []);
 });
 
+void test("prepareOutboundContent keeps CSS @keyframes in one text item", () => {
+  const css = [
+    "        animation: pulse 1.5s ease-in-out infinite;",
+    "        }",
+    "        @keyframes pulse {",
+  ].join("\n");
+  const items = prepareOutboundContent(css);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].type, "text");
+  const text = (items[0] as { type: "text"; text: string }).text;
+  assert.ok(text.includes("@keyframes pulse {"), "should not split @keyframes into separate elems");
+  assert.ok(!text.includes("}@keyframes"), "should not lose newline before @keyframes");
+});
+
 void test("buildOutboundMsgBody converts content items to MsgBody", () => {
   const items = [
     { type: "text" as const, text: "hello" },
