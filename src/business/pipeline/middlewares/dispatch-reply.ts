@@ -88,6 +88,7 @@ export const dispatchReply: MiddlewareDescriptor = {
       sessionKey,
       disableBlockStreaming: account.disableBlockStreaming,
       chunkText: chunkMarkdown,
+      minSendIntervalMs: 1000,
     });
 
     let hasSentContent = false;

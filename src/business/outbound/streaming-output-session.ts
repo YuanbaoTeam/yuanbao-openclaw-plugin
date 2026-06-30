@@ -11,6 +11,12 @@ import type { MessageSender } from "./types.js";
 
 const log = createLog("streaming-output-session");
 
+const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export interface StreamingOutputSessionOptions {
   sender: MessageSender;
   sessionKey?: string;
@@ -22,6 +28,8 @@ export interface StreamingOutputSessionOptions {
   maxChars?: number;
   /** Markdown-aware chunker, e.g. core.channel.text.chunkMarkdownText */
   chunkText?: (text: string, maxChars: number) => string[];
+  /** Minimum interval between consecutive sendText calls; default 1000ms */
+  minSendIntervalMs?: number;
   onComplete?: () => void;
 }
 
@@ -147,6 +155,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
     disableBlockStreaming = false,
     minChars = 3000,
     maxChars = 4000,
+    minSendIntervalMs = DEFAULT_MIN_SEND_INTERVAL_MS,
     onComplete,
   } = opts;
 
@@ -203,10 +212,36 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   let sentIndex = 0;
   let hasSentContent = false;
   let receivedPartial = false;
+  let lastSendCompletedAt = 0;
 
   const thinkingRepair = createRepairThinkingBoundary();
 
+  /** Serializes every sendText across sendChunks / drain / finalize with min interval. */
+  let sendTextChain: Promise<void> = Promise.resolve();
+
   let sendChain: Promise<void> = Promise.resolve();
+
+  function enqueueTextSend(text: string): Promise<void> {
+    sendTextChain = sendTextChain.then(async () => {
+      if (aborted) return;
+      if (!text.trim()) return;
+
+      if (minSendIntervalMs > 0 && lastSendCompletedAt > 0) {
+        const waitMs = minSendIntervalMs - (Date.now() - lastSendCompletedAt);
+        if (waitMs > 0) await sleep(waitMs);
+      }
+      if (aborted) return;
+
+      const result = await sender.sendText(text);
+      lastSendCompletedAt = Date.now();
+      if (!result.ok) {
+        log.error(`[${sessionKey}] sendText 失败: ${result.error}`);
+      } else {
+        hasSentContent = true;
+      }
+    });
+    return sendTextChain;
+  }
 
   function enqueue(fn: () => Promise<void>): Promise<void> {
     sendChain = sendChain.then(async () => {
@@ -217,13 +252,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   }
 
   async function sendChunk(text: string): Promise<void> {
-    if (!text.trim()) return;
-    const result = await sender.sendText(text);
-    if (!result.ok) {
-      log.error(`[${sessionKey}] sendText 失败: ${result.error}`);
-    } else {
-      hasSentContent = true;
-    }
+    await enqueueTextSend(text);
   }
 
   async function drainUnsent(force: boolean): Promise<void> {
@@ -276,6 +305,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
         await sendUnsent(remaining, cumulativeText, sentIndex, "finalize");
       }
 
+      await sendTextChain;
       onComplete?.();
       return hasSentContent;
     },
