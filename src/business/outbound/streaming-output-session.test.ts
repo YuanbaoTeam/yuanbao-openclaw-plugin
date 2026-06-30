@@ -394,6 +394,28 @@ void test("streaming: flushNow on empty session is no-op", async () => {
   assert.deepEqual(sent, []);
 });
 
+void test("streaming: without beginNewSegment short post-tool partial is dropped", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({ sender, minChars: 5000 });
+  await session.update("pre-tool long text");
+  await session.flushNow();
+  await session.update("1️⃣");
+  await session.flushNow();
+  assert.deepEqual(sent, ["pre-tool long text"], "short post-tool partial dropped when sendIndex not reset");
+});
+
+void test("streaming: beginNewSegment after flushNow sends short post-tool partials", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({ sender, minChars: 5000 });
+  await session.update("pre-tool long text");
+  await session.flushNow();
+  // Mirrors onAssistantMessageStart in dispatch-reply (only place beginNewSegment is called).
+  session.beginNewSegment();
+  await session.update("1️⃣");
+  await session.flushNow();
+  assert.deepEqual(sent, ["pre-tool long text", "1️⃣"]);
+});
+
 // ── disableBlockStreaming=true (buffered) ────────────────────────────────────
 
 void test("buffered: update never sends immediately", async () => {

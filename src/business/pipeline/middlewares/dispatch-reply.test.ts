@@ -37,6 +37,7 @@ function setupMocks(t: any) {
       namedExports: {
         createReplyHeartbeatController: () => ({
           emit: () => {},
+          finishIfNeeded: () => {},
           stop: () => {},
         }),
       },
@@ -275,6 +276,47 @@ void test("dispatch-reply: onToolStart flushes buffered text before tool call", 
   assert.ok(sentTexts.length >= 1, "should have sent text");
   // After flushNow during onToolStart, text was sent; then the remainder is sent at finalize
   assert.ok(sentTexts.some(t => t.includes("AI pre-tool text")), "pre-tool text should be sent");
+});
+
+void test("dispatch-reply: tool loop sends short post-tool partials after beginNewSegment", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ replyOptions }) => {
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "pre-tool long text" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "1️⃣" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "2️⃣" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.some(t => t.includes("pre-tool long text")), "pre-tool text should be sent");
+  assert.ok(sentTexts.some(t => t.includes("1️⃣")), "first post-tool partial should be sent");
+  assert.ok(sentTexts.some(t => t.includes("2️⃣")), "second post-tool partial should be sent");
 });
 
 // ── deliver text fallback (no onPartialReply) ───────────────────────────────

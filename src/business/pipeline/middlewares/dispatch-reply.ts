@@ -149,8 +149,6 @@ export const dispatchReply: MiddlewareDescriptor = {
                 }
               }
             }
-
-            heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           onError: (err: unknown, info: { kind: string }) => {
             if (ctx.abortSignal?.aborted) return;
@@ -169,6 +167,7 @@ export const dispatchReply: MiddlewareDescriptor = {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           onAssistantMessageStart: () => {
+            session.beginNewSegment();
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           onPartialReply: async (payload: { text?: string }) => {
@@ -213,14 +212,12 @@ export const dispatchReply: MiddlewareDescriptor = {
         }
       } else {
         ctx.statusSink?.({ lastOutboundAt: Date.now() });
-        heartbeat.emit(WS_HEARTBEAT.FINISH);
       }
     } catch (err) {
       session.abort();
-      heartbeat.stop();
       throw err;
     } finally {
-      heartbeat.stop();
+      heartbeat.finishIfNeeded();
     }
 
     ctx.log.info("[dispatch-reply] 消息处理完成", {

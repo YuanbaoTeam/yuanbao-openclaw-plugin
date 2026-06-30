@@ -38,6 +38,8 @@ export interface StreamingOutputSession {
   update(cumulativeText: string): Promise<void>;
   /** Record a thinking/reasoning boundary for newline-repair */
   markReasoningBoundary(): void;
+  /** Reset send cursor for a new assistant message segment (e.g. after tool call) */
+  beginNewSegment(): void;
   /** Force-send all unsent text immediately (e.g. before a tool call) */
   flushNow(): Promise<void>;
   /** End session: send remaining unsent text, return true if anything was sent */
@@ -216,6 +218,12 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
 
   const thinkingRepair = createRepairThinkingBoundary();
 
+  function resetSegmentState(): void {
+    sentIndex = 0;
+    cumulativeText = "";
+    thinkingRepair.resetSegment();
+  }
+
   /** Serializes every sendText across sendChunks / drain / finalize with min interval. */
   let sendTextChain: Promise<void> = Promise.resolve();
 
@@ -288,6 +296,11 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       if (repairedBySandwich && !disableBlockStreaming) {
         void enqueue(() => drainUnsent(false));
       }
+    },
+
+    beginNewSegment(): void {
+      if (aborted) return;
+      resetSegmentState();
     },
 
     flushNow(): Promise<void> {

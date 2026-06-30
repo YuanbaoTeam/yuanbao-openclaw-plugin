@@ -25,6 +25,8 @@ export interface RepairThinkingBoundary {
   applyPartialReply(incoming: string): string;
   /** onReasoningEnd: record boundary prefix; 2nd call runs sandwich repair */
   markReasoningEnd(cumulativeText: string): MarkReasoningEndResult;
+  /** Reset boundary state for a new assistant message segment (e.g. after tool call) */
+  resetSegment(): void;
 }
 
 /**
@@ -222,6 +224,13 @@ export function createRepairThinkingBoundary(): RepairThinkingBoundary {
       }
 
       return { cumulativeText, repairedBySandwich: false };
+    },
+
+    resetSegment(): void {
+      reasoningBoundaryPrefixes.length = 0;
+      consecutiveReasoningEndCount = 0;
+      textAtFirstReasoningEnd = "";
+      sandwichRepair = null;
     },
   };
 }
