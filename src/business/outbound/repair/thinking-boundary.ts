@@ -9,6 +9,15 @@
 const CLAUSE_COMMA_RE = /，$/;
 const CLAUSE_OR_SENTENCE_END_RE = /[.!?。！？…，、；：]$/;
 
+/** join 后的单 `\n` 若紧接 `---` 分割线或 `- ` 列表项，应保留 */
+function shouldPreserveJoinNewline(afterNewline: string): boolean {
+  const line = afterNewline.trimStart();
+  if (/^(?:-{3,}|-\s)/.test(line)) {
+    return true;
+  }
+  return /^#{1,6}\s|^\||^```|^>\s|^\*\s|^\d+[.)]\s/.test(line);
+}
+
 export interface SandwichRepairResult {
   repaired: string;
   brokenFragment: string;
@@ -55,8 +64,7 @@ export function repairThinkingBoundaryJoin(prefix: string, incoming: string): st
   }
 
   if (!suffix.startsWith("\n\n")) {
-    const afterNewline = suffix.slice(1);
-    if (/^#{1,6}\s|^\||^```|^>\s|^\*\s|^- |^\d+[.)]\s/.test(afterNewline)) {
+    if (shouldPreserveJoinNewline(suffix.slice(1))) {
       return incoming;
     }
   }
@@ -155,6 +163,9 @@ export function repairSandwichText(snapshot: string, text: string): SandwichRepa
     const lineAfter = (delta.slice(pos + 1).split("\n")[0] ?? "").trim();
     const isCompleteTableRow = (line: string) => line.startsWith("|") && line.endsWith("|");
     if (isCompleteTableRow(lineBefore) && isCompleteTableRow(lineAfter)) {
+      return noChange;
+    }
+    if (shouldPreserveJoinNewline(delta.slice(pos + 1))) {
       return noChange;
     }
     repairedDelta = delta.slice(0, pos) + delta.slice(pos + 1);

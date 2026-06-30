@@ -77,6 +77,13 @@ void test("repairThinkingBoundaryJoin: preserves \\n before list item", () => {
   assert.equal(repairThinkingBoundaryJoin(prefix, incoming), incoming);
 });
 
+void test("repairThinkingBoundaryJoin: preserves \\n before horizontal rule", () => {
+  assert.equal(
+    repairThinkingBoundaryJoin("好的 Jes 🦞，", "好的 Jes 🦞，\n---"),
+    "好的 Jes 🦞，\n---",
+  );
+});
+
 void test("repairThinkingBoundaryJoin: still removes \\n before plain text", () => {
   assert.equal(
     repairThinkingBoundaryJoin("Hi Shun！", "Hi Shun！\n🦞 有啥需要帮忙的？"),
