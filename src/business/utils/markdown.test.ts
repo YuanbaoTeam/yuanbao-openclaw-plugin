@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mdAtomic, mdFence, mdMath, mdSplit, mdTable } from "./markdown.js";
+import { chunkMarkdownText } from "openclaw/plugin-sdk/reply-runtime";
 
 void test("mdTable.sanitize fast-paths text without pipes or newlines", () => {
   assert.equal(mdTable.sanitize("no pipes"), "no pipes");
@@ -25,9 +26,14 @@ void test("mdFence.hasUnclosed tracks open ``` blocks", () => {
   assert.equal(mdFence.computeState("x\n```", { inFence: true, fenceLang: "js" }).inFence, false);
 });
 
-void test("mdTable.inProgress detects trailing pipe row", () => {
+void test("mdTable.inProgress requires blank line (\\n\\n) to close table", () => {
   assert.equal(mdTable.inProgress("| a | b |"), true);
+  assert.equal(mdTable.inProgress("| a |\n| b |"), true);
+  assert.equal(mdTable.inProgress("| a |\n| b |\n"), true, "single trailing newline is not closed");
+  assert.equal(mdTable.inProgress("| a |\n| b |\n\n"), false);
   assert.equal(mdTable.inProgress("| a | b |\n\ndone"), false);
+  assert.equal(mdTable.inProgress("| a |\n| b |\n\nnext"), false);
+  assert.equal(mdTable.inProgress("| a |\n| b |\nnext"), true, "single newline before next line is not closed");
 });
 
 void test("mdSplit.isSafe waits on unclosed fence/math/table under maxChars", () => {
@@ -87,6 +93,26 @@ void test("mdAtomic.chunkAware keeps a table intact across the split boundary (P
   const joined = chunks.join("");
   assert.equal(joined, text);
   assert.ok(chunks.some(c => c.includes("| Model | Score |")), "table header stays in one chunk");
+});
+
+void test("mdAtomic.chunkAware prevents openclaw chunkMarkdownText from splitting mid-table", () => {
+  const header = "| 城市 | 国家 | 人口(万) | 气温 |\n|:---:|:---:|---:|---:|\n";
+  const rows = Array.from(
+    { length: 20 },
+    (_, i) => `| 城市${String(i).padStart(2, "0")} | 中国 | ${1000 + i} | ${10 + i} |`,
+  ).join("\n");
+  const text = `## 天气\n\n${header}${rows}\n\n## 下一节`;
+  const limit = 300;
+  const safe = mdAtomic.chunkAware(text, limit, chunkMarkdownText);
+  assert.equal(safe.join(""), text);
+  const tableHeader = "| 城市 | 国家 |";
+  for (const chunk of safe) {
+    if (!chunk.includes(tableHeader)) continue;
+    assert.ok(
+      chunk.includes("| 城市00 |") && chunk.includes("| 城市19 |"),
+      "each chunk containing table header must include full table",
+    );
+  }
 });
 
 void test("mdAtomic.chunkAware returns single chunk unchanged when within limit", () => {

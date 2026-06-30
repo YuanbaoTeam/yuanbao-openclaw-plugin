@@ -14,6 +14,7 @@ import { createLog } from "../../../logger.js";
 import { PLUGIN_ID, readInstalledVersion } from "../../commands/upgrade/utils.js";
 import { createReplyHeartbeatController } from "../../outbound/heartbeat.js";
 import { createStreamingOutputSession } from "../../outbound/streaming-output-session.js";
+import { mdAtomic } from "../../utils/markdown.js";
 import { runWithTraceContext } from "../../trace/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
@@ -81,7 +82,7 @@ export const dispatchReply: MiddlewareDescriptor = {
     const sessionKey = route.sessionKey || (isGroup ? `group:${groupCode}` : `direct:${fromAccount}`);
 
     const chunkMarkdown = (text: string, maxChars: number) =>
-      core.channel.text.chunkMarkdownText(text, maxChars);
+      mdAtomic.chunkAware(text, maxChars, core.channel.text.chunkMarkdownText);
 
     const session = createStreamingOutputSession({
       sender,

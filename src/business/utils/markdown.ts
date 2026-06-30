@@ -181,11 +181,37 @@ function sanitizePipeTables(text: string): string {
   return lines.join("\n");
 }
 
+function isTableLine(line: string): boolean {
+  return line.trimStart().startsWith("|");
+}
+
+/** True while a pipe table has not been closed by a blank line (\\n\\n). */
 function isTableInProgress(text: string): boolean {
-  const trimmed = text.trimEnd();
-  if (!trimmed) return false;
-  const lastLine = trimmed.split("\n").at(-1) ?? "";
-  return lastLine.trimStart().startsWith("|");
+  if (!text.includes("|")) return false;
+
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+
+  let lastTableLineIdx = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (isTableLine(lines[i]!)) {
+      lastTableLineIdx = i;
+      break;
+    }
+  }
+  if (lastTableLineIdx < 0) return false;
+
+  const afterLines = lines.slice(lastTableLineIdx + 1);
+
+  if (afterLines.length === 0) return true;
+
+  if (afterLines.every(l => l.trim() === "")) {
+    return afterLines.length < 2;
+  }
+
+  const firstNonEmptyAfter = afterLines.findIndex(l => l.trim() !== "");
+  if (firstNonEmptyAfter === 0) return true;
+
+  return firstNonEmptyAfter < 1;
 }
 
 // ── Streaming split safety ──────────────────────────────────────────────────
