@@ -1,160 +1,120 @@
 /**
- * Unit tests for business/utils/markdown.ts — fence/math/table detection,
- * block-separator inference, atomic-block extraction, and atomic-aware chunking
- * (POLICY-011). All pure functions.
+ * Unit tests for markdown.ts outbound sanitization and atomic chunking.
  */
-
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mdAtomic, mdBlock, mdFence, mdMath, mdTable } from "./markdown.js";
+import { mdAtomic, mdFence, mdMath, mdSplit, mdTable } from "./markdown.js";
+import { chunkMarkdownText } from "openclaw/plugin-sdk/reply-runtime";
 
-// ── mdFence ──────────────────────────────────────────────────────────────────
-void test("mdFence.stripOuter unwraps a fenced block that contains a table", () => {
-  const wrapped = "```markdown\n| a | b |\n| - | - |\n| 1 | 2 |\n```";
-  assert.equal(mdFence.stripOuter(wrapped), "| a | b |\n| - | - |\n| 1 | 2 |");
-});
-
-void test("mdFence.stripOuter keeps a fenced block without a table", () => {
-  const wrapped = "```\ncode line\n```";
-  assert.equal(mdFence.stripOuter(wrapped), wrapped);
-});
-
-void test("mdFence.hasUnclosed detects open vs closed fences", () => {
-  assert.equal(mdFence.hasUnclosed("```js\ncode"), true);
-  assert.equal(mdFence.hasUnclosed("```js\ncode\n```"), false);
-  assert.equal(mdFence.hasUnclosed("no fence here"), false);
-});
-
-void test("mdFence.hasUnclosedMath detects open $$ blocks (ignoring fenced code)", () => {
-  assert.equal(mdFence.hasUnclosedMath("text $$ a = b"), true);
-  assert.equal(mdFence.hasUnclosedMath("text $$ a = b $$ done"), false);
-  assert.equal(mdFence.hasUnclosedMath("```\n$$ inside fence\n```"), false);
-});
-
-void test("mdFence.mergeBlockStreaming rejoins split-then-reopened fences", () => {
-  const merged = mdFence.mergeBlockStreaming("```js\ncode\n```", "```js\nmore\n```");
-  assert.equal(mdFence.hasUnclosed(merged), false);
-  assert.match(merged, /code/);
-  assert.match(merged, /more/);
-});
-
-void test("mdFence.mergeBlockStreaming strips re-open marker when buffer fence still open", () => {
-  const merged = mdFence.mergeBlockStreaming("```js\ncode", "```js\nmore\n```");
-  assert.match(merged, /more/);
-});
-
-void test("mdFence.mergeBlockStreaming strips a re-open marker when buffer fence is unclosed (case 3)", () => {
-  const merged = mdFence.mergeBlockStreaming("prefix\n```js\nlet a=1;", "```js\nlet b=2;\n```");
-  assert.match(merged, /let a=1;/);
-  assert.match(merged, /let b=2;/);
-});
-
-// ── mdBlock ──────────────────────────────────────────────────────────────────
-void test("mdBlock.startsWithBlockElement recognizes block starts", () => {
-  for (const s of ["# heading", "- item", "1. item", "> quote", "```js", "| a |", "$$x$$", "--- "]) {
-    assert.equal(mdBlock.startsWithBlockElement(s), true, s);
-  }
-  assert.equal(mdBlock.startsWithBlockElement("plain paragraph"), false);
-});
-
-void test("mdBlock.endsWithTableRow / isTableInProgress", () => {
-  assert.equal(mdBlock.endsWithTableRow("text\n| a | b |"), true);
-  assert.equal(mdBlock.endsWithTableRow("text\n| a | b"), false); // not closed
-  assert.equal(mdBlock.isTableInProgress("text\n| a | b"), true); // starts with | counts
-  assert.equal(mdBlock.isTableInProgress("plain"), false);
-  assert.equal(mdBlock.endsWithTableRow(""), false);
-});
-
-void test("mdBlock.inferSeparator: blank-line buffer → no separator", () => {
-  assert.equal(mdBlock.inferSeparator("para\n\n", "next"), "");
-});
-
-void test("mdBlock.inferSeparator: two table rows → newline", () => {
-  assert.equal(mdBlock.inferSeparator("| a | b |", "| c | d |"), "\n");
-});
-
-void test("mdBlock.inferSeparator: block element follows paragraph → blank line", () => {
-  assert.equal(mdBlock.inferSeparator("a paragraph", "# heading"), "\n\n");
-});
-
-void test("mdBlock.inferSeparator: mid-cell table split → direct concat", () => {
-  assert.equal(mdBlock.inferSeparator("| GPT | 88", "% | 90% |"), "");
-});
-
-void test("mdBlock.inferSeparator: unclosed fence/math in buffer → no separator", () => {
-  assert.equal(mdBlock.inferSeparator("```js\ncode", "more"), "");
-  assert.equal(mdBlock.inferSeparator("text $$ a=b", "more"), "");
-});
-
-void test("mdBlock.inferSeparator: table-row split across blocks → single space", () => {
-  // buffer ends with a complete table row; incoming first line ends with | but
-  // doesn't start with | → mid-row split, join with a space.
-  assert.equal(mdBlock.inferSeparator("| a | b |", "c |\n| d |"), " ");
-});
-
-void test("mdBlock.inferSeparator: plain paragraph continuation → no separator", () => {
-  assert.equal(mdBlock.inferSeparator("a sentence", "continues here"), "");
-});
-
-// ── mdAtomic ─────────────────────────────────────────────────────────────────
-void test("mdAtomic.extract finds a table block", () => {
-  const text = "intro\n| a | b |\n| - | - |\n| 1 | 2 |\nafter";
-  const blocks = mdAtomic.extract(text);
-  assert.equal(blocks.length, 1);
-  assert.equal(blocks[0].kind, "table");
-});
-
-void test("mdAtomic.extract finds a diagram fence but not a plain fence", () => {
-  const diagram = "```mermaid\ngraph TD\nA-->B\n```";
-  assert.equal(mdAtomic.extract(diagram).some(b => b.kind === "diagram-fence"), true);
-  const plain = "```js\nconst x = 1;\n```";
-  assert.deepEqual(mdAtomic.extract(plain), []);
-});
-
-void test("mdAtomic.chunkAware keeps a table intact across the split boundary (POLICY-011)", () => {
-  // Build text where a naive splitter would cut through the table.
-  const head = "x".repeat(20);
-  const table = "| col1 | col2 |\n| ---- | ---- |\n| aaaa | bbbb |";
-  const text = `${head}\n${table}\n${"y".repeat(20)}`;
-  const chunks = mdAtomic.chunkAware(text, 30, (t, max) => {
-    const out: string[] = [];
-    for (let i = 0; i < t.length; i += max) { out.push(t.slice(i, i + max)); }
-    return out;
-  });
-  // No chunk should contain a partial table (a table line without its siblings):
-  // the whole table must live in exactly one chunk.
-  const tableChunks = chunks.filter(c => c.includes("| col1 |"));
-  assert.equal(tableChunks.length, 1);
-  assert.match(tableChunks[0], /\| aaaa \| bbbb \|/);
-});
-
-void test("mdAtomic.chunkAware returns single chunk unchanged when within limit", () => {
-  assert.deepEqual(mdAtomic.chunkAware("short", 100, t => [t]), ["short"]);
-});
-
-// ── mdTable ──────────────────────────────────────────────────────────────────
 void test("mdTable.sanitize fast-paths text without pipes or newlines", () => {
   assert.equal(mdTable.sanitize("no pipes"), "no pipes");
-  assert.equal(mdTable.sanitize("a | b"), "a | b"); // no newline
+  assert.equal(mdTable.sanitize("a | b"), "a | b");
   assert.equal(mdTable.sanitize(""), "");
 });
 
 void test("mdTable.sanitize rejoins a table fragmented by blank lines", () => {
   const fragmented = "| a | b |\n\n| --- | --- |\n\n| 1 | 2 |";
   const out = mdTable.sanitize(fragmented);
-  // blank lines between table rows are removed so the table is contiguous
-  assert.equal(/\n\s*\n/.test(out), false);
-  assert.match(out, /\| 1 \| 2 \|/);
+  assert.ok(!out.includes("\n\n|"), "blank lines inside table should be removed");
+  assert.ok(out.includes("| a | b |"));
+  assert.ok(out.includes("| 1 | 2 |"));
 });
 
-// ── mdMath ───────────────────────────────────────────────────────────────────
+void test("mdFence.hasUnclosed tracks open ``` blocks", () => {
+  assert.equal(mdFence.hasUnclosed("```js\nx"), true);
+  assert.equal(mdFence.hasUnclosed("```js\nx\n```"), false);
+  assert.equal(mdFence.computeState("x\n```", { inFence: true, fenceLang: "js" }).inFence, false);
+});
+
+void test("mdTable.inProgress requires blank line (\\n\\n) to close table", () => {
+  assert.equal(mdTable.inProgress("| a | b |"), true);
+  assert.equal(mdTable.inProgress("| a |\n| b |"), true);
+  assert.equal(mdTable.inProgress("| a |\n| b |\n"), true, "single trailing newline is not closed");
+  assert.equal(mdTable.inProgress("| a |\n| b |\n\n"), false);
+  assert.equal(mdTable.inProgress("| a | b |\n\ndone"), false);
+  assert.equal(mdTable.inProgress("| a |\n| b |\n\nnext"), false);
+  assert.equal(mdTable.inProgress("| a |\n| b |\nnext"), true, "single newline before next line is not closed");
+});
+
+void test("mdSplit.isSafe waits on unclosed fence/math/table under maxChars", () => {
+  assert.equal(mdSplit.isSafe("```\nx", 1200), false);
+  assert.equal(mdSplit.isSafe("$$ x", 1200), false);
+  assert.equal(mdSplit.isSafe("| a |", 1200), false);
+  assert.equal(mdSplit.isSafe("plain text", 1200), true);
+});
+
+void test("mdMath.hasUnclosed detects open $$ outside fences", () => {
+  assert.equal(mdMath.hasUnclosed("$$ x = 1"), true);
+  assert.equal(mdMath.hasUnclosed("$$ x = 1 $$"), false);
+  assert.equal(mdMath.hasUnclosed("```\n$$\n```"), false, "$$ inside fence ignored");
+  assert.equal(mdMath.hasUnclosed("before $$\n1\n```\n$$\n```"), true, "open $$ before fence");
+});
+
 void test("mdMath.normalize collapses blank lines inside a math block", () => {
-  const text = "$$\na = b\n\n\nc = d\n$$";
+  const text = "before $$\na\n\n\nb\n$$ after";
   const out = mdMath.normalize(text);
-  assert.equal(/\n\n/.test(out), false);
-  assert.match(out, /a = b/);
+  assert.ok(!out.includes("\n\n\n"), "extra blank lines inside $$ should collapse");
+  assert.ok(out.includes("$$"));
 });
 
 void test("mdMath.normalize is a no-op without $$", () => {
   assert.equal(mdMath.normalize("plain text"), "plain text");
+});
+
+void test("mdAtomic.extract finds a table block", () => {
+  const text = "intro\n\n| h1 | h2 |\n| --- | --- |\n| a | b |";
+  const blocks = mdAtomic.extract(text);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].kind, "table");
+});
+
+void test("mdAtomic.extract finds a diagram fence but not a plain fence", () => {
+  const diagram = "text\n```mermaid\ngraph TD\n  A-->B\n```\n";
+  assert.equal(mdAtomic.extract(diagram).some(b => b.kind === "diagram-fence"), true);
+  const plain = "text\n```js\ncode\n```\n";
+  assert.deepEqual(mdAtomic.extract(plain), []);
+});
+
+void test("mdAtomic.chunkAware keeps a table intact across the split boundary (POLICY-011)", () => {
+  const text = [
+    "intro paragraph",
+    "",
+    "| Model | Score |",
+    "| --- | --- |",
+    "| GPT-4o | 88.7% |",
+    "| Claude | 90.2% |",
+  ].join("\n");
+  const chunks = mdAtomic.chunkAware(text, 30, (t, max) => {
+    if (t.length <= max) return [t];
+    const idx = t.lastIndexOf("\n", max);
+    const breakAt = idx > 0 ? idx + 1 : max;
+    return [t.slice(0, breakAt), t.slice(breakAt)];
+  });
+  const joined = chunks.join("");
+  assert.equal(joined, text);
+  assert.ok(chunks.some(c => c.includes("| Model | Score |")), "table header stays in one chunk");
+});
+
+void test("mdAtomic.chunkAware prevents openclaw chunkMarkdownText from splitting mid-table", () => {
+  const header = "| 城市 | 国家 | 人口(万) | 气温 |\n|:---:|:---:|---:|---:|\n";
+  const rows = Array.from(
+    { length: 20 },
+    (_, i) => `| 城市${String(i).padStart(2, "0")} | 中国 | ${1000 + i} | ${10 + i} |`,
+  ).join("\n");
+  const text = `## 天气\n\n${header}${rows}\n\n## 下一节`;
+  const limit = 300;
+  const safe = mdAtomic.chunkAware(text, limit, chunkMarkdownText);
+  assert.equal(safe.join(""), text);
+  const tableHeader = "| 城市 | 国家 |";
+  for (const chunk of safe) {
+    if (!chunk.includes(tableHeader)) continue;
+    assert.ok(
+      chunk.includes("| 城市00 |") && chunk.includes("| 城市19 |"),
+      "each chunk containing table header must include full table",
+    );
+  }
+});
+
+void test("mdAtomic.chunkAware returns single chunk unchanged when within limit", () => {
+  assert.deepEqual(mdAtomic.chunkAware("short", 100, t => [t]), ["short"]);
 });

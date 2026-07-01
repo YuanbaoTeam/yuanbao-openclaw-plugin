@@ -1,5 +1,7 @@
 /**
- * Unit tests for dispatch-reply middleware: AI reply dispatch, prerequisite checks, deliver callbacks, error handling.
+ * Unit tests for dispatch-reply middleware.
+ *
+ * dispatch-reply middleware tests (StreamingOutputSession + sender).
  */
 
 import assert from "node:assert/strict";
@@ -35,6 +37,7 @@ function setupMocks(t: any) {
       namedExports: {
         createReplyHeartbeatController: () => ({
           emit: () => {},
+          finishIfNeeded: () => {},
           stop: () => {},
         }),
       },
@@ -43,17 +46,41 @@ function setupMocks(t: any) {
   }
 }
 
-/**
- * Create dispatch-reply specific mock ctx.
- *
- * deliverPayloads: simulated AI reply block list
- * shouldThrow: simulate dispatchReplyWithBufferedBlockDispatcher throwing
- */
-function createDispatchCtx(overrides: Record<string, any> = {}) {
-  const deliverPayloads: Array<{ text?: string; mediaUrls?: string[]; kind?: string }> =
-    overrides._deliverPayloads ?? [];
-  const shouldThrow = overrides._shouldThrow ?? false;
+/** Minimal sender mock that records sent text and media */
+function createMockSender() {
+  const sentTexts: string[] = [];
+  const sentMediaUrls: string[] = [];
+  let fallbackCalled = false;
+  const ok = { ok: true };
+  const sender = {
+    sendText: async (text: string) => { sentTexts.push(text); return ok; },
+    sendMedia: async (url: string) => { sentMediaUrls.push(url); return ok; },
+    sendSticker: async () => ok,
+    sendRaw: async () => ok,
+    send: async () => ok,
+    deliver: async () => {},
+    markFallback: () => { fallbackCalled = true; },
+  };
+  return { sender, sentTexts, sentMediaUrls, fallbackCalled: () => fallbackCalled };
+}
 
+/**
+ * Build a mock dispatchReplyWithBufferedBlockDispatcher that simulates the SDK
+ * calling various replyOptions callbacks.
+ */
+function makeDispatcher(
+  handler: (args: { deliver: any; replyOptions: any }) => Promise<void>,
+) {
+  return async (args: any) => {
+    await handler({
+      deliver: args.dispatcherOptions?.deliver,
+      replyOptions: args.replyOptions,
+    });
+  };
+}
+
+function createDispatchCtx(overrides: Record<string, any> = {}) {
+  const { sender: defaultSender } = createMockSender();
   return createMockCtx({
     isGroup: false,
     fromAccount: "user-001",
@@ -64,39 +91,24 @@ function createDispatchCtx(overrides: Record<string, any> = {}) {
     config: {} as any,
     core: {
       channel: {
-        text: { convertMarkdownTables: (t: string) => t },
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
         session: { recordInboundSession: async () => {} },
         reply: {
-          dispatchReplyWithBufferedBlockDispatcher: async (args: any) => {
-            if (shouldThrow) {
-              throw new Error("dispatch error");
-            }
-            // Simulate calling deliver callback
-            const deliver = args.dispatcherOptions?.deliver;
-            if (deliver) {
-              for (const p of deliverPayloads) {
-                await deliver(
-                  { text: p.text ?? "", mediaUrls: p.mediaUrls ?? [] },
-                  { kind: p.kind ?? "block" },
-                );
-              }
-            }
-          },
+          dispatchReplyWithBufferedBlockDispatcher: async (_args: any) => {},
         },
       },
     } as any,
-    sender: { sendText: async () => {} } as any,
-    queueSession: {
-      push: async () => {},
-      flush: async () => true,
-      abort: () => {},
-    } as any,
+    sender: defaultSender,
     ...overrides,
-    // Do not pass internal control fields into ctx
   });
 }
 
-void test("dispatch-reply: prerequisite middleware not ready -> abort pipeline", async (t) => {
+// ── prerequisite checks ──────────────────────────────────────────────────────
+
+void test("dispatch-reply: missing prerequisites -> abort pipeline", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
 
@@ -105,86 +117,480 @@ void test("dispatch-reply: prerequisite middleware not ready -> abort pipeline",
     route: undefined,
     storePath: undefined,
     sender: undefined,
-    queueSession: undefined,
   });
   const { next, wasCalled } = createMockNext();
 
   await dispatchReply.handler(ctx, next);
-
   assert.equal(wasCalled(), false, "should abort when prerequisites not ready");
 });
 
-void test("dispatch-reply: normal reply - deliver text", async (t) => {
-  const pushedItems: any[] = [];
+// ── onPartialReply as text source ────────────────────────────────────────────
+
+void test("dispatch-reply: onPartialReply text is sent via sender.sendText", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
 
   const ctx = createDispatchCtx({
-    _deliverPayloads: [{ text: "你好，我是 AI" }],
-    queueSession: {
-      push: async (item: any) => {
-        pushedItems.push(item);
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "你好，我是 AI" });
+            // deliver called with same text (coalesced) - should be ignored for text
+            await deliver?.({ text: "你好，我是 AI" }, { kind: "block" });
+          }),
+        },
       },
-      flush: async () => true,
-      abort: () => {},
-    },
+    } as any,
   });
   const { next, wasCalled } = createMockNext();
 
   await dispatchReply.handler(ctx, next);
 
   assert.equal(wasCalled(), true);
-  assert.ok(pushedItems.length > 0, "should have pushed items");
-  assert.equal(pushedItems[0].type, "text");
-  assert.ok(pushedItems[0].text.includes("你好，我是 AI"));
+  assert.equal(sentTexts.length, 1, "should send exactly one text");
+  assert.ok(sentTexts[0].includes("你好，我是 AI"));
 });
 
-void test("dispatch-reply: AI returns nothing + has fallbackReply -> send fallback", async (t) => {
-  let sentFallback = false;
+void test("dispatch-reply: multiple deliver calls don't duplicate text", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const fullText = "complete response content";
 
   const ctx = createDispatchCtx({
-    _deliverPayloads: [],
-    account: {
-      accountId: "bot-001",
-      botId: "bot-001",
-      disableBlockStreaming: false,
-      fallbackReply: "我暂时无法回答",
-    },
-    sender: {
-      sendText: async (text: string) => {
-        sentFallback = text === "我暂时无法回答";
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: fullText });
+            // SDK block-streaming may call deliver multiple times with chunks
+            await deliver?.({ text: "complete response" }, { kind: "block" });
+            await deliver?.({ text: " content" }, { kind: "block" });
+          }),
+        },
       },
-    },
-    queueSession: {
-      push: async () => {},
-      flush: async () => false,
-      abort: () => {},
-    },
+    } as any,
   });
   const { next } = createMockNext();
 
   await dispatchReply.handler(ctx, next);
 
-  assert.equal(sentFallback, true, "should send fallback reply");
+  assert.equal(sentTexts.length, 1, "should send exactly once despite multiple delivers");
+  assert.equal(sentTexts[0], fullText);
 });
 
-void test("dispatch-reply: AI returns nothing but delivered via action -> no fallback", async (t) => {
-  let sentFallback = false;
+// ── thinking boundary repair ─────────────────────────────────────────────────
+
+void test("dispatch-reply: repairs spurious newline at thinking boundary", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const prefix = "来一首 🦞\n\n**《闺怨》**\n\n庭前花";
+  const brokenPartial = `${prefix}\n落春将暮，\n独倚栏杆。`;
 
   const ctx = createDispatchCtx({
-    _deliverPayloads: [],
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: prefix });
+            await replyOptions?.onReasoningEnd?.();
+            await replyOptions?.onPartialReply?.({ text: brokenPartial });
+            // Later updates still contain the spurious newline from SDK
+            await replyOptions?.onPartialReply?.({
+              text: `${brokenPartial}\n千里江山，`,
+            });
+            await deliver?.({ text: brokenPartial }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentTexts.length, 1);
+  assert.ok(!sentTexts[0].includes("庭前花\n落春"), "mid-word newline should be removed");
+  assert.ok(sentTexts[0].includes("庭前花落春"), "words should be joined");
+});
+
+// ── onToolStart flush ────────────────────────────────────────────────────────
+
+void test("dispatch-reply: onToolStart flushes buffered text before tool call", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const sentDuringTool: string[] = [];
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "AI pre-tool text" });
+            // Capture what's been sent before tool starts
+            sentDuringTool.push(...sentTexts);
+            await replyOptions?.onToolStart?.({ name: "search" });
+            // After onToolStart, text should have been flushed
+            await replyOptions?.onPartialReply?.({ text: "AI pre-tool textpost-tool text" });
+            await deliver?.({ text: "post-tool text" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.length >= 1, "should have sent text");
+  // After flushNow during onToolStart, text was sent; then the remainder is sent at finalize
+  assert.ok(sentTexts.some(t => t.includes("AI pre-tool text")), "pre-tool text should be sent");
+});
+
+void test("dispatch-reply: tool loop sends short post-tool partials after beginNewSegment", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ replyOptions }) => {
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "pre-tool long text" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "1️⃣" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+
+            replyOptions?.onAssistantMessageStart?.();
+            await replyOptions?.onPartialReply?.({ text: "2️⃣" });
+            await replyOptions?.onToolStart?.({ name: "sleep" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.some(t => t.includes("pre-tool long text")), "pre-tool text should be sent");
+  assert.ok(sentTexts.some(t => t.includes("1️⃣")), "first post-tool partial should be sent");
+  assert.ok(sentTexts.some(t => t.includes("2️⃣")), "second post-tool partial should be sent");
+});
+
+// ── deliver text fallback (no onPartialReply) ───────────────────────────────
+
+void test("dispatch-reply: uses deliver text when no onPartialReply (SDK fallback)", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver }) => {
+            await deliver?.({ text: "fallback deliver text" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.some(t => t.includes("fallback deliver text")), "should use deliver text as fallback");
+});
+
+void test("dispatch-reply: deliver text ignored when onPartialReply already received", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "from partial" });
+            await deliver?.({ text: "duplicate from deliver" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentTexts.filter(t => t.includes("from partial")).length, 1);
+  assert.ok(!sentTexts.some(t => t.includes("duplicate from deliver")), "deliver text must not duplicate partial");
+});
+
+void test("dispatch-reply: /status deliver fallback appends bot version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver }) => {
+            await deliver?.({ text: "运行正常" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const joined = sentTexts.join("");
+  assert.ok(joined.includes("运行正常"));
+  assert.ok(joined.includes("🤖 Bot: yuanbaobot("), "status suffix should append on deliver fallback");
+});
+
+void test("dispatch-reply: /status with onPartialReply does not append bot version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "状态 OK" });
+            await deliver?.({ text: "状态 OK" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  const joined = sentTexts.join("");
+  assert.ok(joined.includes("状态 OK"));
+  assert.ok(!joined.includes("🤖 Bot: yuanbaobot("), "status suffix only on deliver fallback");
+});
+
+void test("dispatch-reply: /status with no partial and no deliver text skips version suffix", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    rawBody: "/status",
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async () => {
+            // no onPartialReply, no deliver text
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(sentTexts.length, 0);
+  assert.ok(!sentTexts.some(t => t.includes("🤖 Bot: yuanbaobot(")));
+});
+
+// ── media delivery ───────────────────────────────────────────────────────────
+
+void test("dispatch-reply: media from deliver is sent immediately", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts, sentMediaUrls } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "看这张图" });
+            await deliver?.({ text: "看这张图", mediaUrls: ["https://example.com/img.jpg"] }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.some(t => t.includes("看这张图")), "text should be sent");
+  assert.ok(sentMediaUrls.includes("https://example.com/img.jpg"), "media URL should be sent");
+});
+
+void test("dispatch-reply: tool-kind deliver does not send text", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await deliver?.({ text: "tool result" }, { kind: "tool" });
+            await replyOptions?.onPartialReply?.({ text: "最终回复" });
+            await deliver?.({ text: "最终回复" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(!sentTexts.some(t => t.includes("tool result")), "tool text should not be sent");
+  assert.ok(sentTexts.some(t => t.includes("最终回复")), "block text should be sent");
+});
+
+// ── fallback reply ───────────────────────────────────────────────────────────
+
+void test("dispatch-reply: AI returns nothing + has fallbackReply -> send fallback", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
     account: {
       accountId: "bot-001",
       botId: "bot-001",
       disableBlockStreaming: false,
       fallbackReply: "我暂时无法回答",
     },
-    // Simulate a sticker/react reply delivered via handleAction (bypasses queueSession),
-    // which marks the trace context within the agent run.
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async () => {
+            // No callbacks, no content
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.ok(sentTexts.includes("我暂时无法回答"), "should send fallback reply");
+});
+
+void test("dispatch-reply: delivered via action -> no fallback reply", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    account: {
+      accountId: "bot-001",
+      botId: "bot-001",
+      disableBlockStreaming: false,
+      fallbackReply: "我暂时无法回答",
+    },
     traceContext: {
       traceId: "t-1",
       traceparent: "00-x-y-01",
@@ -192,94 +598,52 @@ void test("dispatch-reply: AI returns nothing but delivered via action -> no fal
       markActionDelivered: () => {},
       hasActionDelivered: () => true,
     },
-    sender: {
-      sendText: async () => {
-        sentFallback = true;
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async () => {}),
+        },
       },
-    },
-    queueSession: {
-      push: async () => {},
-      flush: async () => false,
-      abort: () => {},
-    },
+    } as any,
   });
   const { next } = createMockNext();
 
   await dispatchReply.handler(ctx, next);
 
-  assert.equal(sentFallback, false, "should not send fallback when delivered via action");
+  assert.ok(!sentTexts.includes("我暂时无法回答"), "should not send fallback when delivered via action");
 });
 
-void test("dispatch-reply: dispatch error -> abort queue and throw", async (t) => {
-  let aborted = false;
+// ── error handling ───────────────────────────────────────────────────────────
+
+void test("dispatch-reply: dispatch error propagates", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender } = createMockSender();
 
   const ctx = createDispatchCtx({
-    _shouldThrow: true,
-    queueSession: {
-      push: async () => {},
-      flush: async () => false,
-      abort: () => {
-        aborted = true;
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: async () => {
+            throw new Error("dispatch error");
+          },
+        },
       },
-    },
+    } as any,
   });
   const { next } = createMockNext();
 
   await assert.rejects(() => dispatchReply.handler(ctx, next), { message: "dispatch error" });
-
-  assert.equal(aborted, true, "should abort queue on error");
-});
-
-void test("dispatch-reply: deliver contains media URLs", async (t) => {
-  const pushedItems: any[] = [];
-  setupMocks(t);
-  const { dispatchReply } = await import("./dispatch-reply.js");
-
-  const ctx = createDispatchCtx({
-    _deliverPayloads: [{ text: "看这张图", mediaUrls: ["https://example.com/img.jpg"] }],
-    queueSession: {
-      push: async (item: any) => {
-        pushedItems.push(item);
-      },
-      flush: async () => true,
-      abort: () => {},
-    },
-  });
-  const { next } = createMockNext();
-
-  await dispatchReply.handler(ctx, next);
-
-  const mediaItems = pushedItems.filter((i) => i.type === "media");
-  assert.ok(mediaItems.length > 0, "should have pushed media items");
-  assert.equal(mediaItems[0].mediaUrl, "https://example.com/img.jpg");
-});
-
-void test("dispatch-reply: tool-kind deliver is not sent to user", async (t) => {
-  const pushedItems: any[] = [];
-  setupMocks(t);
-  const { dispatchReply } = await import("./dispatch-reply.js");
-
-  const ctx = createDispatchCtx({
-    _deliverPayloads: [
-      { text: "tool result", kind: "tool" },
-      { text: "最终回复", kind: "block" },
-    ],
-    queueSession: {
-      push: async (item: any) => {
-        pushedItems.push(item);
-      },
-      flush: async () => true,
-      abort: () => {},
-    },
-  });
-  const { next } = createMockNext();
-
-  await dispatchReply.handler(ctx, next);
-
-  // Tool kind should not be pushed
-  const textItems = pushedItems.filter((i) => i.type === "text");
-  assert.equal(textItems.length, 1, "only block kind should be pushed");
-  assert.ok(textItems[0].text.includes("最终回复"));
 });
