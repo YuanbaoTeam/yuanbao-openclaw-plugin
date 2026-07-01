@@ -15,7 +15,7 @@
 export { computeSignature } from "../src/access/http/request.js";
 export { decodeConnMsg } from "../src/access/ws/conn-codec.js";
 export { mdAtomic } from "../src/business/utils/markdown.js";
-export { defaultChunkText } from "../src/business/outbound/queue.js";
+export { defaultChunkText } from "../src/business/outbound/streaming-output-session.js";
 export { classifyReplyMode } from "../src/infra/reply-classify.js";
 export type { ReplyClassification } from "../src/infra/reply-classify.js";
 export { resolveMentionGatingWithBypass } from "openclaw/plugin-sdk/channel-inbound";

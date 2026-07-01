@@ -58,9 +58,17 @@ function resolveAtMentions(
   let lastIndex = 0;
 
   for (const match of text.matchAll(AT_USER_RE)) {
-    const matchStart = match.index;
+    const matchStart = match.index ?? 0;
+    const nickName = match[1]!;
+    const userRecord =
+      groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
 
-    // Text fragment before @user
+    // Only split when the @ resolves to a real group member; otherwise leave
+    // @keyframes / @media / unknown @ tokens in place (avoid broken joins in client).
+    if (!userRecord) {
+      continue;
+    }
+
     if (matchStart > lastIndex) {
       const before = text.slice(lastIndex, matchStart);
       if (before.trim()) {
@@ -68,23 +76,14 @@ function resolveAtMentions(
       }
     }
 
-    const nickName = match[1];
-    const userRecord = groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
-
-    if (userRecord) {
-      // User found, insert custom type @mention message
-      items.push({
-        type: "custom",
-        data: JSON.stringify({
-          elem_type: 1002,
-          text: `@${userRecord.nickName}`,
-          user_id: userRecord.userId,
-        }),
-      });
-    } else {
-      // Not found, preserve original text as text type
-      items.push({ type: "text", text: `@${nickName}` });
-    }
+    items.push({
+      type: "custom",
+      data: JSON.stringify({
+        elem_type: 1002,
+        text: `@${userRecord.nickName}`,
+        user_id: userRecord.userId,
+      }),
+    });
 
     lastIndex = matchStart + match[0].length;
   }

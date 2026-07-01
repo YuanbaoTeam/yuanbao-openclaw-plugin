@@ -1,22 +1,42 @@
-/** Markdown processing utilities: fence detection/repair, block-level analysis, and chunking. */
+/**
+ * Outbound text sanitization and contract-tested atomic chunk helpers.
+ *
+ * Production: mdTable.sanitize + mdMath.normalize (prepareOutboundContent).
+ * Streaming: mdSplit.isSafe (fence / math / table gates).
+ * Contract: mdAtomic.chunkAware (POLICY-011).
+ */
 
-// Fence-related
+// ── Code fences ───────────────────────────────────────────────────────────────
 
-function stripOuterMarkdownFence(text: string): string {
-  const HAS_TABLE = /^\s*\|[-:| ]+\|/m;
-  return text.replace(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/gm, (fullMatch, inner: string) => (HAS_TABLE.test(inner) ? inner : fullMatch));
+export type FenceState = { inFence: boolean; fenceLang: string };
+
+function computeFenceStateAt(
+  text: string,
+  initial: FenceState = { inFence: false, fenceLang: "" },
+): FenceState {
+  let inFence = initial.inFence;
+  let fenceLang = initial.fenceLang;
+  for (const line of text.split("\n")) {
+    if (line.startsWith("```")) {
+      if (inFence) {
+        inFence = false;
+        fenceLang = "";
+      } else {
+        inFence = true;
+        fenceLang = line.slice(3).trim();
+      }
+    }
+  }
+  return { inFence, fenceLang };
 }
 
 function hasUnclosedFence(text: string): boolean {
-  let inFence = false;
-  for (const line of text.split("\n")) {
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-    }
-  }
-  return inFence;
+  return computeFenceStateAt(text).inFence;
 }
 
+// ── Math blocks ─────────────────────────────────────────────────────────────
+
+/** True when a $$ display-math block is still open (ignores $$ inside ``` fences). */
 function hasUnclosedMathBlock(text: string): boolean {
   let inFence = false;
   let mathOpen = false;
@@ -25,9 +45,7 @@ function hasUnclosedMathBlock(text: string): boolean {
       inFence = !inFence;
       continue;
     }
-    if (inFence) {
-      continue;
-    }
+    if (inFence) continue;
     let idx = 0;
     while (idx < line.length - 1) {
       if (line[idx] === "$" && line[idx + 1] === "$") {
@@ -42,9 +60,7 @@ function hasUnclosedMathBlock(text: string): boolean {
 }
 
 function normalizeMathBlocks(text: string): string {
-  if (!text.includes("$$")) {
-    return text;
-  }
+  if (!text.includes("$$")) return text;
 
   const parts: string[] = [];
   let inFence = false;
@@ -56,9 +72,7 @@ function normalizeMathBlocks(text: string): string {
       inFence = !inFence;
       continue;
     }
-    if (inFence) {
-      continue;
-    }
+    if (inFence) continue;
 
     if (text[i] === "$" && i + 1 < text.length && text[i + 1] === "$") {
       if (!mathOpen) {
@@ -85,109 +99,10 @@ function normalizeMathBlocks(text: string): string {
   return parts.join("");
 }
 
-function mergeBlockStreamingFences(buffer: string, incoming: string): string {
-  const CLOSE_RE = /\n```\s*$/;
-  const OPEN_RE = /^```[^\n]*\n/;
-
-  // Case 1: eliminate internal pseudo-lines (\n``````lang\n)
-  const normalized = incoming.replace(/\n```\s*```[^\n]*\n/g, "\n");
-
-  // Case 2: buffer ends with close marker, incoming starts with re-open marker
-  if (CLOSE_RE.test(buffer) && OPEN_RE.test(normalized)) {
-    return `${buffer.replace(CLOSE_RE, "")}\n${normalized.replace(OPEN_RE, "")}`;
-  }
-
-  // Case 3: buffer has unclosed fence, incoming brings re-open marker -> strip it
-  if (hasUnclosedFence(buffer) && OPEN_RE.test(normalized)) {
-    return `${buffer}\n${normalized.replace(OPEN_RE, "")}`;
-  }
-
-  return `${buffer}${normalized}`;
-}
-
-// Block-level structure
-
-function endsWithTableRow(text: string): boolean {
-  const trimmed = text.trimEnd();
-  if (!trimmed) {
-    return false;
-  }
-  const lastLine = trimmed.split("\n").at(-1) ?? "";
-  const line = lastLine.trim();
-  return line.startsWith("|") && line.endsWith("|");
-}
-
-function isTableInProgress(text: string): boolean {
-  const trimmed = text.trimEnd();
-  if (!trimmed) {
-    return false;
-  }
-  const lastLine = trimmed.split("\n").at(-1) ?? "";
-  return lastLine.trimStart().startsWith("|");
-}
-
-function startsWithBlockElement(text: string): boolean {
-  const firstLine = (text.trimStart().split("\n")[0] ?? "").trimStart();
-  return (
-    /^#{1,6}\s/.test(firstLine) // heading
-    || firstLine.startsWith("---") // thematic break
-    || firstLine.startsWith("***")
-    || firstLine.startsWith("___")
-    || firstLine.startsWith("> ") // blockquote
-    || firstLine.startsWith("```") // fenced code block
-    || /^[*\-+]\s/.test(firstLine) // unordered list
-    || /^\d+[.)]\s/.test(firstLine) // ordered list
-    || firstLine.startsWith("|") // table
-    || firstLine.startsWith("$$")
-  ); // display math
-}
-
-function inferBlockSeparator(buffer: string, incoming: string): string {
-  if (hasUnclosedFence(buffer)) {
-    return "";
-  }
-  if (hasUnclosedMathBlock(buffer)) {
-    return "";
-  }
-  if (buffer.endsWith("\n\n")) {
-    return "";
-  }
-
-  const lastLine = (buffer.trimEnd().split("\n")
-    .at(-1) ?? "").trim();
-  const firstLine = (incoming.trimStart().split("\n")[0] ?? "").trimStart();
-
-  // Incomplete table row: buffer last line starts with | but doesn't end with |
-  // → mid-cell break, direct concat to complete the row
-  if (lastLine.startsWith("|") && !lastLine.endsWith("|")) {
-    return "";
-  }
-
-  // OpenClaw may split a table row at maxChars, producing two blocks:
-  //   buffer last line: "| GPT-4o | 88.7% | 90.2% | - |"
-  //   incoming:         "- |\n| Claude 3.5 ..."
-  // Detect: buffer last line is a table row, incoming first line ends with | but doesn't start with |
-  if (lastLine.startsWith("|") && !firstLine.startsWith("|") && firstLine.endsWith("|")) {
-    return " ";
-  }
-
-  if (lastLine.startsWith("|") && firstLine.startsWith("|")) {
-    return "\n";
-  }
-
-  if (startsWithBlockElement(incoming)) {
-    return "\n\n";
-  }
-
-  return "";
-}
-
-// Pipe-table sanitize
+// ── Pipe tables ─────────────────────────────────────────────────────────────
 
 interface PipeTableRegion {
-  /** Start line index (inclusive) */
   startLine: number;
-  /** End line index (inclusive) */
   endLine: number;
 }
 
@@ -202,19 +117,12 @@ function findPipeTableRegions(lines: string[]): PipeTableRegion[] {
     const isBlank = line.trim() === "";
 
     if (hasPipe) {
-      if (groupStart < 0) {
-        groupStart = i;
-      }
+      if (groupStart < 0) groupStart = i;
       lastPipeLine = i;
-    } else if (isBlank) {
-      // Blank line — keep in current group if one exists
-    } else {
-      // Non-empty without pipe -> close current group
-      if (groupStart >= 0) {
-        regions.push({ startLine: groupStart, endLine: lastPipeLine });
-        groupStart = -1;
-        lastPipeLine = -1;
-      }
+    } else if (!isBlank && groupStart >= 0) {
+      regions.push({ startLine: groupStart, endLine: lastPipeLine });
+      groupStart = -1;
+      lastPipeLine = -1;
     }
   }
 
@@ -227,19 +135,11 @@ function findPipeTableRegions(lines: string[]): PipeTableRegion[] {
 
 const PIPE_TABLE_SEPARATOR_RE = /\|[\s]*:?-{2,}:?[\s]*(?:\|[\s]*:?-{2,}:?[\s]*)+\|/;
 
-function findSeparatorInFlat(flat: string): boolean {
-  return PIPE_TABLE_SEPARATOR_RE.test(flat);
-}
-
 function healPipeTableRegion(regionLines: string[]): string | null {
-  if (!regionLines.some(l => l.trim() === "")) {
-    return null;
-  }
+  if (!regionLines.some(l => l.trim() === "")) return null;
 
   const flat = regionLines.join("").replace(/\n/g, "");
-  if (!findSeparatorInFlat(flat)) {
-    return null;
-  }
+  if (!PIPE_TABLE_SEPARATOR_RE.test(flat)) return null;
 
   const nonBlank = regionLines.filter(l => l.trim() !== "");
   const result: string[] = [];
@@ -256,39 +156,18 @@ function healPipeTableRegion(regionLines: string[]): string | null {
     }
   }
 
-  if (acc) {
-    result.push(acc);
-  }
-
+  if (acc) result.push(acc);
   return result.join("\n");
 }
 
 function sanitizePipeTables(text: string): string {
-  // Phase 0 — fast-path exit
-  if (!text) {
-    return text;
-  }
-  if (!text.includes("|")) {
-    return text;
-  }
-  if (!text.includes("\n")) {
-    return text;
-  }
+  if (!text || !text.includes("|") || !text.includes("\n")) return text;
+  if ((text.match(/\|/g) || []).length < 3) return text;
 
-  const pipeCount = (text.match(/\|/g) || []).length;
-  if (pipeCount < 3) {
-    return text;
-  }
-
-  // Phase 1 — find table regions
   const lines = text.split("\n");
   const regions = findPipeTableRegions(lines);
+  if (regions.length === 0) return text;
 
-  if (regions.length === 0) {
-    return text;
-  }
-
-  // Phase 2+3 — heal regions and rebuild (reverse order to keep indices stable)
   for (let ri = regions.length - 1; ri >= 0; ri--) {
     const region = regions[ri];
     const regionLines = lines.slice(region.startLine, region.endLine + 1);
@@ -302,7 +181,50 @@ function sanitizePipeTables(text: string): string {
   return lines.join("\n");
 }
 
-// Atomic blocks — tables & diagram fence blocks
+function isTableLine(line: string): boolean {
+  return line.trimStart().startsWith("|");
+}
+
+/** True while a pipe table has not been closed by a blank line (\\n\\n). */
+function isTableInProgress(text: string): boolean {
+  if (!text.includes("|")) return false;
+
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+
+  let lastTableLineIdx = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (isTableLine(lines[i]!)) {
+      lastTableLineIdx = i;
+      break;
+    }
+  }
+  if (lastTableLineIdx < 0) return false;
+
+  const afterLines = lines.slice(lastTableLineIdx + 1);
+
+  if (afterLines.length === 0) return true;
+
+  if (afterLines.every(l => l.trim() === "")) {
+    return afterLines.length < 2;
+  }
+
+  const firstNonEmptyAfter = afterLines.findIndex(l => l.trim() !== "");
+  if (firstNonEmptyAfter === 0) return true;
+
+  return firstNonEmptyAfter < 1;
+}
+
+// ── Streaming split safety ──────────────────────────────────────────────────
+
+/** Whether unsent text is safe to chunk/stream (no open fence/math/table row). */
+function isSplitSafe(text: string, maxChars: number): boolean {
+  if (hasUnclosedFence(text) && text.length <= maxChars) return false;
+  if (hasUnclosedMathBlock(text) && text.length <= maxChars) return false;
+  if (isTableInProgress(text)) return false;
+  return true;
+}
+
+// ── Atomic blocks (contract: POLICY-011) ────────────────────────────────────
 
 export type AtomicBlock = { start: number; end: number; kind: "table" | "diagram-fence" };
 
@@ -326,21 +248,19 @@ function extractAtomicBlocks(text: string): AtomicBlock[] {
   const lines = text.split("\n");
   let offset = 0;
 
-  let inPlainFence = false; // Currently inside a plain code fence
-  let inDiagram = false; // Currently inside a diagram fence
-  let diagramStart = 0; // Start offset of current diagram fence
+  let inPlainFence = false;
+  let inDiagram = false;
+  let diagramStart = 0;
 
-  let tableStart = -1; // Start offset of current table block, -1 = not in table
-  let tableEnd = -1; // End offset of last table line
-  let tableHasSep = false; // Whether separator row has been seen
-  let tableLineCount = 0; // Consecutive table line count
+  let tableStart = -1;
+  let tableEnd = -1;
+  let tableHasSep = false;
+  let tableLineCount = 0;
 
   const isTableLine = (line: string) => line.trim().startsWith("|");
   const isTableSeparator = (line: string) => /^\|[\s|:-]+\|$/.test(line.trim());
 
   const flushTable = () => {
-    // A complete table (with separator) or >= 2 consecutive |-prefixed lines are treated as atomic,
-    // preventing chunkMarkdownText from splitting between incomplete table rows.
     if (tableStart !== -1 && tableEnd !== -1 && (tableHasSep || tableLineCount >= 2)) {
       blocks.push({ start: tableStart, end: tableEnd, kind: "table" });
     }
@@ -352,7 +272,6 @@ function extractAtomicBlocks(text: string): AtomicBlock[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Last line: if no trailing \n, calculate offset by actual length
     const lineEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
 
     if (inPlainFence || inDiagram) {
@@ -370,8 +289,7 @@ function extractAtomicBlocks(text: string): AtomicBlock[] {
 
     if (line.startsWith("```")) {
       flushTable();
-      const lang = line.slice(3).trim()
-        .toLowerCase();
+      const lang = line.slice(3).trim().toLowerCase();
       if (lang && DIAGRAM_LANGUAGES.has(lang)) {
         inDiagram = true;
         diagramStart = offset;
@@ -411,16 +329,11 @@ function chunkMarkdownTextAtomicAware(
   chunkFn: (text: string, max: number) => string[],
 ): string[] {
   const rawChunks = chunkFn(text, maxChars);
-  if (rawChunks.length <= 1) {
-    return rawChunks;
-  }
+  if (rawChunks.length <= 1) return rawChunks;
 
   const atomicBlocks = extractAtomicBlocks(text);
-  if (atomicBlocks.length === 0) {
-    return rawChunks;
-  }
+  if (atomicBlocks.length === 0) return rawChunks;
 
-  // Rebuild split boundaries from rawChunks (cumulative offset, excluding last)
   const splitIndices: number[] = [];
   let cumLen = 0;
   for (let i = 0; i < rawChunks.length - 1; i++) {
@@ -428,7 +341,6 @@ function chunkMarkdownTextAtomicAware(
     splitIndices.push(cumLen);
   }
 
-  // Adjust each split point to avoid landing inside an atomic block
   const adjustedIndices: number[] = [];
   let chunkWindowStart = 0;
 
@@ -441,68 +353,46 @@ function chunkMarkdownTextAtomicAware(
     }
 
     if (hit.start > chunkWindowStart) {
-      // Shift back: push entire block to next message
       adjustedIndices.push(hit.start);
       chunkWindowStart = hit.start;
     } else {
-      // Cannot shift back: include entire block in current message (allow exceeding maxChars)
       adjustedIndices.push(hit.end);
       chunkWindowStart = hit.end;
     }
   }
 
-  // Re-slice text at adjusted boundaries
   const result: string[] = [];
   let prev = 0;
   for (const idx of adjustedIndices) {
-    if (idx > prev) {
-      result.push(text.slice(prev, idx));
-    }
+    if (idx > prev) result.push(text.slice(prev, idx));
     prev = idx;
   }
-  if (prev < text.length) {
-    result.push(text.slice(prev));
-  }
+  if (prev < text.length) result.push(text.slice(prev));
 
   return result.filter(c => c.length > 0);
 }
 
-// Structured namespace exports
-
-/** Fence detection & repair */
-export const mdFence = {
-  stripOuter: stripOuterMarkdownFence,
-  hasUnclosed: hasUnclosedFence,
-  hasUnclosedMath: hasUnclosedMathBlock,
-  mergeBlockStreaming: mergeBlockStreamingFences,
-} as const;
-
-/** Block-level structure detection & separator inference */
-export const mdBlock = {
-  /** Check if text starts with a block-level element */
-  startsWithBlockElement,
-  /** Check if text ends with a complete table row (starts and ends with |) */
-  endsWithTableRow,
-  /** Check if text ends with any table row (starts with |), including incomplete rows */
-  isTableInProgress,
-  inferSeparator: inferBlockSeparator,
-} as const;
-
-/** Atomic block (table & diagram fence) aware chunking */
 export const mdAtomic = {
   extract: extractAtomicBlocks,
   chunkAware: chunkMarkdownTextAtomicAware,
-  /** Diagram fence language identifiers */
   DIAGRAM_LANGUAGES,
 } as const;
 
-/** Pipe-table repair */
-export const mdTable = {
-  sanitize: sanitizePipeTables,
+export const mdFence = {
+  computeState: computeFenceStateAt,
+  hasUnclosed: hasUnclosedFence,
 } as const;
 
-/** Math block repair */
+export const mdTable = {
+  sanitize: sanitizePipeTables,
+  inProgress: isTableInProgress,
+} as const;
+
 export const mdMath = {
   hasUnclosed: hasUnclosedMathBlock,
   normalize: normalizeMathBlocks,
+} as const;
+
+export const mdSplit = {
+  isSafe: isSplitSafe,
 } as const;

@@ -1,4 +1,4 @@
-import { WS_HEARTBEAT } from "../../access/ws/types.js";
+import { WS_HEARTBEAT, WS_HEARTBEAT_GROUP_DISSOLVED_CODE } from "../../access/ws/types.js";
 import type { WsHeartbeatValue } from "../../access/ws/types.js";
 import { createLog } from "../../logger.js";
 import type { ResolvedYuanbaoAccount } from "../../types.js";
@@ -15,13 +15,22 @@ export interface ReplyHeartbeatMeta {
   groupCode?: string;
 }
 
+export type ReplyHeartbeatOutcome = {
+  /** When true, the group is gone — caller must stop the heartbeat loop. */
+  shouldStop: boolean;
+};
+
+function shouldStopHeartbeatForCode(code: number): boolean {
+  return code === WS_HEARTBEAT_GROUP_DISSOLVED_CODE;
+}
+
 /**
  * Send reply status heartbeat (best effort, no throw, no interruption to main flow).
  */
 export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
   heartbeat: WsHeartbeatValue;
   sendTime: number;
-}): Promise<void> {
+}): Promise<ReplyHeartbeatOutcome> {
   const { ctx, account, toAccount, groupCode, heartbeat, sendTime } = params;
   const log = createLog("reply-heartbeat");
   const fromAccount = account.botId?.trim() ?? "";
@@ -44,7 +53,7 @@ export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
 
   if (!ctx.wsClient) {
     log.warn(`[${account.accountId}] heartbeat send failed: wsClient unavailable`);
-    return;
+    return { shouldStop: false };
   }
 
   if (!fromAccount || !targetAccount) {
@@ -54,7 +63,7 @@ export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
       groupCode,
       heartbeat,
     });
-    return;
+    return { shouldStop: false };
   }
 
   try {
@@ -71,8 +80,11 @@ export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
       );
       if (rsp.code !== 0) {
         log.warn(`[${account.accountId}] group reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`);
+        if (shouldStopHeartbeatForCode(rsp.code)) {
+          log.warn(`[${account.accountId}] group dissolved (code=${rsp.code}), stopping reply heartbeat`);
+        }
       }
-      return;
+      return { shouldStop: shouldStopHeartbeatForCode(rsp.code) };
     }
 
     const rsp = await withTimeout(
@@ -86,13 +98,17 @@ export async function emitReplyHeartbeat(params: ReplyHeartbeatMeta & {
     if (rsp.code !== 0) {
       log.warn(`[${account.accountId}] C2C reply heartbeat send failed: code=${rsp.code}, msg=${rsp.msg ?? rsp.message ?? ""}`);
     }
+    return { shouldStop: shouldStopHeartbeatForCode(rsp.code) };
   } catch (err) {
     log.warn(`[${account.accountId}] reply heartbeat send error: ${String(err)}`);
+    return { shouldStop: false };
   }
 }
 
 export interface ReplyHeartbeatController {
   emit(heartbeat: WsHeartbeatValue): void;
+  /** Send FINISH if RUNNING was ever started and FINISH not yet sent; always clears timers. */
+  finishIfNeeded(): void;
   onReplySent(): void;
   stop(): void;
 }
@@ -107,17 +123,40 @@ export function createReplyHeartbeatController(params: {
   let runningHeartbeatActive = false;
   let runningHeartbeatStartTime: number | null = null;
   let lastRunningEmitAt: number | null = null;
+  let runningEverStarted = false;
+  let finishEmitted = false;
+  let forceStopped = false;
+
+  const abortHeartbeat = (): void => {
+    forceStopped = true;
+    finishEmitted = true;
+    stop();
+  };
+
+  const handleOutcome = (outcome: ReplyHeartbeatOutcome): void => {
+    if (outcome.shouldStop) {
+      abortHeartbeat();
+    }
+  };
 
   const send = (heartbeat: WsHeartbeatValue, sendTime: number): void => {
     void emitReplyHeartbeat({
       ...meta,
       heartbeat,
       sendTime,
-    });
+    }).then(handleOutcome);
+  };
+
+  const sendFinish = (): void => {
+    if (finishEmitted) {
+      return;
+    }
+    finishEmitted = true;
+    send(WS_HEARTBEAT.FINISH, Date.now());
   };
 
   const sendRunningHeartbeatAndSchedule = async (): Promise<void> => {
-    if (!runningHeartbeatActive) {
+    if (finishEmitted || !runningHeartbeatActive) {
       return;
     }
     if (runningHeartbeatStartTime === null) {
@@ -130,12 +169,16 @@ export function createReplyHeartbeatController(params: {
       stop();
       return;
     }
-    await emitReplyHeartbeat({
+    const outcome = await emitReplyHeartbeat({
       ...meta,
       heartbeat: WS_HEARTBEAT.RUNNING,
       sendTime: runningHeartbeatStartTime,
     });
-    if (!runningHeartbeatActive) {
+    if (outcome.shouldStop) {
+      abortHeartbeat();
+      return;
+    }
+    if (finishEmitted || !runningHeartbeatActive) {
       return;
     }
     runningHeartbeatTimer = setTimeout(() => {
@@ -163,8 +206,19 @@ export function createReplyHeartbeatController(params: {
     void sendRunningHeartbeatAndSchedule();
   };
 
+  const finishIfNeeded = (): void => {
+    stop();
+    if (runningEverStarted && !forceStopped) {
+      sendFinish();
+    }
+  };
+
   const emit = (heartbeat: WsHeartbeatValue): void => {
     if (heartbeat === WS_HEARTBEAT.RUNNING) {
+      if (finishEmitted) {
+        return;
+      }
+      runningEverStarted = true;
       if (runningHeartbeatActive) {
         lastRunningEmitAt = Date.now();
         return;
@@ -173,12 +227,13 @@ export function createReplyHeartbeatController(params: {
       return;
     }
     stop();
-    send(heartbeat, Date.now());
+    sendFinish();
   };
 
   return {
     emit,
-    onReplySent: stop,
+    finishIfNeeded,
+    onReplySent: finishIfNeeded,
     stop,
   };
 }

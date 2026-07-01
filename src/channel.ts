@@ -7,6 +7,7 @@ import { createComputedAccountStatusAdapter } from "openclaw/plugin-sdk/status-h
 import { startYuanbaoWsGateway } from "./access/ws/index.js";
 import { handleAction, yuanbaoMessageActions } from "./business/actions/index.js";
 import type { ActionParams } from "./business/actions/resolve-target.js";
+import { mdAtomic } from "./business/utils/markdown.js";
 import { buildMessageToolHints, normalizeTarget } from "./business/messaging/targets.js";
 import {
   yuanbaoCapabilities,
@@ -169,7 +170,11 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
     deliveryMode: "direct",
     chunkerMode: "markdown",
     textChunkLimit: 3000,
-    chunker: (text, limit) => getYuanbaoRuntime()?.channel.text.chunkMarkdownText(text, limit) ?? [text],
+    chunker: (text, limit) => {
+      const chunkMarkdownText = getYuanbaoRuntime()?.channel.text.chunkMarkdownText;
+      if (!chunkMarkdownText) return [text];
+      return mdAtomic.chunkAware(text, limit, chunkMarkdownText);
+    },
     sendText: async (params) => {
       const slog = createLog("channel.outbound");
       const { accountId, to } = params;
