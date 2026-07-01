@@ -26,6 +26,8 @@
     "lint:fix": "eslint . --fix",
     "test": "node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",
     "test:coverage": "c8 node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",
+    "test:eval:inbound": "node --import tsx test/eval/inbound/runner.ts",
+    "test:eval:inbound:update": "node --import tsx test/eval/inbound/runner.ts --update-snapshots",
     "coverage:diff": "node scripts/diff-coverage.mjs --base origin/main --min 80",
     "coverage:diff:staged": "node scripts/diff-coverage.mjs --staged --min 80",
     "hooks:install": "node scripts/install-hooks.mjs",

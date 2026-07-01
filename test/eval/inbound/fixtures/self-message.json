@@ -1,0 +1,12 @@
+{
+  "id": "self-message",
+  "description": "Bot's own C2C message — skipSelf should drop it",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "bot_456",
+    "content": "echo from bot"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": false },
+  "tags": ["edge", "self"]
+}

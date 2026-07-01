@@ -1,0 +1,18 @@
+{
+  "id": "c2c-with-quote",
+  "description": "C2C message quoting a previous text message",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_quote",
+    "senderNickname": "提问者",
+    "content": "这是什么意思？",
+    "quote": {
+      "desc": "道可道，非常道",
+      "sender_id": "user_laotzu",
+      "sender_nickname": "老子"
+    }
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": true },
+  "tags": ["c2c", "quote"]
+}

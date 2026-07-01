@@ -1,0 +1,11 @@
+{
+  "id": "cmd-reset",
+  "description": "C2C /reset control command",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_reset",
+    "content": "/reset"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "tags": ["command", "reset"]
+}

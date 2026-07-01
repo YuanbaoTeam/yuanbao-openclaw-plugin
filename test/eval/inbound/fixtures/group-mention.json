@@ -1,0 +1,15 @@
+{
+  "id": "group-mention",
+  "description": "Group message @bot with content — should pass mention gating",
+  "input": {
+    "messageType": "group",
+    "groupCode": "group_001",
+    "fromAccount": "user_grp",
+    "senderNickname": "群成员",
+    "content": "帮我总结一下这段内容",
+    "mentionBot": true
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手", "requireMention": true },
+  "expected": { "shouldDispatch": true },
+  "tags": ["group", "mention"]
+}
