@@ -1,0 +1,34 @@
+{
+  "fixtureId": "cmd-help-allowlist-allowed",
+  "snapshotVersion": 1,
+  "captured": {
+    "shouldDispatch": true,
+    "agentId": "default",
+    "sessionKey": "direct:user_allowed",
+    "accountId": "bot-eval",
+    "chatType": "direct",
+    "isGroup": false,
+    "fromAccount": "user_allowed",
+    "senderName": "user_allowed",
+    "rawBody": "/help",
+    "rewrittenBody": "/help",
+    "commandBody": "/help",
+    "commandParts": [
+      "/help"
+    ],
+    "hasControlCommand": true,
+    "commandAuthorized": true,
+    "quotePresent": false,
+    "isAtBot": false,
+    "effectiveWasMentioned": false,
+    "mediaCount": 0,
+    "mediaPaths": [],
+    "mediaTypes": [],
+    "ctxBody": "/help",
+    "ctxBodyForAgent": "/help",
+    "ctxRawBody": "/help",
+    "ctxMessageSid": "user_allowed-1",
+    "traceId": "trace-eval-fixed",
+    "seqId": "trace-eval-fixed"
+  }
+}

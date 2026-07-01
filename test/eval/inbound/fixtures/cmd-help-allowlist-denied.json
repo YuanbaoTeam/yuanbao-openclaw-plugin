@@ -1,0 +1,17 @@
+{
+  "id": "cmd-help-allowlist-denied",
+  "description": "C2C /help from sender not in allowlist — should be blocked",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_outsider",
+    "content": "/help"
+  },
+  "config": {
+    "botUid": "bot_456",
+    "botName": "元宝助手",
+    "dmPolicy": "allowlist",
+    "dmAllowFrom": ["user_allowed"]
+  },
+  "expected": { "shouldDispatch": false },
+  "tags": ["command", "help", "dm-policy", "allowlist"]
+}
