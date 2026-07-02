@@ -1,16 +1,14 @@
 /**
- * Middleware: create MessageSender + QueueSession and inject into ctx.
+ * Middleware: create MessageSender and inject into ctx.
  */
 
 import { createMessageSender } from "../../outbound/create-sender.js";
-import { createQueueSession } from "../../outbound/queue.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 export const prepareSender: MiddlewareDescriptor = {
   name: "prepare-sender",
   handler: async (ctx, next) => {
-    const { account, isGroup, fromAccount, groupCode, raw, route, wsClient, config, core } = ctx;
-    const outboundSessionKey = route?.sessionKey || (isGroup ? `group:${groupCode}` : `direct:${fromAccount}`);
+    const { account, isGroup, fromAccount, groupCode, raw, wsClient, config, core } = ctx;
 
     // ⭐ Create MessageSender and inject into ctx.sender
     const target = isGroup ? groupCode! : fromAccount;
@@ -20,7 +18,7 @@ export const prepareSender: MiddlewareDescriptor = {
       isGroup,
       account,
       target,
-      fromAccount: account.botId || fromAccount, // Outbound messages are sent by the bot
+      fromAccount: account.botId || fromAccount,
       refMsgId,
       refFromAccount: isGroup ? fromAccount : undefined,
       wsClient,
@@ -29,21 +27,7 @@ export const prepareSender: MiddlewareDescriptor = {
       traceContext: ctx.traceContext,
     });
 
-    // ⭐ Create QueueSession and inject into ctx.queueSession
-    const chunkText = (text: string, maxChars: number) => core.channel.text.chunkMarkdownText(text, maxChars);
-
-    ctx.queueSession = createQueueSession({
-      sender: ctx.sender,
-      strategy: account.disableBlockStreaming ? "immediate" : "merge-text",
-      mergeOnFlush: account.disableBlockStreaming,
-      sessionKey: outboundSessionKey,
-      chunkText,
-      onComplete: () => {
-        ctx.log.debug(`[prepare-sender] [${outboundSessionKey}] outbound queue session completed`);
-      },
-    });
-
-    ctx.log.debug(`[prepare-sender] [${outboundSessionKey}] sender + queueSession created`);
+    ctx.log.debug(`[prepare-sender] sender created`);
 
     await next();
   },
