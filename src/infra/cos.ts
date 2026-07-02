@@ -70,15 +70,19 @@ function signCosRequest(params: {
   ].join("&");
 }
 
-export function createCosClient(config: CosUploadConfig): CosClient {
+export function createCosClient(config: CosUploadConfig, options?: { endpoint?: string }): CosClient {
   return {
     async putObject(params) {
       const pathname = params.Key.startsWith("/") ? params.Key : `/${params.Key}`;
       const host = `${params.Bucket}.cos.${params.Region}.myqcloud.com`;
+      const ep = options?.endpoint?.trim();
+      const override = ep ? new URL(ep) : undefined;
+      const protocol = override?.protocol ?? "https:";
+      const signHost = override?.host ?? host;
 
       // Headers used for signature (includes Host / Content-Length per COS spec)
       const signHeaders: Record<string, string> = {
-        host,
+        host: signHost,
         "content-length": String(params.Body.length),
       };
       // Extra headers sent on the wire (Content-Type, Pic-Operations, etc.)
@@ -100,7 +104,7 @@ export function createCosClient(config: CosUploadConfig): CosClient {
       });
 
       // fetch auto-sets Host and Content-Length; passing them triggers undici UND_ERR_INVALID_ARG
-      const url = `https://${host}${pathname}`;
+      const url = `${protocol}//${signHost}${pathname}`;
       const log = createLog("cos");
       let res: Response;
       try {

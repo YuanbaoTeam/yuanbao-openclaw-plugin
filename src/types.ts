@@ -20,6 +20,7 @@ export type YuanbaoAccountConfig = {
   apiDomain?: string; // API domain
   logUploadApiUrl?: string; // issue-log upload API URL
   wsUrl?: string; // WebSocket URL
+  cosEndpoint?: string;
   /** Skips automatic ticket signing if provided */
   token?: string;
 

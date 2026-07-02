@@ -32,8 +32,8 @@ function generateFileId(): string {
   return randomBytes(16).toString("hex");
 }
 
-async function uploadBufferToCos(config: CosUploadConfig, data: Buffer): Promise<string> {
-  const cos = createCosClient(config);
+async function uploadBufferToCos(config: CosUploadConfig, data: Buffer, cosEndpoint?: string): Promise<string> {
+  const cos = createCosClient(config, { endpoint: cosEndpoint });
 
   await cos.putObject({
     Bucket: config.bucketName,
@@ -124,7 +124,7 @@ export async function uploadToCos(
 
   // 2. Upload to COS (same as media.ts uploadBufferToCos)
   mlog.info("starting COS upload", { bucket: cosConfig.bucketName, key: cosConfig.location });
-  await uploadBufferToCos(cosConfig, fileBuffer);
+  await uploadBufferToCos(cosConfig, fileBuffer, account.config.cosEndpoint);
   mlog.info("COS upload complete", { cosKey: cosConfig.location, cosUrl: cosConfig.resourceUrl });
 
   // 3. Send cosKey to backend for log registration

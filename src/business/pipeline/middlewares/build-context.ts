@@ -39,6 +39,9 @@ export const buildContext: MiddlewareDescriptor = {
     }
     const label = isGroup ? `group:${groupCode}` : `direct:${fromAccount}`;
 
+    // Surfaced as OwnerAllowFrom below so core owner-gated commands (e.g. /restart) work.
+    const ownerId = account.botOwnerId || raw.bot_owner_id;
+
     // Format envelope — always include timestamp (prefer protocol-level msg_time for accuracy)
     const msgTimestamp = raw.msg_time ? new Date(raw.msg_time * 1000) : new Date();
     const body = core.channel.reply.formatAgentEnvelope({
@@ -107,6 +110,7 @@ export const buildContext: MiddlewareDescriptor = {
       OriginatingChannel: "yuanbao",
       OriginatingTo: `yuanbao:${label}`,
       CommandAuthorized: commandAuthorized,
+      ...(ownerId ? { OwnerAllowFrom: [ownerId] } : {}),
       ...(account.markdownHintEnabled && { GroupSystemPrompt: YUANBAO_MARKDOWN_HINT }),
       UntrustedContext: [`[Current Time] ${new Date().toString()}`],
       ...(mediaPaths.length > 0 && { MediaPaths: mediaPaths, MediaPath: mediaPaths[0] }),

@@ -199,3 +199,38 @@ void test("build-context: uses raw.msg_time as envelope timestamp when available
   assert.ok(capturedTimestamp instanceof Date, "timestamp should be a Date");
   assert.equal(capturedTimestamp!.getTime(), 1718530000 * 1000);
 });
+
+// ── OwnerAllowFrom wiring (owner-gated native commands, e.g. /restart) ──────
+
+void test("build-context: OwnerAllowFrom from botOwnerId, falls back to raw.bot_owner_id", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+  const { next } = createMockNext();
+
+  const cached = createBuildCtx({ account: { historyLimit: 0, botOwnerId: "owner-001" } });
+  await buildContext.handler(cached.ctx, next);
+  assert.deepEqual(cached.getFinalizedPayload().OwnerAllowFrom, ["owner-001"]);
+
+  const fallback = createBuildCtx({ raw: { msg_id: "msg-006", bot_owner_id: "owner-from-msg" } });
+  await buildContext.handler(fallback.ctx, next);
+  assert.deepEqual(fallback.getFinalizedPayload().OwnerAllowFrom, ["owner-from-msg"]);
+
+  const both = createBuildCtx({
+    raw: { msg_id: "msg-007", bot_owner_id: "stale-owner" },
+    account: { historyLimit: 0, botOwnerId: "real-owner" },
+  });
+  await buildContext.handler(both.ctx, next);
+  assert.deepEqual(both.getFinalizedPayload().OwnerAllowFrom, ["real-owner"], "cached botOwnerId wins");
+});
+
+void test("build-context: no owner id known -> OwnerAllowFrom omitted", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx();
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  assert.equal("OwnerAllowFrom" in getFinalizedPayload(), false);
+});

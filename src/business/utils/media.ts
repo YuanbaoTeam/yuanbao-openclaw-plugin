@@ -415,10 +415,11 @@ async function uploadBufferToCos(params: {
   data: Buffer;
   filename: string;
   mimeType: string;
+  cosEndpoint?: string;
 }): Promise<string> {
   const { config, data, filename, mimeType } = params;
 
-  const cos = createCosClient(config);
+  const cos = createCosClient(config, { endpoint: params.cosEndpoint });
 
   // Construct request headers
   const headers: Record<string, string> = {};
@@ -463,7 +464,7 @@ export async function uploadMediaToCos(
   const cosConfig = await apiGetUploadInfo(account, filename, fileId);
 
   // 2. Upload to COS
-  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType });
+  const url = await uploadBufferToCos({ config: cosConfig, data, filename, mimeType, cosEndpoint: account.config.cosEndpoint });
 
   return {
     url,
