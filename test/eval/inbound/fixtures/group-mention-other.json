@@ -1,0 +1,14 @@
+{
+  "id": "group-mention-other",
+  "description": "Group message @mentioning another user (not the bot) — should be dropped",
+  "input": {
+    "messageType": "group",
+    "groupCode": "group_004",
+    "fromAccount": "user_mention_other",
+    "content": "你看这个怎么样",
+    "mentionOthers": [{ "userId": "user_friend", "text": "@朋友" }]
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手", "requireMention": true },
+  "expected": { "shouldDispatch": false },
+  "tags": ["group", "mention-other"]
+}

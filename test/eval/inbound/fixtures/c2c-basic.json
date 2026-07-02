@@ -1,0 +1,18 @@
+{
+  "id": "c2c-basic",
+  "description": "C2C basic text message",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_123",
+    "senderNickname": "测试用户",
+    "content": "你好，帮我写一首诗"
+  },
+  "config": {
+    "botUid": "bot_456",
+    "botName": "元宝助手"
+  },
+  "expected": {
+    "shouldDispatch": true
+  },
+  "tags": ["c2c", "basic", "smoke"]
+}

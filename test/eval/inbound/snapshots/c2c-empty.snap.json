@@ -1,0 +1,20 @@
+{
+  "fixtureId": "c2c-empty",
+  "snapshotVersion": 1,
+  "captured": {
+    "shouldDispatch": false,
+    "isGroup": false,
+    "fromAccount": "user_empty",
+    "rawBody": "",
+    "rewrittenBody": "",
+    "commandParts": [],
+    "hasControlCommand": false,
+    "commandAuthorized": false,
+    "quotePresent": false,
+    "isAtBot": false,
+    "effectiveWasMentioned": false,
+    "mediaCount": 0,
+    "mediaPaths": [],
+    "mediaTypes": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "cmd-help-disabled",
+  "description": "C2C /help with dmPolicy=disabled — snapshot captures real behavior",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_disabled",
+    "content": "/help"
+  },
+  "config": {
+    "botUid": "bot_456",
+    "botName": "元宝助手",
+    "dmPolicy": "disabled"
+  },
+  "tags": ["command", "help", "dm-policy", "disabled"]
+}

@@ -43,6 +43,9 @@ jobs:
       # Global coverage gate (whole project, thresholds in .c8rc.json) + produces lcov.
       - run: pnpm test:coverage
 
+      # Inbound pipeline eval (JSON-fixture-driven snapshot tests)
+      - run: pnpm test:eval:inbound
+
       # Changed-lines gate (authoritative): new/modified code on this PR must be tested.
       - name: Changed-lines coverage
         if: github.event_name == 'pull_request'

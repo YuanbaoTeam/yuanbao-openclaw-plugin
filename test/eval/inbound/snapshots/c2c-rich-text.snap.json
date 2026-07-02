@@ -1,0 +1,32 @@
+{
+  "fixtureId": "c2c-rich-text",
+  "snapshotVersion": 1,
+  "captured": {
+    "shouldDispatch": true,
+    "agentId": "default",
+    "sessionKey": "direct:user_rich",
+    "accountId": "bot-eval",
+    "chatType": "direct",
+    "isGroup": false,
+    "fromAccount": "user_rich",
+    "senderName": "富文本用户",
+    "rawBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "rewrittenBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "commandBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "commandParts": [],
+    "hasControlCommand": false,
+    "commandAuthorized": false,
+    "quotePresent": false,
+    "isAtBot": false,
+    "effectiveWasMentioned": false,
+    "mediaCount": 0,
+    "mediaPaths": [],
+    "mediaTypes": [],
+    "ctxBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "ctxBodyForAgent": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "ctxRawBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "ctxMessageSid": "user_rich-1",
+    "traceId": "trace-eval-fixed",
+    "seqId": "trace-eval-fixed"
+  }
+}

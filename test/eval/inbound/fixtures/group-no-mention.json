@@ -1,0 +1,15 @@
+{
+  "id": "group-no-mention",
+  "description": "Group message without @bot — resolveMention should drop it",
+  "input": {
+    "messageType": "group",
+    "groupCode": "group_003",
+    "fromAccount": "user_no_mention",
+    "senderNickname": "潜水员",
+    "content": "大家好呀",
+    "mentionBot": false
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手", "requireMention": true },
+  "expected": { "shouldDispatch": false },
+  "tags": ["group", "no-mention"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "cmd-unknown",
+  "description": "C2C unknown slash command — should pass through to AI (not a control command)",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_unknown_cmd",
+    "content": "/asdasdasd"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": true },
+  "tags": ["command", "unknown"]
+}

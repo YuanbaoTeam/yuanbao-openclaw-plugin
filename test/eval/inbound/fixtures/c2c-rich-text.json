@@ -1,0 +1,13 @@
+{
+  "id": "c2c-rich-text",
+  "description": "C2C rich text (markdown) message",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_rich",
+    "senderNickname": "富文本用户",
+    "content": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": true },
+  "tags": ["c2c", "rich-text"]
+}

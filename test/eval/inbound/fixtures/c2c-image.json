@@ -1,0 +1,22 @@
+{
+  "id": "c2c-image",
+  "description": "C2C image message — media should propagate to ctxPayload.MediaPaths",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_image",
+    "senderNickname": "图片用户",
+    "content": "看这张图",
+    "attachments": [
+      {
+        "type": "image",
+        "url": "fixture:sample.png",
+        "filename": "sample.png",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": true },
+  "tags": ["c2c", "image"]
+}

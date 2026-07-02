@@ -1,0 +1,15 @@
+{
+  "id": "cmd-help-no-access-groups",
+  "description": "C2C /help with useAccessGroups=false — snapshot captures real behavior",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_no_groups",
+    "content": "/help"
+  },
+  "config": {
+    "botUid": "bot_456",
+    "botName": "元宝助手",
+    "useAccessGroups": false
+  },
+  "tags": ["command", "help", "access-groups"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "special-chars",
+  "description": "C2C message with emoji, brackets, and special characters",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_special",
+    "senderNickname": "特殊字符用户",
+    "content": "[EMOJI:smile] 🎉 <tag> & \"quotes\" 'apos' 中文/한국/にほんご"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "expected": { "shouldDispatch": true },
+  "tags": ["edge", "special-chars"]
+}

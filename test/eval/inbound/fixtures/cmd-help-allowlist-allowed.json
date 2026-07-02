@@ -1,0 +1,17 @@
+{
+  "id": "cmd-help-allowlist-allowed",
+  "description": "C2C /help from sender in allowlist — should be authorized",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_allowed",
+    "content": "/help"
+  },
+  "config": {
+    "botUid": "bot_456",
+    "botName": "元宝助手",
+    "dmPolicy": "allowlist",
+    "dmAllowFrom": ["user_allowed"]
+  },
+  "expected": { "shouldDispatch": true },
+  "tags": ["command", "help", "dm-policy", "allowlist"]
+}

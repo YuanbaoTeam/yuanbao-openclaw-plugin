@@ -1,0 +1,33 @@
+{
+  "fixtureId": "group-mention-only",
+  "snapshotVersion": 1,
+  "captured": {
+    "shouldDispatch": true,
+    "agentId": "default",
+    "sessionKey": "group:group_002",
+    "accountId": "bot-eval",
+    "chatType": "group",
+    "isGroup": true,
+    "fromAccount": "user_mention_only",
+    "senderName": "user_mention_only",
+    "groupCode": "group_002",
+    "rawBody": "@元宝助手",
+    "rewrittenBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "commandBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "commandParts": [],
+    "hasControlCommand": false,
+    "commandAuthorized": false,
+    "quotePresent": false,
+    "isAtBot": true,
+    "effectiveWasMentioned": true,
+    "mediaCount": 0,
+    "mediaPaths": [],
+    "mediaTypes": [],
+    "ctxBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxBodyForAgent": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxRawBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxMessageSid": "user_mention_only-1",
+    "traceId": "trace-eval-fixed",
+    "seqId": "trace-eval-fixed"
+  }
+}

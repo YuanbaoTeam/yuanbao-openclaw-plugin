@@ -1,0 +1,13 @@
+{
+  "id": "group-mention-only",
+  "description": "Group message with only @bot and no text content",
+  "input": {
+    "messageType": "group",
+    "groupCode": "group_002",
+    "fromAccount": "user_mention_only",
+    "content": "",
+    "mentionBot": true
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手", "requireMention": true },
+  "tags": ["group", "mention"]
+}

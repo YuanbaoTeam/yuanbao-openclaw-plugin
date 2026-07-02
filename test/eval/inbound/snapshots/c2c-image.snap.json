@@ -1,0 +1,36 @@
+{
+  "fixtureId": "c2c-image",
+  "snapshotVersion": 1,
+  "captured": {
+    "shouldDispatch": true,
+    "agentId": "default",
+    "sessionKey": "direct:user_image",
+    "accountId": "bot-eval",
+    "chatType": "direct",
+    "isGroup": false,
+    "fromAccount": "user_image",
+    "senderName": "图片用户",
+    "rawBody": "看这张图\n[image:sample_1_1.png]",
+    "rewrittenBody": "看这张图\n[image:sample_1_1.png]",
+    "commandBody": "看这张图\n[image:sample_1_1.png]",
+    "commandParts": [],
+    "hasControlCommand": false,
+    "commandAuthorized": false,
+    "quotePresent": false,
+    "isAtBot": false,
+    "effectiveWasMentioned": false,
+    "mediaCount": 1,
+    "mediaPaths": [
+      "sample_1_1.png"
+    ],
+    "mediaTypes": [
+      "image/png"
+    ],
+    "ctxBody": "看这张图\n[image:sample_1_1.png]",
+    "ctxBodyForAgent": "看这张图\n[image:sample_1_1.png]",
+    "ctxRawBody": "看这张图\n[image:sample_1_1.png]",
+    "ctxMessageSid": "user_image-1",
+    "traceId": "trace-eval-fixed",
+    "seqId": "trace-eval-fixed"
+  }
+}

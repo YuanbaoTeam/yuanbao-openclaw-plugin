@@ -1,0 +1,11 @@
+{
+  "id": "cmd-help",
+  "description": "C2C /help control command",
+  "input": {
+    "messageType": "c2c",
+    "fromAccount": "user_help",
+    "content": "/help"
+  },
+  "config": { "botUid": "bot_456", "botName": "元宝助手" },
+  "tags": ["command", "help"]
+}
