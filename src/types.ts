@@ -55,6 +55,28 @@ export type YuanbaoAccountConfig = {
    * whether the bot should reply inside a topic when not explicitly @-mentioned.
    */
   topicSoulDir?: string;
+
+  /**
+   * LLM judge configuration for topic self-judge Phase 2.
+   *
+   * When enabled (and a topic's soul.md has a `## Auto Reply` section), the
+   * bot will run a lightweight judge call **through OpenClaw's own agent
+   * pipeline** (see topic-judge/llm-judge.ts::createOpenclawJudgeInvoker) to
+   * decide whether to reply in a topic even when rule matching doesn't hit.
+   *
+   * No external API endpoint / key is required — the judge shares the same
+   * agent backend as regular replies, isolated by a `:judge`-suffixed peer id.
+   * Operators who want a cheaper model for judge can bind a distinct agent to
+   * that peer at the OpenClaw config level.
+   *
+   * Can also be configured via environment variables:
+   * - `YUANBAO_LLM_JUDGE_ENABLED` — "true"/"1" to enable, "false"/"0" to disable
+   * - `YUANBAO_LLM_JUDGE_TIMEOUT_MS` — timeout in ms (default: 3000)
+   */
+  llmJudge?: {
+    enabled?: boolean;
+    timeoutMs?: number;
+  };
 };
 
 export type YuanbaoConfig = YuanbaoAccountConfig & {

@@ -4,16 +4,26 @@
  * Given a message and a topic's soul.md, decide whether the bot should reply
  * even though it wasn't explicitly @-mentioned.
  *
- * **MVP: rule-based only** — parses a `## Reply Rules` markdown section and
- * matches against `keyword` / `prefix` / `regex` lines. A future phase may
- * swap in a lightweight LLM judge; the async signature is preserved to keep
- * that swap non-breaking.
+ * Two-phase decision:
+ *   Phase 1 — Rule matching: fast-path keyword/prefix/regex rules from the
+ *             `## Reply Rules` section. If any rule hits → reply immediately.
+ *   Phase 2 — LLM judge: when rules miss but `## Auto Reply` is configured,
+ *             invoke a caller-supplied `judgeInvoker` (which runs the prompt
+ *             through OpenClaw's own agent pipeline in an isolated session)
+ *             to judge relevance based on persona, strategy, and recent
+ *             conversation history.
  *
- * Safe default: when no rules are configured, return `shouldReply=false` to
- * avoid the bot spamming every topic message.
+ * Safe default: when no rules are configured AND `judgeInvoker` is not
+ * provided, return `shouldReply=false` to avoid the bot spamming every message.
+ *
+ * Dependency inversion: this module accepts a plain `JudgeInvoker` function —
+ * it deliberately does NOT depend on the OpenClaw SDK, so tests can inject a
+ * stub without mocking `fetch` or the SDK surface.
  */
 
 import type { ModuleLog } from "../../../logger.js";
+import { buildJudgePrompt } from "./prompt-builder.js";
+import type { JudgeInvoker } from "./llm-judge.js";
 
 export interface TopicJudgeInput {
   topicId: string;
@@ -21,8 +31,14 @@ export interface TopicJudgeInput {
   senderNickname?: string;
   /** Full soul.md content. Empty string = no soul configured. */
   soul: string;
-  /** Recent topic-scoped history tail — reserved for phase 2 (LLM judge). */
+  /** Recent topic-scoped history tail for judge context. */
   historyTail?: string[];
+  /**
+   * Optional judge invoker. When provided (and `## Auto Reply` exists in
+   * soul), Phase 2 is enabled. Callers assemble this via
+   * `createOpenclawJudgeInvoker` in llm-judge.ts.
+   */
+  judgeInvoker?: JudgeInvoker;
   log?: ModuleLog;
 }
 
@@ -163,33 +179,58 @@ function matchRules(rawBody: string, r: ReplyRules): string | null {
 /**
  * Decide whether the bot should reply in a topic based on its soul.md.
  *
- * Phase 1 (MVP): pure rule matching against a `## Reply Rules` block.
- * Phase 2 (TODO): fall back to a lightweight LLM judge when no rule hits
- * but the soul has other guidance — kept as an async signature for that.
+ * Phase 1: pure rule matching against a `## Reply Rules` block (fast path).
+ * Phase 2: when rules miss, delegate to the caller-provided `judgeInvoker` if
+ *          `## Auto Reply` is configured.
  */
 export async function shouldBotReplyInTopic(
   input: TopicJudgeInput,
 ): Promise<TopicJudgeResult> {
-  const { soul, rawBody, log } = input;
+  const { soul, rawBody, senderNickname, historyTail, judgeInvoker, log } = input;
 
   if (!soul || !soul.trim()) {
-    return { shouldReply: false, reason: "no soul rules" };
+    return { shouldReply: false, reason: "no soul configured" };
   }
 
+  // ─── Phase 1: Rule matching (fast path) ───────────────────────────────
   const block = extractRulesBlock(soul);
-  if (!block.trim()) {
-    return { shouldReply: false, reason: "no soul rules" };
+  if (block.trim()) {
+    const rules = parseRules(block, log);
+    if (hasAnyRule(rules)) {
+      const hit = matchRules(rawBody, rules);
+      if (hit) {
+        return { shouldReply: true, reason: `matched rule: ${hit}` };
+      }
+    }
   }
 
-  const rules = parseRules(block, log);
-  if (!hasAnyRule(rules)) {
-    return { shouldReply: false, reason: "no soul rules" };
+  // ─── Phase 2: LLM judge (fallback) ────────────────────────────────────
+  if (!judgeInvoker) {
+    return { shouldReply: false, reason: "no rule matched" };
   }
 
-  const hit = matchRules(rawBody, rules);
-  if (hit) {
-    return { shouldReply: true, reason: `matched rule: ${hit}` };
+  const prompt = buildJudgePrompt({
+    soul,
+    rawBody,
+    senderNickname,
+    historyTail,
+  });
+
+  if (!prompt.hasAutoReplyConfig) {
+    return { shouldReply: false, reason: "no auto-reply config" };
   }
 
-  return { shouldReply: false, reason: "no rule matched" };
+  log?.info?.("[topic-judge] invoking LLM judge", {
+    topicId: input.topicId,
+    historyLen: historyTail?.length ?? 0,
+  });
+
+  const result = await judgeInvoker({ prompt: prompt.prompt, log });
+
+  return {
+    shouldReply: result.shouldReply,
+    reason: result.shouldReply
+      ? `llm-judge: ${result.reason}`
+      : `llm-judge-skip: ${result.reason}`,
+  };
 }

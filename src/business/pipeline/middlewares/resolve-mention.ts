@@ -28,7 +28,65 @@ import { parseTopicMeta } from "../utils/parse-topic-meta.js";
 import { deriveHistoryKey } from "../utils/history-key.js";
 import { loadSoulForTopic } from "../topic-judge/soul-loader.js";
 import { shouldBotReplyInTopic } from "../topic-judge/index.js";
+import { createOpenclawJudgeInvoker } from "../topic-judge/llm-judge.js";
+import type { JudgeInvoker } from "../topic-judge/llm-judge.js";
 import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
+
+// ─── LLM Judge activation ──────────────────────────────────────────────────
+
+/**
+ * Determine whether the LLM judge feature is enabled for this account.
+ *
+ * The judge now runs through OpenClaw's own agent pipeline (see
+ * `llm-judge.ts::createOpenclawJudgeInvoker`), so it no longer needs an
+ * external API url / key — only an on/off switch and an optional timeout.
+ *
+ * Env takes precedence over per-account config; explicit "false"/"0" via env
+ * hard-disables the feature even when config says true.
+ */
+function resolveJudgeActivation(accountConfig?: {
+  llmJudge?: {
+    enabled?: boolean;
+    timeoutMs?: number;
+  };
+}): { enabled: boolean; timeoutMs: number } {
+  const envEnabled = process.env.YUANBAO_LLM_JUDGE_ENABLED?.trim().toLowerCase();
+  const cfgEnabled = accountConfig?.llmJudge?.enabled;
+
+  if (envEnabled === "false" || envEnabled === "0") {
+    return { enabled: false, timeoutMs: 0 };
+  }
+  const enabled = envEnabled === "true" || envEnabled === "1" || cfgEnabled === true;
+
+  const timeoutMs =
+    Number(process.env.YUANBAO_LLM_JUDGE_TIMEOUT_MS) ||
+    accountConfig?.llmJudge?.timeoutMs ||
+    3000;
+
+  return { enabled, timeoutMs };
+}
+
+/**
+ * Build a JudgeInvoker for the current pipeline context, or return undefined
+ * when the feature is disabled. Keeps SDK-heavy assembly out of topic-judge
+ * itself (dependency inversion).
+ */
+function buildJudgeInvoker(ctx: PipelineContext, topicId: string): JudgeInvoker | undefined {
+  const { account, core, config, fromAccount, senderNickname, groupCode } = ctx;
+  const { enabled, timeoutMs } = resolveJudgeActivation(account.config);
+  if (!enabled || !groupCode) return undefined;
+
+  return createOpenclawJudgeInvoker({
+    core,
+    config,
+    groupCode,
+    topicId,
+    fromAccount,
+    senderNickname,
+    accountId: account.accountId,
+    timeoutMs,
+  });
+}
 
 /**
  * Record this message to group history + media LRU when the bot decides not
@@ -124,11 +182,22 @@ export const resolveMention: MiddlewareDescriptor = {
       const soul = await loadSoulForTopic(meta.topicId, {
         topicSoulDir: account.config?.topicSoulDir,
       });
+
+      // Build history tail for LLM judge context
+      const historyKey = deriveHistoryKey(ctx.groupCode!, meta.topicId);
+      const historyEntries = chatHistories.get(historyKey) ?? [];
+      const historyTail = historyEntries.map(e => e.body);
+
+      // Resolve judge invoker (feature flag + env vars)
+      const judgeInvoker = buildJudgeInvoker(ctx, meta.topicId);
+
       const judge = await shouldBotReplyInTopic({
         topicId: meta.topicId,
         rawBody: ctx.rawBody,
         senderNickname: ctx.senderNickname,
         soul,
+        historyTail,
+        judgeInvoker,
         log: ctx.log,
       });
       ctx.replyDecision = { source: "topic-judge", ...judge };
