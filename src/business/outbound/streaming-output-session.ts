@@ -42,6 +42,15 @@ export interface StreamingOutputSession {
   beginNewSegment(): void;
   /** Force-send all unsent text immediately (e.g. before a tool call) */
   flushNow(): Promise<void>;
+  /**
+   * Append trailing text to the cumulative buffer without triggering an
+   * intermediate flush. Intended for terminal markers (e.g. topic-id payload
+   * fallback) that must appear at the very end of the reply. Callers should
+   * invoke this exactly once, right before {@link finalize}. No-op when the
+   * session has no accumulated content, so streaming-only markers won't leak
+   * into an otherwise silent reply.
+   */
+  appendFinal(text: string): void;
   /** End session: send remaining unsent text, return true if anything was sent */
   finalize(): Promise<boolean>;
   /** Abort: discard all buffered content */
@@ -306,6 +315,15 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
     flushNow(): Promise<void> {
       if (disableBlockStreaming || aborted) return Promise.resolve();
       return enqueue(() => drainUnsent(true));
+    },
+
+    appendFinal(text: string): void {
+      if (aborted) return;
+      if (!text) return;
+      // Skip when we have nothing to append to — avoids emitting a lone marker
+      // (e.g. "[topicId: xxx]") for replies that never produced any content.
+      if (!cumulativeText) return;
+      cumulativeText += text;
     },
 
     async finalize(): Promise<boolean> {

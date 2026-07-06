@@ -56,18 +56,25 @@ export interface ResolvedTarget {
 /**
  * Extract group groupCode from toolContext.currentChannelId.
  *
- * Format example: `yuanbao:group:585003747`
- * Matches `yuanbao:group:` prefix and takes the remainder as groupCode.
+ * Format examples (both supported):
+ *   - `yuanbao:group:585003747`
+ *   - `yuanbao:group:585003747:topic:<topicId>` (topic-scoped)
+ *
+ * Only the segment immediately after `yuanbao:group:` is returned, so topic
+ * suffixes don't leak into the groupCode used by downstream IM tools.
  */
 export function extractGroupFromChannelId(channelId?: string): string | undefined {
   if (!channelId) {
     return undefined;
   }
   const prefix = "yuanbao:group:";
-  if (channelId.startsWith(prefix)) {
-    return channelId.slice(prefix.length);
+  if (!channelId.startsWith(prefix)) {
+    return undefined;
   }
-  return undefined;
+  const tail = channelId.slice(prefix.length);
+  // Stop at the next `:` so `<groupCode>:topic:<topicId>` collapses to `<groupCode>`.
+  const nextColon = tail.indexOf(":");
+  return nextColon === -1 ? tail : tail.slice(0, nextColon);
 }
 
 /**

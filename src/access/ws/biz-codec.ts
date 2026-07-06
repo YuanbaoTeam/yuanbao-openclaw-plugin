@@ -1,7 +1,7 @@
 /** Business-layer Protobuf codec — encode/decode for business messages. */
 
 import protobuf from "protobufjs";
-import { createLog } from "../../logger.js";
+import { createLog, formatLog, logger } from "../../logger.js";
 import type {
   YuanbaoInboundMessage,
   YuanbaoLogInfoExt,
@@ -261,6 +261,7 @@ export function encodeSendGroupMessageReq(data: WsSendGroupMessageData): Uint8Ar
     refMsgId: data.ref_msg_id ?? "",
     ...(data.msg_seq !== undefined ? { msgSeq: data.msg_seq } : {}),
     ...(logExt ? { logExt } : {}),
+    ...(data.cloud_custom_data ? { cloudCustomData: data.cloud_custom_data } : {}),
   });
 }
 
@@ -286,8 +287,42 @@ export function encodeSendGroupHeartbeatReq(data: WsSendGroupHeartbeatData): Uin
   });
 }
 
+/**
+ * Build a display-safe clone of a proto/TS msg_body that truncates any large
+ * base64 `data` / `dataBase64` fields (e.g. image payloads). Used only for
+ * logging — must never mutate the real message.
+ */
+function truncateMsgBodyForLog(
+  msgBody: unknown,
+  maxLen = 64,
+): unknown {
+  if (!Array.isArray(msgBody)) return msgBody;
+  return msgBody.map((el) => {
+    if (!el || typeof el !== "object") return el;
+    const cloned: Record<string, unknown> = { ...(el as Record<string, unknown>) };
+    // Handle both proto shape (msgContent) and TS shape (msg_content)
+    for (const key of ["msgContent", "msg_content"] as const) {
+      const mc = cloned[key];
+      if (mc && typeof mc === "object") {
+        const mcClone: Record<string, unknown> = { ...(mc as Record<string, unknown>) };
+        for (const dataKey of ["data", "dataBase64"] as const) {
+          const v = mcClone[dataKey];
+          if (typeof v === "string" && v.length > maxLen) {
+            mcClone[dataKey] = `${v.slice(0, maxLen)}…(len=${v.length})`;
+          }
+        }
+        cloned[key] = mcClone;
+      }
+    }
+    return cloned;
+  });
+}
+
 /** Decode inbound message proto bytes into YuanbaoInboundMessage. */
-export function decodeInboundMessage(data: Uint8Array | ArrayBuffer): YuanbaoInboundMessage | null {
+export function decodeInboundMessage(
+  data: Uint8Array | ArrayBuffer,
+  logSink?: { info?: (msg: string) => void; error?: (msg: string) => void },
+): YuanbaoInboundMessage | null {
   const decoded = decodeBizPB(BIZ_MSG_TYPES.InboundMessagePush, data) as PBInboundMessage | null;
   if (!decoded) {
     return null;
@@ -305,7 +340,45 @@ export function decodeInboundMessage(data: Uint8Array | ArrayBuffer): YuanbaoInb
     msgId: decoded.msgId || "?",
   });
 
-  return {
+  // Route info-level dumps through the SDK-provided log sink (surfaces in
+  // gateway.log). The plugin `logger` singleton writes to a different sink
+  // that does not appear in gateway.log at this call site.
+  const emitInfo = (line: string): void => {
+    if (logSink?.info) {
+      logSink.info(line);
+    } else {
+      logger.info(line); // fallback (may not surface in gateway.log)
+    }
+  };
+
+  // [inbound-proto] Dump the full protobuf-decoded object (camelCase) — the
+  // earliest structured form of the message after `type.decode()`. Base64
+  // media payloads are truncated. Uses skipSanitize so cloud_custom_data is
+  // visible for debugging (temporary; safe because gateway.log is local-only).
+  try {
+    const line = formatLog(
+      "biz-codec",
+      "[inbound-proto] decoded protobuf payload",
+      {
+        msgId: decoded.msgId,
+        fromAccount: decoded.fromAccount,
+        groupCode: decoded.groupCode ?? decoded.groupId,
+        senderNickname: decoded.senderNickname,
+        cloudCustomData: decoded.cloudCustomData,
+        callbackCommand: decoded.callbackCommand,
+        clawMsgType: decoded.clawMsgType,
+        msgBody: truncateMsgBodyForLog(decoded.msgBody),
+        traceId: traceId ?? "(none)",
+        seqId: seqId ?? "(none)",
+      },
+      true, // skipSanitize
+    );
+    emitInfo(line);
+  } catch (err) {
+    log.error("[inbound-proto] serialize failed", { error: String(err) });
+  }
+
+  const result: YuanbaoInboundMessage = {
     callback_command: decoded.callbackCommand || undefined,
     from_account: decoded.fromAccount || undefined,
     to_account: decoded.toAccount || undefined,
@@ -328,6 +401,35 @@ export function decodeInboundMessage(data: Uint8Array | ArrayBuffer): YuanbaoInb
     trace_id: traceId,
     seq_id: seqId,
   };
+
+  // [inbound-ts] Dump the final YuanbaoInboundMessage (snake_case) — this is
+  // exactly what the pipeline will see as `ctx.raw` before engine's
+  // [inbound-inject] workaround mutates cloud_custom_data.
+  try {
+    const line = formatLog(
+      "biz-codec",
+      "[inbound-ts] YuanbaoInboundMessage built",
+      {
+        msg_id: result.msg_id,
+        from_account: result.from_account,
+        to_account: result.to_account,
+        group_code: result.group_code ?? result.group_id,
+        sender_nickname: result.sender_nickname,
+        cloud_custom_data: result.cloud_custom_data,
+        callback_command: result.callback_command,
+        claw_msg_type: result.claw_msg_type,
+        msg_body: truncateMsgBodyForLog(result.msg_body),
+        trace_id: result.trace_id,
+        seq_id: result.seq_id,
+      },
+      true, // skipSanitize
+    );
+    emitInfo(line);
+  } catch (err) {
+    log.error("[inbound-ts] serialize failed", { error: String(err) });
+  }
+
+  return result;
 }
 
 /** Decode C2C outbound response. */

@@ -4,7 +4,7 @@ import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/core";
 import { buildSyncCommandsPayload } from "../../business/commands/command-sync/index.js";
 import { handleInboundMessage } from "../../business/inbound/index.js";
 import { resolveTraceContext } from "../../business/trace/context.js";
-import { createLog } from "../../logger.js";
+import { createLog, formatLog } from "../../logger.js";
 import type { ModuleLog } from "../../logger.js";
 import type {
   ResolvedYuanbaoAccount,
@@ -234,8 +234,8 @@ function hasValidMsgFields(msg: Record<string, unknown>): boolean {
   return Boolean(msg.callback_command || msg.from_account || msg.msg_body);
 }
 
-function decodeFromProtobuf(rawData: Uint8Array, pushType: string): InboundResult | null {
-  const decoded = decodeInboundMessage(rawData);
+function decodeFromProtobuf(rawData: Uint8Array, pushType: string, log?: GatewayLog): InboundResult | null {
+  const decoded = decodeInboundMessage(rawData, log);
   if (!decoded || !hasValidMsgFields(decoded as Record<string, unknown>)) {
     return null;
   }
@@ -299,36 +299,98 @@ export function wsPushToInboundMessage(
 ): InboundResult | null {
   const wsLog = createLog("ws", log);
 
+        const line = formatLog(
+        "ws",
+        `[inbound-decoded] via first line`,
+        {
+          rowData: pushEvent.rawData
+        },
+        true, // skipSanitize — need cloud_custom_data / msg_body visible
+      );
+  (log?.info ?? wsLog.info)(line);
+
+  // Snapshot which raw sources are available on this push event — the
+  // subsequent decode chain will select at most one. Logged together with the
+  // final decoded message so we can tell exactly which branch produced ctx.raw.
+  const sources = {
+    hasConnData: Boolean(pushEvent.connData && pushEvent.connData.length > 0),
+    connDataLen: pushEvent.connData?.length ?? 0,
+    hasRawData: Boolean(pushEvent.rawData && pushEvent.rawData.length > 0),
+    rawDataLen: pushEvent.rawData?.length ?? 0,
+    hasContent: Boolean(pushEvent.content),
+    contentLen: typeof pushEvent.content === "string" ? pushEvent.content.length : 0,
+  };
+  let decodeBranch: "connData-proto" | "rawData-proto" | "rawData-json" | "content" | "none" = "none";
+
+  let result: InboundResult | null = null;
+
   // First try decoding full ConnMsg.data directly (backend may omit the PushMsg wrapper)
   if (pushEvent.connData && pushEvent.connData.length > 0) {
     wsLog.debug(`[${pushEvent.type}] WS push decode via connData (connData.length=${pushEvent.connData.length})`);
     const pushType = String(pushEvent.type ?? "");
-    const result = decodeFromProtobuf(pushEvent.connData, pushType);
+    result = decodeFromProtobuf(pushEvent.connData, pushType, log);
     if (result) {
-      return result;
+      decodeBranch = "connData-proto";
     }
   }
 
   // connData decode failed — fallback to rawData (PushMsg.data)
-  if (pushEvent.rawData && pushEvent.rawData.length > 0) {
+  if (!result && pushEvent.rawData && pushEvent.rawData.length > 0) {
     const pushType = String(pushEvent.type ?? "rawData");
     wsLog.debug(`[${pushType}] WS push decode via rawData`);
-    const result = decodeFromProtobuf(pushEvent.rawData, pushType)
-      ?? decodeFromRawDataJson(pushEvent.rawData, pushType);
-    if (result) {
-      return result;
+    const proto = decodeFromProtobuf(pushEvent.rawData, pushType, log);
+    if (proto) {
+      result = proto;
+      decodeBranch = "rawData-proto";
+    } else {
+      const json = decodeFromRawDataJson(pushEvent.rawData, pushType);
+      if (json) {
+        result = json;
+        decodeBranch = "rawData-json";
+      }
     }
-    wsLog.warn(`[${pushType}] WS push decode failed`);
+    if (!result) {
+      wsLog.warn(`[${pushType}] WS push decode failed`);
+    }
   }
 
-  if (pushEvent.content) {
+  if (!result && pushEvent.content) {
     wsLog.debug(`[${pushEvent.type || "content"}] WS push decode via content`, {
       content: pushEvent.content,
     });
-    return decodeFromContent(pushEvent);
+    result = decodeFromContent(pushEvent);
+    if (result) {
+      decodeBranch = "content";
+    }
   }
 
-  return null;
+  // [inbound-decoded] Uniform dump of the final YuanbaoInboundMessage regardless
+  // of which decode branch produced it. This is what the pipeline will see as
+  // ctx.raw before engine's [inbound-inject] workaround mutates it.
+  //
+  // NOTE: route through the SDK-provided `log` sink (same path as
+  // [inbound-raw] in engine.ts). The plugin `logger` singleton writes to a
+  // different sink that does NOT surface in gateway.log for this call site.
+  if (result) {
+    try {
+      const line = formatLog(
+        "ws",
+        `[inbound-decoded] via ${decodeBranch}`,
+        {
+          decodeBranch,
+          sources,
+          chatType: result.chatType,
+          msg: result.msg,
+        },
+        true, // skipSanitize — need cloud_custom_data / msg_body visible
+      );
+      (log?.info ?? wsLog.info)(line);
+    } catch (err) {
+      wsLog.error("[inbound-decoded] serialize failed", { error: String(err) });
+    }
+  }
+
+  return result;
 }
 
 /**

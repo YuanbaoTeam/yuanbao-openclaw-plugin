@@ -132,6 +132,15 @@ void test("encodeSendGroupMessageReq encodes group + ref + body", () => {
   assert.equal(back.msgBody[0].msgContent.text, "hello");
 });
 
+void test("encodeSendGroupMessageReq round-trips cloudCustomData when set", () => {
+  const bytes = encodeSendGroupMessageReq({
+    group_code: "g-1", msg_body: textBody, cloud_custom_data: JSON.stringify({ topicId: "t-42" }),
+  });
+  assert.ok(bytes);
+  const back = decodeBizPB(BIZ_MSG_TYPES.SendGroupMessageReq, bytes) as DecodedPB;
+  assert.equal(back.cloudCustomData, JSON.stringify({ topicId: "t-42" }));
+});
+
 void test("encodeSendPrivateHeartbeatReq dual-writes fromAccount/fromtAccount", () => {
   const bytes = encodeSendPrivateHeartbeatReq({
     from_account: "bot", to_account: "u-1", heartbeat: WS_HEARTBEAT.RUNNING,

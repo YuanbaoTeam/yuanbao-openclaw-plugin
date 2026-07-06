@@ -19,6 +19,8 @@ export function createMessageSender(params: SendParams): MessageSender {
     wsClient,
     core,
     traceContext,
+    cloudCustomData,
+    log,
   } = params;
 
   // Build delivery target context
@@ -32,6 +34,8 @@ export function createMessageSender(params: SendParams): MessageSender {
     refFromAccount,
     wsClient,
     traceContext,
+    ...(cloudCustomData ? { cloudCustomData } : {}),
+    ...(log ? { log } : {}),
   };
 
   const sender: MessageSender = {

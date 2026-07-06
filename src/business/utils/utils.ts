@@ -35,8 +35,13 @@ export function isYbGroupChat(ctx: OpenClawPluginToolContext): boolean {
 /**
  * Extract groupCode from a Yuanbao group chat sessionKey.
  *
- * sessionKey format: `agent:<agentId>:yuanbao:group:<groupCode>`
- * Matches `yuanbao:group:` and returns the trailing part as groupCode.
+ * sessionKey formats (both supported):
+ *   - `agent:<agentId>:yuanbao:group:<groupCode>`
+ *   - `agent:<agentId>:yuanbao:group:<groupCode>:topic:<topicId>` (topic-scoped)
+ *
+ * We split on `:` and take only the first segment after `yuanbao:group:`,
+ * so topic-scoped sessions still yield a clean groupCode for downstream
+ * IM tools (send-message / member-list / group-info).
  */
 export function extractGroupCode(sessionKey: string): string {
   const prefix = "yuanbao:group:";
@@ -44,7 +49,10 @@ export function extractGroupCode(sessionKey: string): string {
   if (idx === -1) {
     return "";
   }
-  return sessionKey.slice(idx + prefix.length);
+  const tail = sessionKey.slice(idx + prefix.length);
+  // Stop at the next `:` so `<groupCode>:topic:<topicId>` collapses to `<groupCode>`.
+  const nextColon = tail.indexOf(":");
+  return nextColon === -1 ? tail : tail.slice(0, nextColon);
 }
 
 // MCP response builders

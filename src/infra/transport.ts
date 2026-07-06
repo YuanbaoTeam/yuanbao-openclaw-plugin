@@ -7,7 +7,7 @@
 import type { YuanbaoWsClient } from "../access/ws/client.js";
 import type { SendResult } from "../business/outbound/types.js";
 import type { YuanbaoTraceContext } from "../business/trace/context.js";
-import { createLog } from "../logger.js";
+import { createLog, type ModuleLog } from "../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoMsgBodyElement } from "../types.js";
 import { getMember } from "./cache/member.js";
 import { InMemoryTtlDb } from "./cache/ttl-db.js";
@@ -110,6 +110,14 @@ export async function sendGroupMsgBody(params: {
   refFromAccount?: string;
   wsClient: YuanbaoWsClient;
   traceContext?: YuanbaoTraceContext;
+  /** JSON string echoed to peers via IM (currently used for topic-id round-trip). */
+  cloudCustomData?: string;
+  /**
+   * Optional caller-provided logger. When passed (typically pipeline `ctx.log`),
+   * transport-level info/warn/error will use it so the events land in the same
+   * sink as pipeline logs. Falls back to the module-scoped createLog otherwise.
+   */
+  log?: ModuleLog;
 }): Promise<SendResult> {
   const {
     account,
@@ -120,12 +128,23 @@ export async function sendGroupMsgBody(params: {
     refFromAccount,
     wsClient,
     traceContext,
+    cloudCustomData,
   } = params;
-  const log = createLog("transport");
+  const log = params.log ?? createLog("transport");
   const msgRandom = String(Math.floor(Math.random() * 4294967295));
   const attachRef = await shouldAttachReplyRef({ account, refMsgId, groupCode, refFromAccount });
 
   try {
+    // [DEBUG] 出站前打一条 info，把最终写入 protobuf 帧的 cloud_custom_data 值
+    // 落到 gateway.log，用来验证 bot 回复是否真的回带 topicId。上线前删。
+    log.info("[group] outbound frame", {
+      groupCode,
+      refMsgId,
+      attachRef,
+      cloudCustomData: cloudCustomData ?? null,
+      msgBodyTypes: msgBody.map((el) => el.msg_type),
+    });
+
     const result = await wsClient.sendGroupMessage({
       msg_id: refMsgId,
       group_code: groupCode,
@@ -135,6 +154,7 @@ export async function sendGroupMsgBody(params: {
       ...(attachRef ? { ref_msg_id: refMsgId } : {}),
       ...(traceContext ? { trace_id: traceContext.traceId } : {}),
       ...(traceContext ? { msg_seq: traceContext.nextMsgSeq() } : {}),
+      ...(cloudCustomData ? { cloud_custom_data: cloudCustomData } : {}),
     });
 
     const sendResult: SendResult = {

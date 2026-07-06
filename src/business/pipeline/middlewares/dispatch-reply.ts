@@ -20,6 +20,25 @@ import type { MiddlewareDescriptor } from "../types.js";
 
 const DELIVER_TEXT_CHUNK_LIMIT = 1200;
 
+/**
+ * Build the trailing topic-id marker appended to every Bot reply body.
+ *
+ * Background: sender already writes `topicId` to IM `cloud_custom_data` (see
+ * prepare-sender), but the front-end currently cannot read cloud_custom_data
+ * through its IM SDK. As a payload fallback, we also embed the topicId inside
+ * the visible text on its own line, so the front-end can regex it out for
+ * topic attribution before rendering.
+ *
+ * Format (isolated on its own line so a simple end-anchored regex works):
+ *   \n\n[topicId: <uuid>]
+ *
+ * Front-end match: /\n?\n?\[topicId:\s*([0-9a-f-]+)\]\s*$/i
+ */
+function buildTopicIdMarker(topicId: string | undefined): string {
+  if (!topicId) return "";
+  return `\n\n[topicId: ${topicId}]`;
+}
+
 async function resolveStatusVersionSuffix(): Promise<string> {
   try {
     const installed = await readInstalledVersion(PLUGIN_ID);
@@ -118,6 +137,15 @@ export const dispatchReply: MiddlewareDescriptor = {
         dispatcherOptions: {
           ...replyPipeline,
           deliver: async (payload: Record<string, unknown>, info: { kind: string }) => {
+            // [DEBUG] 探针：sender.sendText 一次都没被走，先看 deliver 回调是不是根本没被 SDK 调
+            ctx.log.info("[dispatch-reply.deliver] called", {
+              kind: info.kind,
+              isReasoning: Boolean(payload.isReasoning),
+              isCompactionNotice: Boolean(payload.isCompactionNotice),
+              hasText: typeof payload.text === "string" && payload.text.length > 0,
+              textPreview: typeof payload.text === "string" ? payload.text.slice(0, 60) : null,
+              aborted: Boolean(ctx.abortSignal?.aborted),
+            });
             if (ctx.abortSignal?.aborted) return;
             if (payload.isReasoning || payload.isCompactionNotice) return;
             if (info.kind === "tool") return;
@@ -140,6 +168,10 @@ export const dispatchReply: MiddlewareDescriptor = {
                   outText += await resolveStatusVersionSuffix();
                   statusVersionSuffixAppended = true;
                 }
+                // [topic-id payload fallback] Append trailing marker so the
+                // front-end can attribute this reply to its originating topic
+                // even when it fails to read cloud_custom_data via the IM SDK.
+                outText += buildTopicIdMarker(ctx.topicId);
                 const chunks = chunkMarkdown(outText, DELIVER_TEXT_CHUNK_LIMIT);
                 for (const chunk of chunks) {
                   if (chunk.trim()) {
@@ -173,6 +205,14 @@ export const dispatchReply: MiddlewareDescriptor = {
           onPartialReply: async (payload: { text?: string }) => {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
             const text = typeof payload.text === "string" ? payload.text : "";
+            // [DEBUG] 探针：观察 partial reply 是不是被 StreamingOutputSession 消化
+            // ——如果是走 session.update 路径，最终会由 session 自己调 sender，
+            // 而不会触发上面的 deliver 回调。看它有没有被喂内容。
+            ctx.log.info("[dispatch-reply.onPartialReply] called", {
+              hasText: text.length > 0,
+              textLen: text.length,
+              textPreview: text.slice(0, 60),
+            });
             if (!text) return;
             await session.update(text);
           },
@@ -197,6 +237,12 @@ export const dispatchReply: MiddlewareDescriptor = {
         await doDispatchReply();
       }
 
+      // [topic-id payload fallback] Append trailing marker to the streaming
+      // buffer right before finalize, so the topic-id appears at the very end
+      // of the last chunk (no-op if the session never accumulated content).
+      // The non-streaming deliver-path handles the marker inline above.
+      session.appendFinal(buildTopicIdMarker(ctx.topicId));
+
       const flushed = await session.finalize();
       if (flushed) hasSentContent = true;
 
@@ -206,7 +252,7 @@ export const dispatchReply: MiddlewareDescriptor = {
         const { fallbackReply } = account;
         if (fallbackReply) {
           ctx.log.warn("[dispatch-reply] AI 未返回任何内容，使用 fallbackReply");
-          await sender.sendText(fallbackReply);
+          await sender.sendText(fallbackReply + buildTopicIdMarker(ctx.topicId));
         } else {
           ctx.log.warn("[dispatch-reply] AI 未返回任何内容");
         }

@@ -69,6 +69,16 @@ export interface PipelineContext {
 
   // -- Populated by resolveMention --
   effectiveWasMentioned: boolean;
+  /** Topic id parsed from cloud_custom_data (undefined when message is not from a topic). */
+  topicId?: string;
+  /** True when cloud_custom_data.botMuted === true (L0 — highest-priority skip). */
+  isMuted?: boolean;
+  /** Records which decision layer produced the final reply/skip verdict. */
+  replyDecision?: {
+    source: "mute" | "at-mention" | "topic-judge" | "default-gating";
+    shouldReply: boolean;
+    reason?: string;
+  };
 
   // -- Populated by downloadMedia --
   mediaPaths: string[];

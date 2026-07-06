@@ -22,6 +22,12 @@ void test("extractGroupCode pulls the trailing group code", () => {
   assert.equal(extractGroupCode("agent:a:yuanbao:user:u1"), "");
 });
 
+void test("extractGroupCode strips topic suffix (topic-scoped sessionKey)", () => {
+  // Topic-scoped sessions still resolve to a clean groupCode so downstream
+  // IM tools (send-message / member-list) get the plain group id.
+  assert.equal(extractGroupCode("agent:a:yuanbao:group:585003747:topic:t-42"), "585003747");
+});
+
 void test("text/json MCP response builders", () => {
   assert.deepEqual(text("hi"), { content: [{ type: "text", text: "hi" }] });
   const j = json({ a: 1 });

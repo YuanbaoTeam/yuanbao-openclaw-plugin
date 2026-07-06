@@ -9,6 +9,7 @@
 
 import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import { sendC2CMsgBody, sendGroupMsgBody } from "../../infra/transport.js";
+import type { ModuleLog } from "../../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoMsgBodyElement } from "../../types.js";
 import type { SendResult } from "../outbound/types.js";
 import type { YuanbaoTraceContext } from "../trace/context.js";
@@ -25,6 +26,19 @@ export interface DeliverTarget {
   refFromAccount?: string;
   wsClient: YuanbaoWsClient;
   traceContext?: YuanbaoTraceContext;
+  /**
+   * JSON string forwarded verbatim to the IM server as `cloud_custom_data`
+   * (currently used to carry `topicId` so the front-end can attribute the
+   * reply to the originating topic). Only applied on group sends today —
+   * C2C does not have a corresponding proto field.
+   */
+  cloudCustomData?: string;
+  /**
+   * Optional caller-provided logger. Forwarded to transport so out-frame logs
+   * (e.g. `[group] outbound frame`) share the pipeline log sink and land in
+   * gateway.log. Falls back to transport's own createLog when omitted.
+   */
+  log?: ModuleLog;
 }
 
 /**
@@ -45,6 +59,8 @@ export async function deliver(
       refFromAccount: dt.refFromAccount,
       wsClient: dt.wsClient,
       traceContext: dt.traceContext,
+      cloudCustomData: dt.cloudCustomData,
+      log: dt.log,
     })
     : sendC2CMsgBody({
       account: dt.account,

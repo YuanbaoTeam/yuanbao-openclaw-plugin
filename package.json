@@ -32,6 +32,7 @@
     "coverage:diff:staged": "node scripts/diff-coverage.mjs --staged --min 80",
     "hooks:install": "node scripts/install-hooks.mjs",
     "release": "bash scripts/release.sh",
+    "reload": "bash scripts/reload.sh",
     "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {

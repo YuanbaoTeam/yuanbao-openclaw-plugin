@@ -87,6 +87,12 @@ export type WsSendGroupMessageData = {
   ref_msg_id?: string;
   msg_seq?: number | string;
   trace_id?: string;
+  /**
+   * Opaque JSON string echoed by the IM server so downstream clients (front-end
+   * tagger, etc.) can round-trip metadata like `topicId`. Server may ignore
+   * unknown fields; leaving this empty preserves legacy behavior.
+   */
+  cloud_custom_data?: string;
 };
 
 /** Union type for outbound message requests */

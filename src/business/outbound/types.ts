@@ -7,6 +7,7 @@
 import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/core";
 import type { OutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
 import type { YuanbaoWsClient } from "../../access/ws/client.js";
+import type { ModuleLog } from "../../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoMsgBodyElement } from "../../types.js";
 import type { YuanbaoTraceContext } from "../trace/context.js";
 
@@ -38,6 +39,18 @@ export interface SendParams {
   config: OpenClawConfig;
   core: PluginRuntime;
   traceContext?: YuanbaoTraceContext;
+  /**
+   * Optional cloud_custom_data JSON echoed on every outbound message from this
+   * sender (currently used for topic-id round-trip so the front-end can
+   * attribute Bot replies back to the originating topic).
+   */
+  cloudCustomData?: string;
+  /**
+   * Optional caller-provided logger. When passed (typically pipeline `ctx.log`),
+   * every send driven by this sender will forward it down to the transport
+   * layer so out-frame logs share the same sink as the pipeline logs.
+   */
+  log?: ModuleLog;
 }
 
 /** Message sender interface */

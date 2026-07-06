@@ -212,6 +212,10 @@
                         "logExt": {
                           "type": "LogInfoExt",
                           "id": 9
+                        },
+                        "cloudCustomData": {
+                          "type": "string",
+                          "id": 10
                         }
                       }
                     },

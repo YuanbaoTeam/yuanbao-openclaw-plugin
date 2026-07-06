@@ -19,6 +19,7 @@ function setupMocks(t: any) {
           fromAccount: opts.fromAccount,
           refMsgId: opts.refMsgId,
           refFromAccount: opts.refFromAccount,
+          cloudCustomData: opts.cloudCustomData,
           sendText: async () => {},
         }),
       },
@@ -104,4 +105,52 @@ void test("prepare-sender: C2C sets fromAccount from botId", async (t) => {
   await prepareSender.handler(ctx, next);
 
   assert.equal((ctx.sender as any).fromAccount, "my-bot-id", "fromAccount should use botId");
+});
+
+void test("prepare-sender: no topicId → cloudCustomData undefined (legacy)", async (t) => {
+  setupMocks(t);
+  const { prepareSender } = await import("./prepare-sender.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    groupCode: "group-001" as any,
+    fromAccount: "user-001",
+    account: { accountId: "bot-001", botId: "bot-001", disableBlockStreaming: false } as any,
+    route: { agentId: "agent-001", sessionKey: "s", accountId: "bot-001" } as any,
+    raw: {} as any,
+    config: {} as any,
+    core: { channel: { text: { chunkMarkdownText: (t: string) => [t] } } } as any,
+    // topicId intentionally omitted
+  });
+  const { next } = createMockNext();
+
+  await prepareSender.handler(ctx, next);
+
+  assert.equal((ctx.sender as any).cloudCustomData, undefined, "no topic → no cloudCustomData");
+});
+
+void test("prepare-sender: topicId → cloudCustomData carries {topicId}", async (t) => {
+  setupMocks(t);
+  const { prepareSender } = await import("./prepare-sender.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    groupCode: "group-001" as any,
+    fromAccount: "user-001",
+    account: { accountId: "bot-001", botId: "bot-001", disableBlockStreaming: false } as any,
+    route: { agentId: "agent-001", sessionKey: "s", accountId: "bot-001" } as any,
+    raw: {} as any,
+    config: {} as any,
+    core: { channel: { text: { chunkMarkdownText: (t: string) => [t] } } } as any,
+    topicId: "t-42",
+  });
+  const { next } = createMockNext();
+
+  await prepareSender.handler(ctx, next);
+
+  assert.equal(
+    (ctx.sender as any).cloudCustomData,
+    JSON.stringify({ topicId: "t-42" }),
+    "topic-scoped sender must echo topicId in cloud_custom_data",
+  );
 });

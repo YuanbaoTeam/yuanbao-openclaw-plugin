@@ -45,6 +45,16 @@ export type YuanbaoAccountConfig = {
   markdownHintEnabled?: boolean;
   /** Logs for whitelisted bots are not sanitized */
   debugBotIds?: string[];
+  /**
+   * Directory holding per-topic soul.md files, one per topic.
+   *
+   * Layout: `<topicSoulDir>/<topicId>.md`
+   *
+   * Supports `~` prefix (home directory). Defaults to `~/.openclaw/topic-souls/`
+   * when unset. Used by the topic-judge middleware (L2 self-judge) to decide
+   * whether the bot should reply inside a topic when not explicitly @-mentioned.
+   */
+  topicSoulDir?: string;
 };
 
 export type YuanbaoConfig = YuanbaoAccountConfig & {
@@ -179,6 +189,10 @@ export type CloudCustomData = {
   message_type?: number;
   quote?: QuoteInfo;
   source_group?: string;
+  /** Topic id — messages in the same topic share an independent OpenClaw session. */
+  topicId?: string;
+  /** When true, bot must not reply in this topic (overrides even @mention). */
+  botMuted?: boolean;
   [key: string]: unknown;
 };
 

@@ -1,6 +1,11 @@
 /**
  * Middleware: build FinalizedMsgContext using SDK finalizeInboundContext.
  * Also builds history context for group chat scenarios.
+ *
+ * History keying is topic-aware — `deriveHistoryKey(groupCode, topicId)` is
+ * the single source of truth for the bucket key, and matches what
+ * `resolve-mention.recordToHistory` uses on the write side. Different topics
+ * inside the same group therefore see (and consume) independent histories.
  */
 
 import {
@@ -10,6 +15,7 @@ import {
 import { chatHistories } from "../../messaging/chat-history.js";
 import { YUANBAO_MARKDOWN_HINT } from "../../messaging/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
+import { deriveHistoryKey } from "../utils/history-key.js";
 
 export const buildContext: MiddlewareDescriptor = {
   name: "build-context",
@@ -21,6 +27,7 @@ export const buildContext: MiddlewareDescriptor = {
       fromAccount,
       senderNickname,
       groupCode,
+      topicId,
       rewrittenBody,
       commandParts,
       mediaPaths,
@@ -50,18 +57,19 @@ export const buildContext: MiddlewareDescriptor = {
       body: rewrittenBody,
     });
 
-    // Group chat: build history context
+    // Group chat: build history context (topic-scoped when topicId present).
     let combinedBody = body;
     let inboundHistory:
     | Array<{ sender: string | undefined; body: string; timestamp: number | undefined }>
     | undefined;
+    const historyKey = isGroup && groupCode ? deriveHistoryKey(groupCode, topicId) : undefined;
 
-    if (isGroup && groupCode) {
+    if (isGroup && groupCode && historyKey) {
       const { historyLimit } = account;
 
       combinedBody = buildPendingHistoryContextFromMap({
         historyMap: chatHistories,
-        historyKey: groupCode,
+        historyKey,
         limit: historyLimit,
         currentMessage: body,
         formatEntry: entry => core.channel.reply.formatAgentEnvelope({
@@ -74,7 +82,7 @@ export const buildContext: MiddlewareDescriptor = {
       });
 
       inboundHistory = historyLimit > 0
-        ? (chatHistories.get(groupCode) ?? []).map(entry => ({
+        ? (chatHistories.get(historyKey) ?? []).map(entry => ({
           sender: entry.sender,
           body: entry.body,
           timestamp: entry.timestamp,
@@ -116,11 +124,11 @@ export const buildContext: MiddlewareDescriptor = {
 
     await next();
 
-    // Group chat: clear consumed history after AI reply completes
-    if (isGroup && groupCode) {
+    // Group chat: clear consumed history after AI reply completes (same key we read from).
+    if (isGroup && historyKey) {
       clearHistoryEntriesIfEnabled({
         historyMap: chatHistories,
-        historyKey: groupCode,
+        historyKey,
         limit: account.historyLimit,
       });
     }

@@ -16,6 +16,11 @@ void test("extractGroupFromChannelId parses the yuanbao group prefix", () => {
   assert.equal(extractGroupFromChannelId(undefined), undefined);
 });
 
+void test("extractGroupFromChannelId strips topic suffix", () => {
+  // Topic-scoped channelId still yields the plain groupCode.
+  assert.equal(extractGroupFromChannelId("yuanbao:group:585003747:topic:t-1"), "585003747");
+});
+
 void test("resolveActionTarget: explicit group target", () => {
   const r = resolveActionTarget({ cfg, params: { to: "group:g-1" } });
   assert.equal(r.isGroup, true);
