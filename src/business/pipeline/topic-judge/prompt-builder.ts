@@ -84,15 +84,114 @@ export function extractAutoReplyBlock(soul: string): string {
   return lines.slice(start, end).join("\n").trim();
 }
 
+/** Character cap used when the persona is only for the *judge* prompt (lean). */
+const JUDGE_PERSONA_MAX_CHARS = 400;
+
+/** Character cap used when the persona is injected into the *main reply* prompt (richer). */
+const REPLY_PERSONA_MAX_CHARS = 1500;
+
+/** Match `## Persona`, `## persona`, `## PERSONA` (with optional trailing spaces). */
+const PERSONA_HEADING = /^##\s+persona\s*$/i;
+
+/** Match `## Muted` (with optional trailing spaces, case-insensitive). */
+const MUTED_HEADING = /^##\s+muted\s*$/i;
+
 /**
- * Extract a brief persona description from soul.md for the prompt.
+ * Read the `## Muted` section from a soul.md and interpret it as a boolean
+ * mute switch. The section body is expected to be a single truthy/falsy token
+ * (e.g. `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off`). Blank lines and
+ * surrounding whitespace are ignored; only the first non-empty line is read.
  *
- * Heuristic: take everything before the first `## ` heading as the persona
- * preamble. If the soul starts with a `# Title` (level 1), skip that line.
- * Capped at 400 chars to keep the prompt lean.
+ * Returns `false` when the section is absent, empty, or the value does not
+ * match a recognized truthy token — this way a malformed value never
+ * accidentally mutes the bot.
  */
-function extractPersona(soul: string): string {
+export function extractMutedFlag(soul: string): boolean {
+  if (!soul) return false;
+  const lines = soul.split(/\r?\n/);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (MUTED_HEADING.test(lines[i])) {
+      start = i + 1;
+      break;
+    }
+  }
+  if (start === -1) return false;
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
+    // Stop scanning at the next `## ` heading.
+    if (OTHER_HEADING.test(line)) return false;
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const value = trimmed.toLowerCase();
+    return value === "true" || value === "1" || value === "yes" || value === "on";
+  }
+  return false;
+}
+
+/**
+ * Extract the raw text of an explicit `## Persona` section from a soul.md.
+ *
+ * Returns everything after the heading up to (but not including) the next
+ * `## …` heading or EOF. Empty string if no such section exists.
+ */
+export function extractPersonaBlock(soul: string): string {
   if (!soul) return "";
+  const lines = soul.split(/\r?\n/);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (PERSONA_HEADING.test(lines[i])) {
+      start = i + 1;
+      break;
+    }
+  }
+  if (start === -1) return "";
+  let end = lines.length;
+  for (let i = start; i < lines.length; i++) {
+    if (OTHER_HEADING.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join("\n").trim();
+}
+
+/**
+ * Extract a brief persona description from soul.md for the judge prompt.
+ *
+ * Heuristic (in priority order):
+ *   1. If soul contains a `## Persona` section, use its raw content.
+ *   2. Otherwise take everything before the first `## ` heading (skipping the
+ *      top-level `# Title` line if present) as the persona preamble.
+ *
+ * Capped at 400 chars to keep the judge prompt lean.
+ *
+ * Exported so the main reply pipeline can also grab a persona (see
+ * `extractFullPersona` for a richer variant with a higher character cap).
+ */
+export function extractPersona(soul: string): string {
+  return extractPersonaCore(soul, JUDGE_PERSONA_MAX_CHARS);
+}
+
+/**
+ * Same extraction logic as `extractPersona` but with a larger character
+ * budget, intended for injection into the *main reply* agent's system prompt
+ * where a richer persona improves tone fidelity.
+ */
+export function extractFullPersona(soul: string): string {
+  return extractPersonaCore(soul, REPLY_PERSONA_MAX_CHARS);
+}
+
+function extractPersonaCore(soul: string, maxChars: number): string {
+  if (!soul) return "";
+
+  // Prefer explicit `## Persona` block when present.
+  const explicit = extractPersonaBlock(soul);
+  if (explicit) {
+    return explicit.length > maxChars ? explicit.slice(0, maxChars) + "…" : explicit;
+  }
+
+  // Fallback: preamble between `# Title` and the first `## ` heading.
   const lines = soul.split(/\r?\n/);
   const result: string[] = [];
   let started = false;
@@ -108,7 +207,7 @@ function extractPersona(soul: string): string {
     result.push(line);
   }
   const text = result.join("\n").trim();
-  return text.length > 400 ? text.slice(0, 400) + "…" : text;
+  return text.length > maxChars ? text.slice(0, maxChars) + "…" : text;
 }
 
 /**

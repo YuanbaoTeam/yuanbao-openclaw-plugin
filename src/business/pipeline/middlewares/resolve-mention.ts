@@ -3,6 +3,7 @@
  *
  * Priority (highest → lowest):
  *   L0. Muted           — `cloud_custom_data.botMuted === true`     → never reply
+ *                         OR soul.md `## Muted` value is truthy
  *   L1. Explicit @      — `ctx.isAtBot === true`                    → always reply
  *   L2. Topic self-judge — `topicId` set, not @-mentioned, not muted → soul.md rules
  *   L3. Default gating  — no topicId, no @                          → SDK gating
@@ -29,6 +30,7 @@ import { deriveHistoryKey } from "../utils/history-key.js";
 import { loadSoulForTopic } from "../topic-judge/soul-loader.js";
 import { shouldBotReplyInTopic } from "../topic-judge/index.js";
 import { createOpenclawJudgeInvoker } from "../topic-judge/llm-judge.js";
+import { extractFullPersona, extractMutedFlag } from "../topic-judge/prompt-builder.js";
 import type { JudgeInvoker } from "../topic-judge/llm-judge.js";
 import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
 
@@ -151,13 +153,58 @@ export const resolveMention: MiddlewareDescriptor = {
       parsedBotMuted: meta.botMuted,
     });
 
+    // Preload soul.md once when a topicId is present, then reuse across L0
+    // (mute flag), L1 (persona injection) and L2 (rules + judge). Keeps disk
+    // I/O to one call per message and avoids the LRU cache churning on the
+    // same key from three different call sites.
+    let topicSoul: string | null = null;
+    async function getTopicSoul(): Promise<string> {
+      if (topicSoul !== null) return topicSoul;
+      if (!meta.topicId) {
+        topicSoul = "";
+        return topicSoul;
+      }
+      try {
+        topicSoul = await loadSoulForTopic(meta.topicId, {
+          topicSoulDir: account.config?.topicSoulDir,
+        });
+      } catch (err) {
+        // Loader is already best-effort — but belt-and-suspenders in case a
+        // future change makes it throw. Never let soul I/O break gating.
+        ctx.log.warn(`[resolve-mention] soul load failed: ${String(err)}`);
+        topicSoul = "";
+      }
+      return topicSoul;
+    }
+
     // ─── L0. Mute — highest priority; overrides even explicit @mention ───
-    if (meta.botMuted) {
+    // Two sources are OR'd together:
+    //   a) cloud_custom_data.botMuted === true  (per-message hint from DTMP)
+    //   b) soul.md `## Muted` section value is truthy (per-topic config)
+    // Either one flipping the switch mutes the bot in this topic.
+    let soulMuted = false;
+    if (meta.topicId) {
+      const soul = await getTopicSoul();
+      soulMuted = extractMutedFlag(soul);
+    }
+    if (meta.botMuted || soulMuted) {
       ctx.isMuted = true;
-      ctx.replyDecision = { source: "mute", shouldReply: false, reason: "botMuted=true" };
+      const muteSource = meta.botMuted && soulMuted
+        ? "cloud+soul"
+        : meta.botMuted
+          ? "cloud"
+          : "soul";
+      ctx.replyDecision = {
+        source: "mute",
+        shouldReply: false,
+        reason: `muted (source: ${muteSource})`,
+      };
       ctx.log.info("[resolve-mention] muted, skip reply", {
         topicId: meta.topicId,
         wasAtBot: isAtBot,
+        muteSource,
+        cloudBotMuted: meta.botMuted,
+        soulMuted,
       });
       recordToHistory(ctx);
       logInboundDrop({
@@ -173,15 +220,36 @@ export const resolveMention: MiddlewareDescriptor = {
     if (isAtBot) {
       ctx.effectiveWasMentioned = true;
       ctx.replyDecision = { source: "at-mention", shouldReply: true };
+
+      // Still inject topic persona when @-mention happens inside a topic so
+      // the bot keeps its per-topic tone. Soul may not exist for this topic;
+      // that's fine — persona stays undefined and downstream falls back to
+      // workspace-level defaults.
+      if (meta.topicId) {
+        try {
+          const soul = await getTopicSoul();
+          const persona = extractFullPersona(soul);
+          if (persona) {
+            ctx.topicPersona = persona;
+            ctx.log.info("[resolve-mention] topic persona injected (L1)", {
+              topicId: meta.topicId,
+              personaChars: persona.length,
+            });
+          }
+        } catch (err) {
+          // Persona is a best-effort enhancement — never let a soul-load
+          // failure break an explicit @-mention reply.
+          ctx.log.warn(`[resolve-mention] L1 persona load failed: ${String(err)}`);
+        }
+      }
+
       await next();
       return;
     }
 
     // ─── L2. Topic self-judge — only when message came from a topic ───
     if (meta.topicId) {
-      const soul = await loadSoulForTopic(meta.topicId, {
-        topicSoulDir: account.config?.topicSoulDir,
-      });
+      const soul = await getTopicSoul();
 
       // Build history tail for LLM judge context
       const historyKey = deriveHistoryKey(ctx.groupCode!, meta.topicId);
@@ -216,6 +284,18 @@ export const resolveMention: MiddlewareDescriptor = {
           target: ctx.groupCode,
         });
         return; // Abort pipeline
+      }
+
+      // Judge passed — inject persona so the reply agent adopts the
+      // topic-scoped tone. Reuse the same `soul` we already loaded for the
+      // judge (no extra disk I/O).
+      const persona = extractFullPersona(soul);
+      if (persona) {
+        ctx.topicPersona = persona;
+        ctx.log.info("[resolve-mention] topic persona injected (L2)", {
+          topicId: meta.topicId,
+          personaChars: persona.length,
+        });
       }
 
       // Judge passed → treat as an implicit mention so downstream gates

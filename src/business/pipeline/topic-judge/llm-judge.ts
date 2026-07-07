@@ -252,9 +252,15 @@ export function createOpenclawJudgeInvoker(
       const isTimeout =
         err instanceof Error && (err.name === "AbortError" || /abort/i.test(err.message));
       const reason = isTimeout ? "llm-judge-error: timeout" : "llm-judge-error: agent-failed";
-      log?.warn?.("[llm-judge] invoker failed", {
+      // Escalated from warn to error so this always surfaces in gateway.log
+      // (warn was being swallowed by the current log-level filter). Include
+      // stack + err name so we can tell parse errors from route errors from
+      // dispatcher errors without adding more probes.
+      log?.error?.("[llm-judge] invoker failed", {
         reason,
-        error: err instanceof Error ? err.message : String(err),
+        errorName: err instanceof Error ? err.name : typeof err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
         elapsed,
       });
       return { shouldReply: false, reason };

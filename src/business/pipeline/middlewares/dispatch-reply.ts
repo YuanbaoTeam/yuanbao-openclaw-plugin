@@ -114,7 +114,22 @@ export const dispatchReply: MiddlewareDescriptor = {
     let hasSentContent = false;
     let statusVersionSuffixAppended = false;
 
+    // [DEBUG] Trace which internal step of dispatch-reply we reach. Some
+    // messages have shown a silent hang between `[prepare-sender] sender
+    // created` and any of the downstream callbacks (`onPartialReply` /
+    // `deliver`), with no `[dispatch-reply] 消息处理完成` and no engine-level
+    // "middleware execution error" — meaning the handler is pending in an
+    // await that we don't currently log. These probes narrow it down.
+    ctx.log.info("[dispatch-reply] enter handler", {
+      msgId: ctx.raw.msg_id,
+      topicId: ctx.topicId,
+      isGroup,
+    });
+
     try {
+      ctx.log.info("[dispatch-reply] before recordInboundSession", {
+        msgId: ctx.raw.msg_id,
+      });
       await core.channel.session.recordInboundSession({
         storePath,
         sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
@@ -123,12 +138,19 @@ export const dispatchReply: MiddlewareDescriptor = {
           ctx.log.error("[dispatch-reply] recordInboundSession 失败", { error: String(err) });
         },
       });
+      ctx.log.info("[dispatch-reply] after recordInboundSession", {
+        msgId: ctx.raw.msg_id,
+      });
 
       const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
         cfg: config,
         agentId: route.agentId,
         channel: "yuanbao",
         accountId: account.accountId,
+      });
+      ctx.log.info("[dispatch-reply] reply pipeline built, calling dispatchReplyWithBufferedBlockDispatcher", {
+        msgId: ctx.raw.msg_id,
+        agentId: route.agentId,
       });
 
       const doDispatchReply = () => core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
@@ -236,6 +258,10 @@ export const dispatchReply: MiddlewareDescriptor = {
       } else {
         await doDispatchReply();
       }
+      ctx.log.info("[dispatch-reply] doDispatchReply returned", {
+        msgId: ctx.raw.msg_id,
+        hasSentContent,
+      });
 
       // [topic-id payload fallback] Append trailing marker to the streaming
       // buffer right before finalize, so the topic-id appears at the very end
@@ -243,7 +269,12 @@ export const dispatchReply: MiddlewareDescriptor = {
       // The non-streaming deliver-path handles the marker inline above.
       session.appendFinal(buildTopicIdMarker(ctx.topicId));
 
+      ctx.log.info("[dispatch-reply] before session.finalize", { msgId: ctx.raw.msg_id });
       const flushed = await session.finalize();
+      ctx.log.info("[dispatch-reply] after session.finalize", {
+        msgId: ctx.raw.msg_id,
+        flushed,
+      });
       if (flushed) hasSentContent = true;
 
       const deliveredViaAction = ctx.traceContext?.hasActionDelivered() ?? false;
@@ -260,6 +291,15 @@ export const dispatchReply: MiddlewareDescriptor = {
         ctx.statusSink?.({ lastOutboundAt: Date.now() });
       }
     } catch (err) {
+      // Escalated log so a silent hang / partial failure never disappears —
+      // we've seen cases where the surrounding engine catch-log did not fire
+      // (possibly due to level filtering or the error being non-Error).
+      ctx.log.error("[dispatch-reply] handler threw", {
+        msgId: ctx.raw.msg_id,
+        errorName: err instanceof Error ? err.name : typeof err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       session.abort();
       throw err;
     } finally {

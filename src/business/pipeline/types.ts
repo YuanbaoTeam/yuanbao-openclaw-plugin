@@ -79,6 +79,13 @@ export interface PipelineContext {
     shouldReply: boolean;
     reason?: string;
   };
+  /**
+   * Persona text extracted from the topic's soul.md (when the message is
+   * scoped to a topic and a soul exists). Injected into the reply agent's
+   * `GroupSystemPrompt` by `build-context` so the bot's tone follows the
+   * per-topic persona instead of the workspace-level default.
+   */
+  topicPersona?: string;
 
   // -- Populated by downloadMedia --
   mediaPaths: string[];

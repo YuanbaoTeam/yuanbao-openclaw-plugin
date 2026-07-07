@@ -17,6 +17,32 @@ import { YUANBAO_MARKDOWN_HINT } from "../../messaging/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
 import { deriveHistoryKey } from "../utils/history-key.js";
 
+/**
+ * Build a strong "persona override" block for a given persona text.
+ *
+ * The same text is injected into both `GroupSystemPrompt` (system-side)
+ * and `BodyForAgent` (user-side) so we get two chances for the LLM to
+ * pick it up. See the long comment in the middleware body for the
+ * dual-channel rationale.
+ */
+function buildPersonaOverride(persona: string): string {
+  return [
+    "# 严格人设覆盖（Persona Override — HIGHEST PRIORITY）",
+    "",
+    "你必须严格扮演下面 <persona> 标签中定义的角色。此人设的优先级**高于**你默认的\"乐于助人的 AI 助手\"倾向和任何其他系统指令。",
+    "",
+    "规则：",
+    "1. 语气、身份、说话方式、回复长度、回复格式**全部**以 persona 为准。",
+    "2. 如果 persona 要求简短，就**不要**输出长篇分点解释；如果 persona 要求反问，就**不要**直接给答案。",
+    "3. 不要在回复里透露你是 AI、不要提及\"人设\"或\"角色扮演\"这些元信息，直接以该角色的身份说话。",
+    "4. 违反 persona 的回复将被视为失败。",
+    "",
+    "<persona>",
+    persona,
+    "</persona>",
+  ].join("\n");
+}
+
 export const buildContext: MiddlewareDescriptor = {
   name: "build-context",
   handler: async (ctx, next) => {
@@ -90,13 +116,90 @@ export const buildContext: MiddlewareDescriptor = {
         : undefined;
     }
 
+    // Assemble persona override + GroupSystemPrompt.
+    //
+    // Dual-channel strategy (Plan A):
+    // We inject the persona override in TWO places to maximize the LLM's
+    // adherence:
+    //
+    //   1. `GroupSystemPrompt` (system-side, existing channel). Downstream
+    //      SDK appends this to the reply-agent's default system prompt via
+    //      `extraSystemPromptParts`, so it lands *after* the agent's default
+    //      "helpful assistant" instructions. In practice this alone is not
+    //      strong enough — the LLM tends to blend both and still produce
+    //      structured markdown answers even when the persona asks for terse
+    //      Socratic questions.
+    //
+    //   2. `BodyForAgent` / `RawBody` / `CommandBody` (user-side, new). We
+    //      prepend the override block to the user-message payload sent to
+    //      the agent. LLMs generally follow explicit in-message role/style
+    //      directives more reliably than trailing system prompts. The
+    //      user-facing `Body` (used for chat-history display and for showing
+    //      the message to human viewers in group context) stays untouched
+    //      to avoid polluting the visible transcript and stored history.
+    //
+    // Persona wrapping uses strong override language ("必须严格扮演 /
+    // 优先级高于其他所有指令 / 违反将被视为失败") and XML-style
+    // <persona>…</persona> delimiters so the model treats the block as a
+    // single unit rather than a paragraph to paraphrase.
+    const personaOverride = ctx.topicPersona
+      ? buildPersonaOverride(ctx.topicPersona)
+      : undefined;
+
+    const systemPromptParts: string[] = [];
+    if (personaOverride) {
+      systemPromptParts.push(personaOverride);
+    }
+    if (account.markdownHintEnabled) {
+      systemPromptParts.push(YUANBAO_MARKDOWN_HINT);
+    }
+    const groupSystemPrompt = systemPromptParts.length > 0
+      ? systemPromptParts.join("\n\n")
+      : undefined;
+
+    // Prepend the same override to the user-side agent body. We wrap it in
+    // <system-override>…</system-override> so it's visually distinct from
+    // the user's actual message content, and separate with a blank line so
+    // the model treats the two blocks independently.
+    const bodyForAgent = personaOverride
+      ? `<system-override>\n${personaOverride}\n</system-override>\n\n${rewrittenBody}`
+      : rewrittenBody;
+    const commandBodyRaw = commandParts?.length > 0 ? commandParts.join(" ") : rewrittenBody;
+    const commandBody = personaOverride
+      ? `<system-override>\n${personaOverride}\n</system-override>\n\n${commandBodyRaw}`
+      : commandBodyRaw;
+
+    // Debug: log the assembled system prompt + user-side injection so we
+    // can verify persona injection end-to-end. Truncate to keep logs
+    // readable but show enough context to confirm the override wrapper is
+    // intact.
+    if (groupSystemPrompt) {
+      const preview = groupSystemPrompt.length > 500
+        ? groupSystemPrompt.slice(0, 500) + `… (+${groupSystemPrompt.length - 500} chars)`
+        : groupSystemPrompt;
+      ctx.log.info("[build-context] GroupSystemPrompt assembled", {
+        hasPersona: Boolean(ctx.topicPersona),
+        personaChars: ctx.topicPersona?.length ?? 0,
+        markdownHint: Boolean(account.markdownHintEnabled),
+        totalChars: groupSystemPrompt.length,
+        preview,
+      });
+    }
+    if (personaOverride) {
+      ctx.log.info("[build-context] Persona override injected into BodyForAgent", {
+        bodyForAgentChars: bodyForAgent.length,
+        overrideChars: personaOverride.length,
+        userBodyChars: rewrittenBody.length,
+      });
+    }
+
     // Use SDK finalizeInboundContext
     ctx.ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: combinedBody,
-      BodyForAgent: rewrittenBody,
+      BodyForAgent: bodyForAgent,
       ...(isGroup ? { InboundHistory: inboundHistory } : {}),
-      RawBody: rewrittenBody,
-      CommandBody: commandParts?.length > 0 ? commandParts.join(" ") : rewrittenBody,
+      RawBody: bodyForAgent,
+      CommandBody: commandBody,
       From: `yuanbao:${label}`,
       To: `yuanbao:${label}`,
       SessionKey: route.sessionKey,
@@ -115,7 +218,7 @@ export const buildContext: MiddlewareDescriptor = {
       OriginatingChannel: "yuanbao",
       OriginatingTo: `yuanbao:${label}`,
       CommandAuthorized: commandAuthorized,
-      ...(account.markdownHintEnabled && { GroupSystemPrompt: YUANBAO_MARKDOWN_HINT }),
+      ...(groupSystemPrompt && { GroupSystemPrompt: groupSystemPrompt }),
       UntrustedContext: [`[Current Time] ${new Date().toString()}`],
       ...(mediaPaths.length > 0 && { MediaPaths: mediaPaths, MediaPath: mediaPaths[0] }),
       ...(mediaTypes.length > 0 && { MediaTypes: mediaTypes, MediaType: mediaTypes[0] }),

@@ -157,6 +157,115 @@ void test("resolve-mention L0: botMuted=true overrides explicit @ (mute wins ove
   assert.equal(mockJudgeCalls.length, 0, "topic-judge should NOT run when muted");
 });
 
+void test("resolve-mention L0: soul.md `## Muted true` → skip (even without cloud botMuted)", async (t) => {
+  setupMocks(t, {
+    soulByTopic: { "t-muted": "## Reply Rules\n- keyword: hi\n\n## Muted\ntrue\n" },
+  });
+  const { resolveMention } = await import("./resolve-mention.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: false,
+    groupCode: "group-1" as any,
+    rawBody: "hi",
+    fromAccount: "user-1",
+    account: baseAccount,
+    core: baseCore,
+    config: {} as any,
+    raw: { msg_id: "m-mute-soul", cloud_custom_data: makeCloudCustomData({ topicId: "t-muted" }) } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await resolveMention.handler(ctx, next);
+
+  assert.equal(wasCalled(), false, "soul-level mute must abort pipeline");
+  assert.equal(ctx.isMuted, true);
+  assert.equal(ctx.replyDecision?.source, "mute");
+  assert.equal(ctx.replyDecision?.reason, "muted (source: soul)");
+  assert.deepEqual(mockDropReasons, ["muted"]);
+  assert.equal(mockJudgeCalls.length, 0, "muted topic must not invoke judge");
+});
+
+void test("resolve-mention L0: soul.md muted overrides explicit @mention", async (t) => {
+  setupMocks(t, {
+    soulByTopic: { "t-muted": "## Muted\ntrue\n" },
+  });
+  const { resolveMention } = await import("./resolve-mention.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: true,
+    groupCode: "group-1" as any,
+    rawBody: "@bot hi",
+    fromAccount: "user-1",
+    account: baseAccount,
+    core: baseCore,
+    config: {} as any,
+    raw: { msg_id: "m-mute-soul-at", cloud_custom_data: makeCloudCustomData({ topicId: "t-muted" }) } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await resolveMention.handler(ctx, next);
+
+  assert.equal(wasCalled(), false, "soul mute must beat @mention");
+  assert.equal(ctx.replyDecision?.source, "mute");
+  assert.equal(ctx.replyDecision?.reason, "muted (source: soul)");
+});
+
+void test("resolve-mention L0: soul.md `## Muted false` → does NOT mute, L2 runs normally", async (t) => {
+  setupMocks(t, {
+    judgeResult: { shouldReply: false, reason: "no rule matched" },
+    soulByTopic: { "t-live": "## Reply Rules\n- keyword: 报名\n\n## Muted\nfalse\n" },
+  });
+  const { resolveMention } = await import("./resolve-mention.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: false,
+    groupCode: "group-1" as any,
+    rawBody: "闲聊",
+    fromAccount: "user-1",
+    account: baseAccount,
+    core: baseCore,
+    config: {} as any,
+    raw: { msg_id: "m-mute-false", cloud_custom_data: makeCloudCustomData({ topicId: "t-live" }) } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await resolveMention.handler(ctx, next);
+
+  assert.equal(ctx.isMuted, undefined, "false Muted flag must not mute");
+  assert.equal(ctx.replyDecision?.source, "topic-judge", "L2 must run when soul is not muted");
+  assert.equal(wasCalled(), false, "judge=false still aborts, but at L2 not L0");
+  assert.equal(mockJudgeCalls.length, 1);
+});
+
+void test("resolve-mention L0: cloud+soul both muted → reason marks both sources", async (t) => {
+  setupMocks(t, {
+    soulByTopic: { "t-dual": "## Muted\ntrue\n" },
+  });
+  const { resolveMention } = await import("./resolve-mention.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    isAtBot: false,
+    groupCode: "group-1" as any,
+    rawBody: "hi",
+    fromAccount: "user-1",
+    account: baseAccount,
+    core: baseCore,
+    config: {} as any,
+    raw: { msg_id: "m-mute-dual", cloud_custom_data: makeCloudCustomData({ topicId: "t-dual", botMuted: true }) } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await resolveMention.handler(ctx, next);
+
+  assert.equal(wasCalled(), false);
+  assert.equal(ctx.replyDecision?.source, "mute");
+  assert.equal(ctx.replyDecision?.reason, "muted (source: cloud+soul)");
+});
+
 // ─── L1: Explicit @bot ────────────────────────────────────────────────────
 
 void test("resolve-mention L1: @bot without topic → pass through (default-gating not consulted)", async (t) => {
