@@ -30,3 +30,8 @@ Thumbs.db
 
 # Backup (重构前的老代码备份)
 back/
+
+# AI 助手本地工作目录（规划/会话/上下文，不入库）
+.codebuddy/
+.claude/
+.cursor/
