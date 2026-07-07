@@ -107,7 +107,11 @@ void test("prepare-sender: C2C sets fromAccount from botId", async (t) => {
   assert.equal((ctx.sender as any).fromAccount, "my-bot-id", "fromAccount should use botId");
 });
 
-void test("prepare-sender: no topicId → cloudCustomData undefined (legacy)", async (t) => {
+// [DEMO] 目前处于 DEMO 阶段：prepare-sender 在没有 topicId 时会 fallback 到
+// 硬编码的 `demo-topic-1`，方便前端跑通"bot 回复归属话题"闭环。
+// 上线前需删掉 prepare-sender.ts 中的 DEMO_FALLBACK_TOPIC_ID 与 fallback 分支，
+// 并把本用例恢复为 legacy 语义（no topicId → cloudCustomData undefined）。
+void test("prepare-sender: no topicId → cloudCustomData falls back to demo-topic-1 (DEMO)", async (t) => {
   setupMocks(t);
   const { prepareSender } = await import("./prepare-sender.js");
 
@@ -126,7 +130,11 @@ void test("prepare-sender: no topicId → cloudCustomData undefined (legacy)", a
 
   await prepareSender.handler(ctx, next);
 
-  assert.equal((ctx.sender as any).cloudCustomData, undefined, "no topic → no cloudCustomData");
+  assert.equal(
+    (ctx.sender as any).cloudCustomData,
+    JSON.stringify({ topicId: "demo-topic-1" }),
+    "no topic → DEMO fallback topicId echoed in cloud_custom_data",
+  );
 });
 
 void test("prepare-sender: topicId → cloudCustomData carries {topicId}", async (t) => {
