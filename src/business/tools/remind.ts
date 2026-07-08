@@ -64,7 +64,7 @@ async function resolveCallGatewayTool(): Promise<GatewayToolCaller | null> {
 async function resolveRunPluginCommand(): Promise<PluginCommandRunner | null> {
   if (_runPluginCmd !== undefined) return _runPluginCmd;
   try {
-    const sdkPath = 'openclaw/plugin-sdk/matrix';
+    const sdkPath = 'openclaw/plugin-sdk/run-command';
     const mod = await import(sdkPath);
     _runPluginCmd = mod.runPluginCommandWithTimeout as PluginCommandRunner;
   } catch {

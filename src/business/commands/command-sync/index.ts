@@ -1,10 +1,9 @@
 /** Command sync — collects bot/plugin commands and builds the sync payload for the backend. */
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import {
-  listChatCommandsForConfig,
-  type ChatCommandDefinition,
-} from "openclaw/plugin-sdk/command-auth";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { ChatCommandDefinition } from "openclaw/plugin-sdk/command-auth-native";
+// compat: listChatCommandsForConfig 暂无窄 subpath，待上游补齐后迁移，订阅 pnpm plugins:boundary-report 监控 removeAfter
+import { listChatCommandsForConfig } from "openclaw/plugin-sdk/command-auth";
 import { getPluginVersion, getOpenclawVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
 

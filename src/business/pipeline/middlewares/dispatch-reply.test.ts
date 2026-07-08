@@ -12,9 +12,9 @@ let mockRegistered = false;
 
 function setupMocks(t: any) {
   if (!mockRegistered) {
-    t.mock.module("openclaw/plugin-sdk/channel-reply-pipeline", {
+    t.mock.module("openclaw/plugin-sdk/channel-outbound", {
       namedExports: {
-        createChannelReplyPipeline: () => ({
+        createChannelMessageReplyPipeline: () => ({
           onModelSelected: () => {},
         }),
       },
