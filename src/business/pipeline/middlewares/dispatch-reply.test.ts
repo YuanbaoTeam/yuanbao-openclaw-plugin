@@ -619,6 +619,61 @@ void test("dispatch-reply: delivered via action -> no fallback reply", async (t)
   assert.ok(!sentTexts.includes("我暂时无法回答"), "should not send fallback when delivered via action");
 });
 
+// ── incomplete-turn false-positive suppression ──────────────────────────────
+
+void test("dispatch-reply: incomplete-turn warning suppression gated by action delivery", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+
+  const warning = "⚠️ Agent couldn't generate a response. Note: some tool actions may have already been executed — please verify before retrying.";
+
+  const cases = [
+    { name: "suppressed when action already delivered", actionDelivered: true, expectSent: false },
+    { name: "surfaced when no action delivered", actionDelivered: false, expectSent: true },
+  ] as const;
+
+  for (const c of cases) {
+    const { sender, sentTexts } = createMockSender();
+    const ctx = createDispatchCtx({
+      account: {
+        accountId: "bot-001",
+        botId: "bot-001",
+        disableBlockStreaming: false,
+        fallbackReply: "我暂时无法回答",
+      },
+      traceContext: {
+        traceId: "t-1",
+        traceparent: "00-x-y-01",
+        nextMsgSeq: () => undefined,
+        markActionDelivered: () => {},
+        hasActionDelivered: () => c.actionDelivered,
+      },
+      sender,
+      core: {
+        channel: {
+          text: {
+            convertMarkdownTables: (txt: string) => txt,
+            chunkMarkdownText: (txt: string, _max: number) => [txt],
+          },
+          session: { recordInboundSession: async () => {} },
+          reply: {
+            dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver }) => {
+              // Core emits the incomplete-turn payload after an empty post-tool stop.
+              await deliver?.({ text: warning, isError: true }, { kind: "block" });
+            }),
+          },
+        },
+      } as any,
+    });
+    const { next } = createMockNext();
+
+    await dispatchReply.handler(ctx, next);
+
+    const sent = sentTexts.some(s => s.includes("Agent couldn't generate a response"));
+    assert.equal(sent, c.expectSent, c.name);
+  }
+});
+
 // ── error handling ───────────────────────────────────────────────────────────
 
 void test("dispatch-reply: dispatch error propagates", async (t) => {
