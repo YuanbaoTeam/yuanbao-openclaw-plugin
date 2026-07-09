@@ -3,7 +3,7 @@
  * deliver handles media and text fallback when partial never fires.
  */
 
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createChannelMessageReplyPipeline } from "openclaw/plugin-sdk/channel-outbound";
 import {
   resolveOutboundMediaUrls,
   normalizeOutboundReplyPayload,
@@ -105,7 +105,7 @@ export const dispatchReply: MiddlewareDescriptor = {
         },
       });
 
-      const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
+      const { onModelSelected, ...replyPipeline } = createChannelMessageReplyPipeline({
         cfg: config,
         agentId: route.agentId,
         channel: "yuanbao",
