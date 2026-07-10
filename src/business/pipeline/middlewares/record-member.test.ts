@@ -19,6 +19,13 @@ function setupMocks(t: any) {
           recordUser: (...args: unknown[]) => {
             recordedArgs = args;
           },
+          // The middleware reads `cache.session.lookupUserById(...)` to log
+          // whether the sender pre-existed in the group-member cache. Tests
+          // don't care about that lookup's return value, so a stub returning
+          // `undefined` is sufficient — matches the "not yet cached" branch.
+          session: {
+            lookupUserById: (_groupCode: unknown, _userId: unknown) => undefined,
+          },
         }),
       },
     });
