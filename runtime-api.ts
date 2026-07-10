@@ -1,5 +1,5 @@
 export type { ChannelPlugin, OpenClawPluginApi, PluginRuntime } from "openclaw/plugin-sdk/core";
-export type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+export type { OpenClawConfig } from "openclaw/plugin-sdk/runtime-config-snapshot";
 export type {
   OpenClawPluginService,
   OpenClawPluginServiceContext,
