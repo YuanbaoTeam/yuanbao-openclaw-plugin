@@ -3,7 +3,7 @@
  * Checks for control commands and applies DM allowFrom + useAccessGroups policies.
  */
 
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth-native";
 import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
 
 /** Extract pure text content from msg_body (TIMTextElem only, skipping @mention custom elements). */

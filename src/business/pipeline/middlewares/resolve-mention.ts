@@ -13,6 +13,34 @@ import { recordPendingHistoryEntryIfEnabled } from "openclaw/plugin-sdk/reply-hi
 import { chatHistories, deriveChatKey, recordMediaHistory } from "../../messaging/chat-history.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
+// resolveInboundMentionDecision 在部分宿主版本（如 2026.5.7）的 channel-inbound 运行时未真正导出，
+// 采用动态探测 + 回退到 resolveMentionGatingWithBypass（与 remind.ts 同模式），不抬高 minHostVersion。
+type InboundMentionDecisionFn = (params: {
+  facts: { canDetectMention: boolean; wasMentioned: boolean; hasAnyMention?: boolean };
+  policy: {
+    isGroup: boolean;
+    requireMention: boolean;
+    allowTextCommands: boolean;
+    hasControlCommand: boolean;
+    commandAuthorized: boolean;
+  };
+}) => { effectiveWasMentioned: boolean; shouldSkip: boolean };
+
+let _resolveInboundMentionDecision: InboundMentionDecisionFn | null | undefined;
+async function resolveInboundMentionDecisionSafe(params: Parameters<InboundMentionDecisionFn>[0]): Promise<ReturnType<InboundMentionDecisionFn> | null> {
+  if (_resolveInboundMentionDecision === undefined) {
+    try {
+      const mod = await import("openclaw/plugin-sdk/channel-inbound");
+      _resolveInboundMentionDecision = typeof (mod as Record<string, unknown>).resolveInboundMentionDecision === "function"
+        ? ((mod as Record<string, unknown>).resolveInboundMentionDecision as InboundMentionDecisionFn)
+        : null;
+    } catch {
+      _resolveInboundMentionDecision = null;
+    }
+  }
+  return _resolveInboundMentionDecision ? _resolveInboundMentionDecision(params) : null;
+}
+
 export const resolveMention: MiddlewareDescriptor = {
   name: "resolve-mention",
   when: ctx => ctx.isGroup,
@@ -25,7 +53,21 @@ export const resolveMention: MiddlewareDescriptor = {
       surface: "yuanbao",
     });
 
-    const result = resolveMentionGatingWithBypass({
+    const newDecision = await resolveInboundMentionDecisionSafe({
+      facts: {
+        canDetectMention: true,
+        wasMentioned: isAtBot,
+      },
+      policy: {
+        isGroup,
+        requireMention,
+        allowTextCommands,
+        hasControlCommand,
+        commandAuthorized,
+      },
+    });
+
+    const result = newDecision ?? resolveMentionGatingWithBypass({
       isGroup,
       requireMention,
       canDetectMention: true,

@@ -2,6 +2,8 @@
 
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import {
+  // TODO(sdk-migration): ChatCommandDefinition / listChatCommandsForConfig 在 2026.5.7 发布版仅存在于废弃面 command-auth；
+  // config-contracts / command-auth-native 的窄面在 >=2026.5.7 的后续宿主版本才提供，待宿主升级后再迁，不抬高 minHostVersion。
   listChatCommandsForConfig,
   type ChatCommandDefinition,
 } from "openclaw/plugin-sdk/command-auth";
