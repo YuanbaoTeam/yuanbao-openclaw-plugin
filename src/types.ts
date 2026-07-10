@@ -46,6 +46,22 @@ export type YuanbaoAccountConfig = {
   /** Logs for whitelisted bots are not sanitized */
   debugBotIds?: string[];
   /**
+   * Bot↔bot reply-loop breaker configuration. When two or more bots keep
+   * triggering each other via keyword matches, this guard mutes the bot for
+   * `muteMs` once it has received `threshold` messages from other bots within
+   * a rolling `windowMs` window. Group chat only.
+   */
+  botLoop?: {
+    /** Default true. Set to false to disable the guard. */
+    enabled?: boolean;
+    /** Default 5. Bot-origin messages within one window that trip the mute. */
+    threshold?: number;
+    /** Default 10 * 60 * 1000 ms. Rolling window length. */
+    windowMs?: number;
+    /** Default 30 * 60 * 1000 ms. Mute duration once threshold is reached. */
+    muteMs?: number;
+  };
+  /**
    * Directory holding per-topic soul.md files, one per topic.
    *
    * Layout: `<topicSoulDir>/<topicId>.md`
@@ -111,6 +127,13 @@ export type ResolvedYuanbaoAccount = {
   /** Automatically sent to the user when the AI model returns no reply content */
   fallbackReply?: string;
   markdownHintEnabled: boolean;
+  /** Resolved bot-loop guard config (with defaults filled in). */
+  botLoop: {
+    enabled: boolean;
+    threshold: number;
+    windowMs: number;
+    muteMs: number;
+  };
   config: YuanbaoAccountConfig;
 };
 

@@ -11,6 +11,7 @@ export { guardCommand } from "./guard-command.js";
 export { resolveMention } from "./resolve-mention.js";
 export { guardSpecialCommand } from "./guard-special-command.js";
 export { guardGroupCommand } from "./guard-group-command.js";
+export { guardBotLoop } from "./guard-bot-loop.js";
 export { guardSendAccess } from "./guard-send-access.js";
 export { rewriteBody } from "./rewrite-body.js";
 export { downloadMedia } from "./download-media.js";

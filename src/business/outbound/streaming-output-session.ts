@@ -30,6 +30,24 @@ export interface StreamingOutputSessionOptions {
   chunkText?: (text: string, maxChars: number) => string[];
   /** Minimum interval between consecutive sendText calls; default 1000ms */
   minSendIntervalMs?: number;
+  /**
+   * Optional tail-marker producer. When provided, the session guarantees the
+   * marker is appended to `cumulativeText` exactly once **per assistant
+   * segment**, immediately before the segment's terminal flush — that is,
+   * before {@link StreamingOutputSession.flushNow} (used by `onToolStart` to
+   * force-flush the current segment before a tool call) and before
+   * {@link StreamingOutputSession.finalize} (the reply-level terminal flush).
+   *
+   * This ensures every outbound assistant text — including intermediate
+   * segments delimited by tool calls — carries the marker at its tail,
+   * instead of only the final segment. The producer is invoked lazily so
+   * callers can inject values that only become available at reply time
+   * (e.g. `ctx.topicId`).
+   *
+   * The marker will NOT be appended when `cumulativeText` is empty, so silent
+   * segments never emit a lone marker.
+   */
+  tailMarker?: () => string;
   onComplete?: () => void;
 }
 
@@ -167,6 +185,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
     minChars = 3000,
     maxChars = 4000,
     minSendIntervalMs = DEFAULT_MIN_SEND_INTERVAL_MS,
+    tailMarker,
     onComplete,
   } = opts;
 
@@ -224,13 +243,39 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   let hasSentContent = false;
   let receivedPartial = false;
   let lastSendCompletedAt = 0;
+  /**
+   * Whether the tail-marker has already been appended to the current
+   * assistant segment. Reset on {@link resetSegmentState} so each segment gets
+   * exactly one marker at its tail. Prevents duplicate markers when both
+   * {@link flushNow} and {@link finalize} fire on the same segment (i.e. the
+   * last segment of the reply).
+   */
+  let tailMarkerAppendedInCurrentSegment = false;
 
   const thinkingRepair = createRepairThinkingBoundary();
 
   function resetSegmentState(): void {
     sentIndex = 0;
     cumulativeText = "";
+    tailMarkerAppendedInCurrentSegment = false;
     thinkingRepair.resetSegment();
+  }
+
+  /**
+   * Append the configured tail-marker to `cumulativeText` at most once per
+   * segment, right before that segment's terminal flush (either a force-flush
+   * triggered by a tool call, or the reply-level finalize). No-op when the
+   * segment produced no content, so silent segments don't emit a lone marker.
+   */
+  function ensureTailMarkerAppended(): void {
+    if (aborted) return;
+    if (!tailMarker) return;
+    if (tailMarkerAppendedInCurrentSegment) return;
+    if (!cumulativeText) return;
+    const marker = tailMarker();
+    if (!marker) return;
+    cumulativeText += marker;
+    tailMarkerAppendedInCurrentSegment = true;
   }
 
   /** Serializes every sendText across sendChunks / drain / finalize with min interval. */
@@ -314,7 +359,14 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
 
     flushNow(): Promise<void> {
       if (disableBlockStreaming || aborted) return Promise.resolve();
-      return enqueue(() => drainUnsent(true));
+      // Append the tail-marker before force-draining this segment, so the
+      // marker travels with the last chunk of the current assistant segment
+      // (e.g. right before a tool call). Enqueued so it lands after any
+      // pending stream drains that were queued by earlier update() calls.
+      return enqueue(async () => {
+        ensureTailMarkerAppended();
+        await drainUnsent(true);
+      });
     },
 
     appendFinal(text: string): void {
@@ -330,6 +382,10 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       if (aborted) return hasSentContent;
       await sendChain;
       if (aborted) return hasSentContent;
+
+      // Append the tail-marker for the final segment. Safe against double
+      // append: if flushNow already tagged this segment, this is a no-op.
+      ensureTailMarkerAppended();
 
       const remaining = cumulativeText.slice(sentIndex);
       if (remaining.trim()) {

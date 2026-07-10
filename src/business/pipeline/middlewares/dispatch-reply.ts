@@ -109,6 +109,11 @@ export const dispatchReply: MiddlewareDescriptor = {
       disableBlockStreaming: account.disableBlockStreaming,
       chunkText: chunkMarkdown,
       minSendIntervalMs: 1000,
+      // [topic-id payload fallback] The session appends this marker to the
+      // tail of every assistant segment (right before each force-flush and
+      // before finalize), so intermediate segments that end at a tool call
+      // also carry the marker — not just the final segment.
+      tailMarker: () => buildTopicIdMarker(ctx.topicId),
     });
 
     let hasSentContent = false;
@@ -263,11 +268,10 @@ export const dispatchReply: MiddlewareDescriptor = {
         hasSentContent,
       });
 
-      // [topic-id payload fallback] Append trailing marker to the streaming
-      // buffer right before finalize, so the topic-id appears at the very end
-      // of the last chunk (no-op if the session never accumulated content).
-      // The non-streaming deliver-path handles the marker inline above.
-      session.appendFinal(buildTopicIdMarker(ctx.topicId));
+      // [topic-id payload fallback] Marker append is now handled inside the
+      // streaming session (see `tailMarker` option), so it is emitted at the
+      // tail of every assistant segment — not just the last one. No extra
+      // work needed here before finalize.
 
       ctx.log.info("[dispatch-reply] before session.finalize", { msgId: ctx.raw.msg_id });
       const flushed = await session.finalize();

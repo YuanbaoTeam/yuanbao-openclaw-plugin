@@ -647,3 +647,94 @@ void test("onComplete is called on abort", () => {
   session.abort();
   assert.equal(completed, true);
 });
+
+// ── tailMarker: appended once per assistant segment ─────────────────────────
+
+void test("tailMarker: appended once at finalize on a single-segment reply", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({
+    sender,
+    minChars: 100,
+    maxChars: 200,
+    tailMarker: () => "\n\n[topicId: T1]",
+  });
+  await session.update("hello world");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0]!.endsWith("[topicId: T1]"), `got: ${sent[0]}`);
+});
+
+void test("tailMarker: appended per segment across tool-driven flushNow + finalize", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({
+    sender,
+    minChars: 100,
+    maxChars: 200,
+    tailMarker: () => "\n\n[topicId: T2]",
+  });
+
+  // Segment #1: content, then tool call → flushNow should emit segment #1's
+  // content with the marker at its tail.
+  await session.update("segment one text");
+  await session.flushNow();
+
+  // Segment #2 starts after the tool returns.
+  session.beginNewSegment();
+  await session.update("segment two text");
+  await session.finalize();
+
+  assert.ok(sent.length >= 2, `expected at least two sends, got ${sent.length}`);
+  // Every send that was terminal for a segment must carry the marker.
+  assert.ok(sent[0]!.endsWith("[topicId: T2]"), `seg#1 tail: ${sent[0]}`);
+  assert.ok(sent.at(-1)!.endsWith("[topicId: T2]"), `seg#2 tail: ${sent.at(-1)}`);
+  // Segment content must still be intact.
+  assert.ok(sent[0]!.startsWith("segment one text"));
+  assert.ok(sent.at(-1)!.startsWith("segment two text"));
+});
+
+void test("tailMarker: flushNow already tagged current segment → finalize does not double-append", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({
+    sender,
+    minChars: 100,
+    maxChars: 200,
+    tailMarker: () => "\n\n[topicId: T3]",
+  });
+  await session.update("only segment");
+  // Force-flush without starting a new segment; finalize should NOT append
+  // the marker again.
+  await session.flushNow();
+  await session.finalize();
+  const joined = sent.join("");
+  const markerCount = joined.split("[topicId: T3]").length - 1;
+  assert.equal(markerCount, 1, `marker should appear exactly once, got ${markerCount} in ${JSON.stringify(sent)}`);
+});
+
+void test("tailMarker: silent segment does not emit a lone marker", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({
+    sender,
+    minChars: 100,
+    maxChars: 200,
+    tailMarker: () => "\n\n[topicId: T4]",
+  });
+  // Never call update() → cumulativeText stays empty.
+  await session.flushNow();
+  await session.finalize();
+  assert.deepEqual(sent, [], "empty segment must not emit any text (marker included)");
+});
+
+void test("tailMarker: empty marker string is a no-op", async () => {
+  const { sender, sent } = fakeSender();
+  const session = createTestSession({
+    sender,
+    minChars: 100,
+    maxChars: 200,
+    tailMarker: () => "",
+  });
+  await session.update("plain text");
+  await session.finalize();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0], "plain text");
+});
+

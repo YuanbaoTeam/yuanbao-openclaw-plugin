@@ -15,6 +15,7 @@ import {
   guardCommand,
   resolveMention,
   guardGroupCommand,
+  guardBotLoop,
   guardSendAccess,
   rewriteBody,
   downloadMedia,
@@ -39,6 +40,7 @@ export function createPipeline(): MessagePipeline {
       .use(guardCommand) // SDK resolveControlCommandGate
       .use(resolveMention) // SDK resolveMentionGatingWithBypass (group chat)
       .use(guardGroupCommand) // Group command whitelist (group chat)
+      .use(guardBotLoop) // BOT↔BOT reply-loop breaker (group chat)
       .use(guardSendAccess) // Send access control guard (C2C)
       // Phase 3: Message preprocessing
       .use(rewriteBody) // Command rewrite + quote concat + mentions concat

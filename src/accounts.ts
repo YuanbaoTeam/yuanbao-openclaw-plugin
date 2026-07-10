@@ -132,6 +132,15 @@ export function resolveYuanbaoAccount(params: {
   // Whether to inject Markdown anti-wrapping instructions (default true)
   const markdownHintEnabled = merged.markdownHintEnabled !== false;
 
+  // Bot-loop guard config — group-only BOT↔BOT reply-loop breaker.
+  const botLoopRaw = merged.botLoop ?? {};
+  const botLoop = {
+    enabled: botLoopRaw.enabled !== false,
+    threshold: botLoopRaw.threshold !== undefined && botLoopRaw.threshold >= 1 ? botLoopRaw.threshold : 5,
+    windowMs: botLoopRaw.windowMs !== undefined && botLoopRaw.windowMs >= 0 ? botLoopRaw.windowMs : 10 * 60 * 1000,
+    muteMs: botLoopRaw.muteMs !== undefined && botLoopRaw.muteMs >= 0 ? botLoopRaw.muteMs : 30 * 60 * 1000,
+  };
+
   // Configuration is complete when appKey + appSecret are both present
   const configured = Boolean(appKey && appSecret);
 
@@ -167,6 +176,7 @@ export function resolveYuanbaoAccount(params: {
     requireMention,
     fallbackReply,
     markdownHintEnabled,
+    botLoop,
     config: merged,
   };
 }
