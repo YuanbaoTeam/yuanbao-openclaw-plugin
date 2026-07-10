@@ -3,7 +3,7 @@
 /**
  * Three-tier execution chain, attempted top-down:
  * 1. Gateway API (agent-harness-runtime available): calls cron API directly, status="ok"
- * 2. CLI (plugin-sdk/matrix available): runs `openclaw cron` command, status="ok"; falls back to tier 3 on failure
+ * 2. CLI (run-command SDK available): runs `openclaw cron` command, status="ok"; falls back to tier 3 on failure
  * 3. Legacy fallback: returns status="PENDING_CRON_CALL" with cronToolParams to guide the model
  */
 
@@ -64,7 +64,7 @@ async function resolveCallGatewayTool(): Promise<GatewayToolCaller | null> {
 async function resolveRunPluginCommand(): Promise<PluginCommandRunner | null> {
   if (_runPluginCmd !== undefined) return _runPluginCmd;
   try {
-    const sdkPath = 'openclaw/plugin-sdk/matrix';
+    const sdkPath = 'openclaw/plugin-sdk/run-command';
     const mod = await import(sdkPath);
     _runPluginCmd = mod.runPluginCommandWithTimeout as PluginCommandRunner;
   } catch {
