@@ -12,6 +12,13 @@ let mockRegistered = false;
 
 function setupMocks(t: any) {
   if (!mockRegistered) {
+    t.mock.module("openclaw/plugin-sdk/channel-outbound", {
+      namedExports: {
+        createChannelMessageReplyPipeline: () => ({
+          onModelSelected: () => {},
+        }),
+      },
+    });
     t.mock.module("openclaw/plugin-sdk/channel-reply-pipeline", {
       namedExports: {
         createChannelReplyPipeline: () => ({
@@ -646,4 +653,77 @@ void test("dispatch-reply: dispatch error propagates", async (t) => {
   const { next } = createMockNext();
 
   await assert.rejects(() => dispatchReply.handler(ctx, next), { message: "dispatch error" });
+});
+
+// ── capability detection fallback paths ──────────────────────────────────────
+
+void test("dispatch-reply: channel-outbound missing -> falls back to channel-reply-pipeline", async (t) => {
+  setupMocks(t);
+  // Force the new subpath to lack the export so the resolver falls back to the
+  // deprecated channel-reply-pipeline facade.
+  t.mock.module("openclaw/plugin-sdk/channel-outbound", {
+    namedExports: {},
+  });
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "fallback pipeline text" });
+            await deliver?.({ text: "fallback pipeline text" }, { kind: "block" });
+          }),
+        },
+      },
+    } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(wasCalled(), true, "should still dispatch using the fallback pipeline");
+  assert.ok(sentTexts.some(t => t.includes("fallback pipeline text")), "fallback pipeline should deliver text");
+});
+
+void test("dispatch-reply: both subpaths unavailable -> aborts pipeline", async (t) => {
+  setupMocks(t);
+  // Force both subpaths to lack the creator so the resolver returns null.
+  t.mock.module("openclaw/plugin-sdk/channel-outbound", {
+    namedExports: {},
+  });
+  t.mock.module("openclaw/plugin-sdk/channel-reply-pipeline", {
+    namedExports: {},
+  });
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async () => {}),
+        },
+      },
+    } as any,
+  });
+  const { next, wasCalled } = createMockNext();
+
+  await dispatchReply.handler(ctx, next);
+
+  assert.equal(wasCalled(), false, "should abort when no reply pipeline creator is available");
+  assert.equal(sentTexts.length, 0, "should not send anything when pipeline creator is missing");
 });

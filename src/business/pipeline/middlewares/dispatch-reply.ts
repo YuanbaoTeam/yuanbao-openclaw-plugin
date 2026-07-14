@@ -3,7 +3,6 @@
  * deliver handles media and text fallback when partial never fires.
  */
 
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
 import {
   resolveOutboundMediaUrls,
   normalizeOutboundReplyPayload,
@@ -19,6 +18,34 @@ import { runWithTraceContext } from "../../trace/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 const DELIVER_TEXT_CHUNK_LIMIT = 1200;
+
+// Resolves the channel reply pipeline creator, preferring the non-deprecated
+// `channel-outbound` subpath (`createChannelMessageReplyPipeline`) and falling
+// back to the deprecated `channel-reply-pipeline` facade (`createChannelReplyPipeline`)
+// when the new subpath is absent. `channel-reply-pipeline` is guaranteed available
+// since minHostVersion >=2026.5.7, so the reply pipeline can always be built
+// without raising the min host version.
+type ChannelReplyPipelineCreator =
+  (typeof import("openclaw/plugin-sdk/channel-outbound"))["createChannelMessageReplyPipeline"];
+
+async function resolveCreateChannelReplyPipeline(): Promise<ChannelReplyPipelineCreator | null> {
+  try {
+    const mod = await import("openclaw/plugin-sdk/channel-outbound");
+    const fn = mod.createChannelMessageReplyPipeline as ChannelReplyPipelineCreator | undefined;
+    if (typeof fn === "function") return fn;
+  } catch {
+    // fall through to deprecated facade
+  }
+
+  try {
+    const legacy = await import("openclaw/plugin-sdk/channel-reply-pipeline");
+    const fn = legacy.createChannelReplyPipeline as ChannelReplyPipelineCreator | undefined;
+    if (typeof fn === "function") return fn;
+  } catch {
+    // both subpaths unavailable
+  }
+  return null;
+}
 
 async function resolveStatusVersionSuffix(): Promise<string> {
   try {
@@ -104,6 +131,12 @@ export const dispatchReply: MiddlewareDescriptor = {
           ctx.log.error("[dispatch-reply] recordInboundSession 失败", { error: String(err) });
         },
       });
+
+      const createChannelReplyPipeline = await resolveCreateChannelReplyPipeline();
+      if (!createChannelReplyPipeline) {
+        ctx.log.error("[dispatch-reply] 回复管线创建器不可用，终止处理");
+        return;
+      }
 
       const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
         cfg: config,

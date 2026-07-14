@@ -3,7 +3,7 @@
 /**
  * Three-tier execution chain, attempted top-down:
  * 1. Gateway API (agent-harness-runtime available): calls cron API directly, status="ok"
- * 2. CLI (plugin-sdk/matrix available): runs `openclaw cron` command, status="ok"; falls back to tier 3 on failure
+ * 2. CLI (plugin-sdk/run-command available): runs `openclaw cron` command, status="ok"; falls back to deprecated `matrix` facade then tier 3 on failure
  * 3. Legacy fallback: returns status="PENDING_CRON_CALL" with cronToolParams to guide the model
  */
 
@@ -63,9 +63,24 @@ async function resolveCallGatewayTool(): Promise<GatewayToolCaller | null> {
 
 async function resolveRunPluginCommand(): Promise<PluginCommandRunner | null> {
   if (_runPluginCmd !== undefined) return _runPluginCmd;
+
+  // Prefer the non-deprecated source subpath `run-command`; fall back to the
+  // deprecated `matrix` facade if the new subpath is unavailable. `matrix` is
+  // guaranteed available since minHostVersion >=2026.5.7, so the CLI tier
+  // always has a usable executor without raising the min host version.
   try {
-    const sdkPath = 'openclaw/plugin-sdk/matrix';
-    const mod = await import(sdkPath);
+    const mod = await import("openclaw/plugin-sdk/run-command");
+    const fn = mod.runPluginCommandWithTimeout as PluginCommandRunner | undefined;
+    if (typeof fn === "function") {
+      _runPluginCmd = fn;
+      return _runPluginCmd;
+    }
+  } catch {
+    // fall through to deprecated facade
+  }
+
+  try {
+    const mod = await import("openclaw/plugin-sdk/matrix");
     _runPluginCmd = mod.runPluginCommandWithTimeout as PluginCommandRunner;
   } catch {
     _runPluginCmd = null;
