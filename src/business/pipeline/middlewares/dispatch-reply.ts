@@ -19,6 +19,24 @@ import { runWithTraceContext } from "../../trace/context.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 const DELIVER_TEXT_CHUNK_LIMIT = 1200;
+// Both incomplete-turn fallback variants contain this phrase; the core itself
+// matches on it (result-fallback-classifier.ts), so treat it as contracted.
+const INCOMPLETE_TURN_WARNING_RE = /Agent couldn't generate a response/i;
+
+// Core emits the incomplete-turn warning after an empty post-tool stop even when
+// a channel action (sticker/react) already delivered user-visible content, since
+// its send-action allowlist doesn't recognize those actions. Suppress the false
+// positive using our action-delivery tracking as the authoritative signal.
+function isSuppressedIncompleteTurnWarning(
+  payload: Record<string, unknown>,
+  traceContext: { hasActionDelivered(): boolean } | undefined,
+): boolean {
+  return (
+    payload.isError === true &&
+    INCOMPLETE_TURN_WARNING_RE.test(typeof payload.text === "string" ? payload.text : "") &&
+    (traceContext?.hasActionDelivered() ?? false)
+  );
+}
 
 async function resolveStatusVersionSuffix(): Promise<string> {
   try {
@@ -121,6 +139,11 @@ export const dispatchReply: MiddlewareDescriptor = {
             if (ctx.abortSignal?.aborted) return;
             if (payload.isReasoning || payload.isCompactionNotice) return;
             if (info.kind === "tool") return;
+
+            if (isSuppressedIncompleteTurnWarning(payload, ctx.traceContext)) {
+              ctx.log.warn("[dispatch-reply] 抑制 incomplete-turn 误告警");
+              return;
+            }
 
             const normalized = normalizeOutboundReplyPayload(payload);
 
