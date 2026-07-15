@@ -1,12 +1,12 @@
 /**
  * Middleware: @mention detection guard (group chat).
  *
- * Uses SDK resolveMentionGatingWithBypass with command bypass support.
+ * Uses SDK resolveInboundMentionDecision with command bypass support.
  * Non-@bot messages are recorded to group history then pipeline is aborted.
  */
 
 import {
-  resolveMentionGatingWithBypass,
+  resolveInboundMentionDecision,
   logInboundDrop,
 } from "openclaw/plugin-sdk/channel-inbound";
 import { recordPendingHistoryEntryIfEnabled } from "openclaw/plugin-sdk/reply-history";
@@ -25,14 +25,18 @@ export const resolveMention: MiddlewareDescriptor = {
       surface: "yuanbao",
     });
 
-    const result = resolveMentionGatingWithBypass({
-      isGroup,
-      requireMention,
-      canDetectMention: true,
-      wasMentioned: isAtBot,
-      allowTextCommands,
-      hasControlCommand,
-      commandAuthorized,
+    const result = resolveInboundMentionDecision({
+      facts: {
+        canDetectMention: true,
+        wasMentioned: isAtBot,
+      },
+      policy: {
+        isGroup,
+        requireMention,
+        allowTextCommands,
+        hasControlCommand,
+        commandAuthorized,
+      },
     });
 
     ctx.effectiveWasMentioned = result.effectiveWasMentioned;

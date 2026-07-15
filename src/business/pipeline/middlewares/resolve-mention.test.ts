@@ -20,7 +20,7 @@ function setupMocks(
   if (!mockRegistered) {
     t.mock.module("openclaw/plugin-sdk/channel-inbound", {
       namedExports: {
-        resolveMentionGatingWithBypass: () => ({ ...mockGatingResult }),
+        resolveInboundMentionDecision: () => ({ ...mockGatingResult }),
         logInboundDrop: () => {},
       },
     });

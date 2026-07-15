@@ -45,7 +45,7 @@
     "@types/ws": "^8.18.1",
     "c8": "^11.0.0",
     "eslint": "^9.0.0",
-    "openclaw": ">=2026.5.7",
+    "openclaw": ">=2026.5.10",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.0.0"
