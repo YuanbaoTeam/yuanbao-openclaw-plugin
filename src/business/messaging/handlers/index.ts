@@ -47,58 +47,101 @@ export function buildMsgBody(
   return handler?.buildMsgBody?.(data);
 }
 
-const AT_USER_RE = /(?<=\s|^)@(\S+?)(?=\s|$)/g;
-
+/**
+ * Resolve @mentions in outbound text using cached group members' nicknames.
+ *
+ * Member-nickname driven (replaces the old whitespace-bounded regex): iterates cached
+ * members sorted by nickName length descending, locating `@<nickName>` substrings so that
+ * Chinese no-space forms like `提醒@元宝喝水` match (the old regex required whitespace on
+ * both sides of `@昵称` and missed adjacent CJK). Matching is case-insensitive (toLowerCase),
+ * aligned with `Member.lookupUserByNickName`. Longest-nickName-first avoids a short name
+ * hijacking a longer one (e.g. "Al" vs "Alice"). Non-member @ tokens (`@keyframes`,
+ * `@media`, emails) match no member and stay as plain text.
+ */
 function resolveAtMentions(
   text: string,
   groupCode?: string,
   memberInst?: Member,
 ): OutboundContentItem[] {
+  // No group context, no member instance, or empty member cache → whole text as one item
+  // (preserves prior behavior, keeps @keyframes/@media intact).
+  if (!groupCode || !memberInst) {
+    return text.trim() ? [{ type: "text", text: text.trim() }] : [];
+  }
+
+  const members = memberInst.lookupUsers(groupCode);
+  if (members.length === 0) {
+    return text.trim() ? [{ type: "text", text: text.trim() }] : [];
+  }
+
+  // Longest nickName first so shorter names cannot shadow longer ones.
+  const sortedMembers = [...members]
+    .filter(m => m.nickName && m.nickName.length > 0)
+    .sort((a, b) => b.nickName.length - a.nickName.length);
+
+  type MatchRange = { start: number; end: number; userId: string; nickName: string };
+  const matches: MatchRange[] = [];
+  const occupied = new Set<number>();
+  const lowerText = text.toLowerCase();
+
+  for (const m of sortedMembers) {
+    const needle = `@${m.nickName}`.toLowerCase();
+    let from = 0;
+    while (from <= lowerText.length - needle.length) {
+      const idx = lowerText.indexOf(needle, from);
+      if (idx === -1) {
+        break;
+      }
+      // Reject overlaps with already-claimed (longer-nickName) regions.
+      let overlaps = false;
+      for (let i = idx; i < idx + needle.length; i++) {
+        if (occupied.has(i)) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (!overlaps) {
+        matches.push({ start: idx, end: idx + needle.length, userId: m.userId, nickName: m.nickName });
+        for (let i = idx; i < idx + needle.length; i++) {
+          occupied.add(i);
+        }
+      }
+      from = idx + needle.length;
+    }
+  }
+
+  // No member @ matched → whole text as one item (keeps non-member @ tokens intact).
+  if (matches.length === 0) {
+    return text.trim() ? [{ type: "text", text: text.trim() }] : [];
+  }
+
+  matches.sort((a, b) => a.start - b.start);
+
   const items: OutboundContentItem[] = [];
   let lastIndex = 0;
-
-  for (const match of text.matchAll(AT_USER_RE)) {
-    const matchStart = match.index ?? 0;
-    const nickName = match[1]!;
-    const userRecord =
-      groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
-
-    // Only split when the @ resolves to a real group member; otherwise leave
-    // @keyframes / @media / unknown @ tokens in place (avoid broken joins in client).
-    if (!userRecord) {
-      continue;
-    }
-
-    if (matchStart > lastIndex) {
-      const before = text.slice(lastIndex, matchStart);
+  for (const match of matches) {
+    if (match.start > lastIndex) {
+      const before = text.slice(lastIndex, match.start);
       if (before.trim()) {
         items.push({ type: "text", text: before.trim() });
       }
     }
-
     items.push({
       type: "custom",
       data: JSON.stringify({
         elem_type: 1002,
-        text: `@${userRecord.nickName}`,
-        user_id: userRecord.userId,
+        text: `@${match.nickName}`,
+        user_id: match.userId,
       }),
     });
-
-    lastIndex = matchStart + match[0].length;
+    lastIndex = match.end;
   }
 
-  // Remaining trailing text
   if (lastIndex < text.length) {
     const trailing = text.slice(lastIndex);
     if (trailing.trim()) {
       items.push({ type: "text", text: trailing.trim() });
     }
-  }
-
-  // No matches: return original text
-  if (items.length === 0 && text.trim()) {
-    items.push({ type: "text", text: text.trim() });
   }
 
   return items;
