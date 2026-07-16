@@ -1,0 +1,160 @@
+name: Sync OpenClaw Catalog
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to sync (without v prefix)'
+        required: true
+
+jobs:
+  sync-catalog:
+    if: ${{ !contains(github.event.release.tag_name || inputs.version || '', 'beta') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Extract version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for npm registry and get integrity
+        id: integrity
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          for i in $(seq 1 30); do
+            INTEGRITY=$(npm view "openclaw-plugin-yuanbao@${VERSION}" dist.integrity 2>/dev/null || true)
+            if [ -n "$INTEGRITY" ]; then
+              echo "value=${INTEGRITY}" >> "$GITHUB_OUTPUT"
+              echo "Got integrity: ${INTEGRITY}"
+              exit 0
+            fi
+            echo "Attempt $i: not yet available, waiting 10s..."
+            sleep 10
+          done
+          echo "::error::Failed to fetch integrity after 5 minutes"
+          exit 1
+
+      - name: Checkout openclaw fork
+        uses: actions/checkout@v4
+        with:
+          repository: YuanbaoTeam/openclaw
+          token: ${{ secrets.OPENCLAW_FORK_TOKEN }}
+          path: openclaw
+
+      - name: Sync with upstream and create branch
+        working-directory: openclaw
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BRANCH="chore/sync-yuanbao-plugin-${VERSION}-${SHORT_SHA}"
+          git remote add upstream https://github.com/openclaw/openclaw.git
+          git fetch upstream main
+          git checkout -b "${BRANCH}" upstream/main
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+        id: branch
+
+      - name: Update catalog and tests
+        working-directory: openclaw
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          INTEGRITY: ${{ steps.integrity.outputs.value }}
+        run: |
+          node -e "
+          const fs = require('fs');
+
+          const VERSION = process.env.VERSION;
+          const INTEGRITY = process.env.INTEGRITY;
+          const versionRe = /openclaw-plugin-yuanbao@\d+\.\d+\.\d+/g;
+
+          // Read catalog to extract old integrity (before modifying)
+          const catalogPath = 'scripts/lib/official-external-channel-catalog.json';
+          let catalogContent = fs.readFileSync(catalogPath, 'utf8');
+          const yuanbaoBlock = catalogContent.indexOf('openclaw-plugin-yuanbao');
+          const oldIntegrity = yuanbaoBlock !== -1
+            ? catalogContent.slice(yuanbaoBlock).match(/\"expectedIntegrity\":\s*\"(sha512-[^\"]+)\"/)?.[1]
+            : null;
+
+          // Update catalog JSON via string replacement (preserves formatting)
+          catalogContent = catalogContent.replace(versionRe, 'openclaw-plugin-yuanbao@' + VERSION);
+          if (oldIntegrity) {
+            catalogContent = catalogContent.replace(oldIntegrity, INTEGRITY);
+          }
+          fs.writeFileSync(catalogPath, catalogContent);
+
+          // Update test files: version via regex, integrity via exact old→new
+          const testFiles = [
+            'src/channels/plugins/catalog.test.ts',
+            'src/channels/plugins/contracts/channel-catalog.contract.test.ts',
+            'src/config/config.plugin-validation.test.ts',
+            'src/plugins/official-external-plugin-catalog.test.ts',
+            'test/official-channel-catalog.test.ts',
+          ];
+          for (const file of testFiles) {
+            let content = fs.readFileSync(file, 'utf8');
+            content = content.replace(versionRe, 'openclaw-plugin-yuanbao@' + VERSION);
+            if (oldIntegrity && content.includes(oldIntegrity)) {
+              content = content.replaceAll(oldIntegrity, INTEGRITY);
+            }
+            fs.writeFileSync(file, content);
+          }
+
+          console.log('Updated catalog and ' + testFiles.length + ' test files to v' + VERSION);
+          "
+
+      - name: Commit and push
+        working-directory: openclaw
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sync yuanbao plugin catalog to ${VERSION}"
+          git push origin "${BRANCH}"
+
+      - name: Create PR to upstream
+        id: pr
+        working-directory: openclaw
+        env:
+          GH_TOKEN: ${{ secrets.OPENCLAW_FORK_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          PR_URL=$(gh pr create \
+            --repo openclaw/openclaw \
+            --base main \
+            --head "YuanbaoTeam:${BRANCH}" \
+            --title "chore: sync yuanbao plugin catalog to ${VERSION}" \
+            --body "Automated catalog sync after openclaw-plugin-yuanbao@${VERSION} published to npm.
+
+          - Updated npmSpec version
+          - Updated expectedIntegrity")
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          echo "PR created: ${PR_URL}"
+
+      - name: Notify success
+        if: success()
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          PR_URL="${{ steps.pr.outputs.url }}"
+          curl -s -X POST "${{ secrets.WEWORK_WEBHOOK_OPENCLAW }}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"✅ OpenClaw Catalog 同步成功\n版本: openclaw-plugin-yuanbao@${VERSION}\nPR: ${PR_URL}\"}}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "${{ secrets.WEWORK_WEBHOOK_OPENCLAW }}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"❌ OpenClaw Catalog 同步失败\n版本: openclaw-plugin-yuanbao@${VERSION}\n查看: ${RUN_URL}\"}}"
