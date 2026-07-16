@@ -101,6 +101,28 @@ export function resolveActionTarget(input: ActionParams): ResolvedTarget {
     throw new Error("[resolveActionTarget] Unable to determine delivery target: to / params.to / toolContext.currentChannelId are all empty");
   }
 
+  // Bare-target routing fix: when the Agent `send` tool passes a bare group code (no
+  // group:/user:/direct: prefix, after an optional `yuanbao:` provider prefix) that equals
+  // the originating group context, route as group. Without this, a bare short numeric like
+  // "658317543" fails looksLikeYuanbaoId → resolveUsername → DM, misrouting a group reply
+  // to C2C. Explicit user:/direct: are never re-classified as group even if their value
+  // coincidentally equals the group code (they fall through to parseTarget below).
+  const trimmedRawTo = rawTo.trim();
+  const providerStripped = trimmedRawTo.replace(/^yuanbao:/, "");
+  const isBareTarget =
+    !providerStripped.startsWith("group:") &&
+    !providerStripped.startsWith("user:") &&
+    !providerStripped.startsWith("direct:");
+  if (isBareTarget && contextGroupCode && trimmedRawTo === contextGroupCode) {
+    return {
+      isGroup: true,
+      target: contextGroupCode,
+      groupCode: contextGroupCode,
+      sessionKey: params?.__sessionKey,
+      agentId: params?.__agentId,
+    };
+  }
+
   // Use parseTarget to uniformly parse user:xxx / direct:xxx / group:xxx / bare ID
   const { isGroup, target } = parseTarget(rawTo);
 
