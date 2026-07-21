@@ -7,7 +7,6 @@
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { registerGroupTools } from "./group.js";
-import { registerMemberMemoryTools } from "./member-memory.js";
 import { registerMemberTools } from "./member.js";
 import { registerRemindTools } from "./remind.js";
 
@@ -21,9 +20,6 @@ import { registerRemindTools } from "./remind.js";
 export function registerTools(api: OpenClawPluginApi): void {
   // -- Member --
   registerMemberTools(api);
-
-  // -- Member memory (per-member facts in shared group session) --
-  registerMemberMemoryTools(api);
 
   // -- Group info --
   registerGroupTools(api);

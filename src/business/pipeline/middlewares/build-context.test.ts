@@ -199,3 +199,71 @@ void test("build-context: uses raw.msg_time as envelope timestamp when available
   assert.ok(capturedTimestamp instanceof Date, "timestamp should be a Date");
   assert.equal(capturedTimestamp!.getTime(), 1718530000 * 1000);
 });
+
+void test("build-context: group chat attributes @bot body with senderLabel (nickname + id)", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-001",
+    fromAccount: "user-001",
+    senderNickname: "小明",
+    rewrittenBody: "我叫小明",
+    raw: { msg_id: "msg-grp-1" },
+    account: { accountId: "bot-001", botId: "bot-001", historyLimit: 0 },
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  // Body must surface both nickname and id so the agent can tell who is asking
+  // inside the shared group session.
+  assert.match(payload.Body, /小明 \(user-001\): 我叫小明/);
+  // BodyForAgent stays the raw message without the attribution prefix.
+  assert.equal(payload.BodyForAgent, "我叫小明");
+});
+
+void test("build-context: group chat falls back to fromAccount in body when nickname is absent", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-002",
+    fromAccount: "user-002",
+    senderNickname: undefined,
+    rewrittenBody: "hi",
+    raw: { msg_id: "msg-grp-2" },
+    account: { accountId: "bot-001", botId: "bot-001", historyLimit: 0 },
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  // No nickname -> body uses fromAccount only, no empty parens.
+  assert.equal(payload.Body, "user-002: hi");
+});
+
+void test("build-context: C2C body is not attributed with a sender prefix", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: false,
+    fromAccount: "user-001",
+    senderNickname: "张三",
+    rewrittenBody: "你好",
+    raw: { msg_id: "msg-c2c-1" },
+    account: { accountId: "bot-001", botId: "bot-001", historyLimit: 0 },
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  // C2C does not need in-body sender attribution; body stays as rewrittenBody.
+  assert.equal(payload.Body, "你好");
+});

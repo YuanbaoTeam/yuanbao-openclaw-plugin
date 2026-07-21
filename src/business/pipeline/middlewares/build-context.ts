@@ -39,6 +39,18 @@ export const buildContext: MiddlewareDescriptor = {
     }
     const label = isGroup ? `group:${groupCode}` : `direct:${fromAccount}`;
 
+    // Group chat: attribute the current @bot message to its sender in the body,
+    // so the agent can tell who is asking inside the shared group session. The
+    // shared SessionKey intentionally does not isolate members, so we surface
+    // the sender (nickname + id) in the body text itself rather than via a
+    // per-member session split.
+    const senderLabel = isGroup
+      ? (senderNickname ? `${senderNickname} (${fromAccount})` : fromAccount)
+      : undefined;
+    const attributedBody = isGroup && senderLabel
+      ? `${senderLabel}: ${rewrittenBody}`
+      : rewrittenBody;
+
     // Format envelope — always include timestamp (prefer protocol-level msg_time for accuracy)
     const msgTimestamp = raw.msg_time ? new Date(raw.msg_time * 1000) : new Date();
     const body = core.channel.reply.formatAgentEnvelope({
@@ -47,7 +59,7 @@ export const buildContext: MiddlewareDescriptor = {
       timestamp: msgTimestamp,
       previousTimestamp,
       envelope: envelopeOptions,
-      body: rewrittenBody,
+      body: attributedBody,
     });
 
     // Group chat: build history context
