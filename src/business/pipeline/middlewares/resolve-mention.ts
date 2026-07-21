@@ -44,15 +44,21 @@ export const resolveMention: MiddlewareDescriptor = {
     if (result.shouldSkip) {
       const { historyLimit } = account;
 
-      // Record non-@bot message to group history context
+      // Record non-@bot message to group history context. Prefix the body with
+      // the sender's nickname (+ id) so the agent can tell members apart in the
+      // shared group history — the SessionKey is intentionally shared, so we
+      // surface "who said what" in the body text itself.
       if (historyLimit > 0) {
+        const senderLabel = ctx.senderNickname
+          ? `${ctx.senderNickname} (${ctx.fromAccount})`
+          : ctx.fromAccount;
         recordPendingHistoryEntryIfEnabled({
           historyMap: chatHistories,
           historyKey: ctx.groupCode!,
           limit: historyLimit,
           entry: {
             sender: ctx.fromAccount,
-            body: `${ctx.fromAccount}: ${ctx.rawBody}`,
+            body: `${senderLabel}: ${ctx.rawBody}`,
             timestamp: Date.now(),
             messageId: ctx.raw.msg_id ?? String(ctx.raw.msg_seq ?? ""),
             medias: ctx.medias.length > 0 ? ctx.medias : undefined,
