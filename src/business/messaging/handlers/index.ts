@@ -1,6 +1,7 @@
 /** Message type handler registry. */
 
 import type { Member } from "../../../infra/cache/member.js";
+import { createLog } from "../../../logger.js";
 import { mdTable, mdMath } from "../../utils/markdown.js";
 import { customHandler } from "./custom.js";
 import { faceHandler } from "./face.js";
@@ -10,6 +11,8 @@ import { soundHandler } from "./sound.js";
 import { textHandler } from "./text.js";
 import type { MessageElemHandler, MsgBodyItemType, OutboundContentItem } from "./types.js";
 import { videoHandler } from "./video.js";
+
+const log = createLog("outbound:at-mention");
 
 const handlerList: MessageElemHandler[] = [
   textHandler,
@@ -49,23 +52,45 @@ export function buildMsgBody(
 
 const AT_USER_RE = /(?<=\s|^)@(\S+?)(?=\s|$)/g;
 
-function resolveAtMentions(
+/**
+ * Resolve ` @nickname ` tokens into elem_type=1002 custom mention elements.
+ *
+ * When a nickname misses the member cache in a group context, fetch the full
+ * member list via `memberInst.getMembers(groupCode)` once (GroupMember.cache
+ * hit → no WS; miss → getGroupMemberList) and retry. This lets @mentions
+ * resolve even when the model skipped `query_session_members` — e.g. `@元宝`
+ * where 元宝 is an AI member (userType=2) only present in the API-fetched list.
+ */
+async function resolveAtMentions(
   text: string,
   groupCode?: string,
   memberInst?: Member,
-): OutboundContentItem[] {
+): Promise<OutboundContentItem[]> {
   const items: OutboundContentItem[] = [];
   let lastIndex = 0;
+  let fallbackFetched = false;
 
   for (const match of text.matchAll(AT_USER_RE)) {
     const matchStart = match.index ?? 0;
     const nickName = match[1]!;
-    const userRecord =
+    let userRecord =
       groupCode && memberInst ? memberInst.lookupUserByNickName(groupCode, nickName) : undefined;
+
+    // Cache miss in a group: pull the full member list once and retry the
+    // lookup. Subsequent misses in the same call skip the fetch (flag) and
+    // just warn below.
+    if (!userRecord && groupCode && memberInst && !fallbackFetched) {
+      await memberInst.group.getMembers(groupCode);
+      fallbackFetched = true;
+      userRecord = memberInst.lookupUserByNickName(groupCode, nickName);
+    }
 
     // Only split when the @ resolves to a real group member; otherwise leave
     // @keyframes / @media / unknown @ tokens in place (avoid broken joins in client).
     if (!userRecord) {
+      if (groupCode && memberInst) {
+        log.warn("at-mention resolve failed, leaving as plain text", { groupCode, nickName });
+      }
       continue;
     }
 
@@ -104,11 +129,11 @@ function resolveAtMentions(
   return items;
 }
 
-export function prepareOutboundContent(
+export async function prepareOutboundContent(
   text: string,
   groupCode?: string,
   memberInst?: Member,
-): OutboundContentItem[] {
+): Promise<OutboundContentItem[]> {
   if (!text) {
     return [];
   }
@@ -121,13 +146,13 @@ export function prepareOutboundContent(
   if (sanitizedText.length) {
     const trailing = sanitizedText.trim();
     if (trailing) {
-      items.push(...resolveAtMentions(trailing, groupCode, memberInst));
+      items.push(...await resolveAtMentions(trailing, groupCode, memberInst));
     }
   }
 
   // If no matches, parse entire text for @user mentions
   if (items.length === 0 && sanitizedText.trim()) {
-    items.push(...resolveAtMentions(sanitizedText.trim(), groupCode, memberInst));
+    items.push(...await resolveAtMentions(sanitizedText.trim(), groupCode, memberInst));
   }
 
   return items;

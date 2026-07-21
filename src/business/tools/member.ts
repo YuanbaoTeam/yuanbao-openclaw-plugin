@@ -122,7 +122,8 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
     label: "Query Session Members",
     description:
       'Query session members in the current group (called "派/Pai" in the app): '
-      + "find a user by name, @mention someone, list bots (including Yuanbao AI assistants), or list all members.",
+      + "find a user by name, @mention someone, list bots (including Yuanbao AI assistants), or list all members. "
+      + "In group chats, whenever you need to @mention someone or reference member context, you MUST call this tool first (with mention:true) to obtain the correct userId and the @ format (mentionHint); writing @xxx directly without calling this tool will NOT be rendered as an @mention by the client.",
     parameters: {
       type: "object",
       properties: {
@@ -143,7 +144,8 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
         },
         mention: {
           type: "boolean",
-          description: "Set to true when you need to @mention the user(s) in the reply. ",
+          description: "Set to true when you need to @mention the user(s) in the reply. "
+          + "Required when the reply involves @mention or member context; the returned mentionHint is the only source of the valid @ format.",
         },
       },
       required: ["action", "mention"],
