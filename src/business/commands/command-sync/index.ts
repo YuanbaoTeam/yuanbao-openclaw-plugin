@@ -1,10 +1,12 @@
 /** Command sync — collects bot/plugin commands and builds the sync payload for the backend. */
 
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import {
-  listChatCommandsForConfig,
-  type ChatCommandDefinition,
-} from "openclaw/plugin-sdk/command-auth";
+// `config-runtime`（OpenClawConfig）与 `listChatCommandsForConfig` 的聚焦替代面
+// 在 minHostVersion 2026.5.7 仍不可用（`config-contracts` / `channel-outbound`
+// 窄面替代未发布），暂作为兼容债务保留；`ChatCommandDefinition` 类型已迁至非
+// deprecated 的 `native-command-registry`。待 minHostVersion 抬升后统一迁移。
+import { listChatCommandsForConfig } from "openclaw/plugin-sdk/command-auth";
+import type { ChatCommandDefinition } from "openclaw/plugin-sdk/native-command-registry";
 import { getPluginVersion, getOpenclawVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
 
