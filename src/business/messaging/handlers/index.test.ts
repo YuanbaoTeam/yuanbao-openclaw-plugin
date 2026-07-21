@@ -52,31 +52,78 @@ void test("buildMsgBody returns undefined for unregistered type", () => {
   assert.equal(buildMsgBody("TIMUnknownElem", {}), undefined);
 });
 
-void test("prepareOutboundContent plain text", () => {
-  const items = prepareOutboundContent("hello world");
+void test("prepareOutboundContent plain text", async () => {
+  const items = await prepareOutboundContent("hello world");
   assert.equal(items.length, 1);
   assert.equal(items[0].type, "text");
   assert.equal((items[0] as { type: "text"; text: string }).text, "hello world");
 });
 
-void test("prepareOutboundContent empty text returns empty array", () => {
-  assert.deepEqual(prepareOutboundContent(""), []);
-  assert.deepEqual(prepareOutboundContent(null as unknown as string), []);
-  assert.deepEqual(prepareOutboundContent(undefined as unknown as string), []);
+void test("prepareOutboundContent empty text returns empty array", async () => {
+  assert.deepEqual(await prepareOutboundContent(""), []);
+  assert.deepEqual(await prepareOutboundContent(null as unknown as string), []);
+  assert.deepEqual(await prepareOutboundContent(undefined as unknown as string), []);
 });
 
-void test("prepareOutboundContent keeps CSS @keyframes in one text item", () => {
+void test("prepareOutboundContent keeps CSS @keyframes in one text item", async () => {
   const css = [
     "        animation: pulse 1.5s ease-in-out infinite;",
     "        }",
     "        @keyframes pulse {",
   ].join("\n");
-  const items = prepareOutboundContent(css);
+  const items = await prepareOutboundContent(css);
   assert.equal(items.length, 1);
   assert.equal(items[0].type, "text");
   const text = (items[0] as { type: "text"; text: string }).text;
   assert.ok(text.includes("@keyframes pulse {"), "should not split @keyframes into separate elems");
   assert.ok(!text.includes("}@keyframes"), "should not lose newline before @keyframes");
+});
+
+void test("prepareOutboundContent resolves @mention via fallback getMembers when cache misses", async () => {
+  // Simulate 元宝 (AI member) only present after API fetch: lookupUserByNickName
+  // misses first, group.getMembers fills the cache, retry lookup hits.
+  const cache = new Map<string, { userId: string; nickName: string }>();
+  const memberInst = {
+    lookupUserByNickName: (_groupCode: string, nickName: string) => {
+      const rec = cache.get(nickName.toLowerCase());
+      return rec ? { userId: rec.userId, nickName: rec.nickName, lastSeen: 0 } : undefined;
+    },
+    group: {
+      getMembers: async (_groupCode: string) => {
+        cache.set("元宝", { userId: "yb-1", nickName: "元宝" });
+        return [{ userId: "yb-1", nickName: "元宝", lastSeen: 0 }];
+      },
+    },
+  };
+  const items = await prepareOutboundContent("提醒 @元宝 喝水", "g-1", memberInst as any);
+  // Expected: text "提醒", custom @元宝 (elem_type=1002), text "喝水"
+  assert.equal(items.length, 3);
+  assert.equal(items[0].type, "text");
+  assert.equal((items[0] as { type: "text"; text: string }).text, "提醒");
+  assert.equal(items[1].type, "custom");
+  const custom = JSON.parse((items[1] as { type: "custom"; data: string }).data) as {
+    elem_type: number;
+    text: string;
+    user_id: string;
+  };
+  assert.equal(custom.elem_type, 1002);
+  assert.equal(custom.user_id, "yb-1");
+  assert.equal(items[2].type, "text");
+  assert.equal((items[2] as { type: "text"; text: string }).text, "喝水");
+});
+
+void test("prepareOutboundContent leaves @ as plain text when fallback still misses", async () => {
+  // group.getMembers returns nothing useful; lookup stays undefined → warn + plain text.
+  const memberInst = {
+    lookupUserByNickName: () => undefined,
+    group: { getMembers: async () => [] },
+  };
+  const items = await prepareOutboundContent("hi @nobody here", "g-1", memberInst as any);
+  // No @ resolved → whole text collapses into a single text item (plain @ preserved).
+  assert.equal(items.length, 1);
+  assert.equal(items[0].type, "text");
+  const text = (items[0] as { type: "text"; text: string }).text;
+  assert.ok(text.includes("@nobody"), "unresolved @ should be preserved as plain text");
 });
 
 void test("buildOutboundMsgBody converts content items to MsgBody", () => {
