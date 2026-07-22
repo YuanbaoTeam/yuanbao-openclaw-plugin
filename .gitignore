@@ -30,3 +30,6 @@ Thumbs.db
 
 # Backup (重构前的老代码备份)
 back/
+
+# AI tooling local memory (do not commit)
+.workbuddy/

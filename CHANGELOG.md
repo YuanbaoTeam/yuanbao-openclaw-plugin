@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.17.2 (2026-07-22)
+
+- **feat:** 创建 `pipeline.execute` Span，写入 auth-bind deviceInfo 与 `yuanbao.bot_id` 属性，供 APM 按 bot/终端维度过滤
+- **fix:** 对齐 DiagnosticTrace traceId/traceparent 与 OpenClaw logger，供下游 OpenClaw / APM 链路关联
+
 ## 2.15.0 (2026-06-11)
 
 - **feat:** 支持微信聊天记录解析

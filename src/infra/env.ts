@@ -2,6 +2,7 @@ import { createRequire } from "module";
 import os from "os";
 import semver from "semver";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
+import { setTelemetryVersion } from "./telemetry.js";
 
 /**
  * Plugin version number.
@@ -26,6 +27,42 @@ export const getOpenclawVersion = () => _openclawVersion;
  * Get current operating system.
  */
 export const getOperationSystem = () => os.type();
+
+/**
+ * Access-party / terminal-type id for WS auth-bind `deviceInfo.instanceId`.
+ * Proto comment: "Device terminal type". OpenClaw=16, Hermes=17, OpenHuman=20.
+ * This is NOT the cloud host / pod instance id.
+ */
+export const OPENCLAW_TERMINAL_TYPE_ID = 16;
+
+/** Auth-bind `deviceInfo` payload (single source of truth). */
+export type DeviceInfo = {
+  appVersion: string;
+  appOperationSystem: string;
+  botVersion: string;
+  /** Proto `instance_id` — terminal/access-party type (e.g. "16"), not host instance. */
+  instanceId: string;
+};
+
+/** Build deviceInfo — same fields as WS auth-bind `deviceInfo`. */
+export function buildDeviceInfo(): DeviceInfo {
+  return {
+    appVersion: getPluginVersion(),
+    appOperationSystem: getOperationSystem(),
+    botVersion: getOpenclawVersion(),
+    instanceId: String(OPENCLAW_TERMINAL_TYPE_ID),
+  };
+}
+
+/** Cloud host / pod instance id for observability (CLS, APM). */
+export function getHostInstanceId(): string | undefined {
+  const fromEnv = process.env.OPENCLAW_INSTANCE_ID?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const hostname = process.env.HOSTNAME?.trim();
+  return hostname || undefined;
+}
 
 /**
  * Read minHostVersion constraint from package.json (Single Source of Truth).
@@ -65,6 +102,8 @@ export const initEnv = (api: OpenClawPluginApi) => {
   if (!_pluginVersion || !_openclawVersion) {
     legacyInitEnv();
   }
+
+  setTelemetryVersion(_pluginVersion);
 
   // Runtime compatibility guard (Layer 4 defense)
   if (_openclawVersion) {
