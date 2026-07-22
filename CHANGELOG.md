@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.17.2 (2026-07-22)
+
+- **feat:** 创建 `pipeline.execute` Span，写入 auth-bind deviceInfo 与 `yuanbao.bot_id` 属性，供 APM 按 bot/终端维度过滤
+- **fix:** 对齐 DiagnosticTrace traceId/traceparent 与 OpenClaw logger，供下游 OpenClaw / APM 链路关联
+
+## 2.17.1 (2026-07-08)
+
+- **fix:** 群消息在 body 中标注 senderName，修正多人群聊场景下的发送者归属
+- **fix:** 修复 outbound @mention 兜底拉取，并强化 `query_session_members` 工具描述
+- **fix:** sticker/action 已投递后抑制 incomplete-turn 误告警
+- **refactor:** 迁移 3 个已废弃 SDK 子路径到非废弃的窄接口
+
+## 2.17.0 (2026-07-01)
+
+- **feat:** 向 agent 上下文注入当前时间，提供时间感知能力
+- **refactor:** 用 `StreamingOutputSession` 替换 `QueueSession`，重构出站流式输出
+- **fix:** 收紧 thinking-boundary 换行规则（水平分割线前保留换行）
+
+## 2.16.0 (2026-06-22)
+
+- **feat:** 增强 trace context 处理以支持 action delivery
+- **fix:** 修复 openclaw 2026.6.1 下 cron jobs tools 的输入格式
+- **chore:** 兼容基线提升到 openclaw 2026.5.7
+
 ## 2.15.0 (2026-06-11)
 
 - **feat:** 支持微信聊天记录解析
