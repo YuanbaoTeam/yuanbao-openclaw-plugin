@@ -95,9 +95,17 @@ export const buildContext: MiddlewareDescriptor = {
     }
 
     // Use SDK finalizeInboundContext
+    // BodyForAgent is what the agent persists into the session transcript
+    // (agentText = BodyForAgent). In group chat we must surface the sender label
+    // here too — otherwise @bot messages land anonymously in the shared session
+    // and the agent cannot tell who said what (PR #44 only patched Body, leaving
+    // BodyForAgent as the raw body, which is why the bug still reproduced).
+    // RawBody / CommandBody stay raw so command parsing (e.g. /reset, /new) is
+    // not polluted by the sender prefix.
+    const bodyForAgent = isGroup && senderLabel ? attributedBody : rewrittenBody;
     ctx.ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: combinedBody,
-      BodyForAgent: rewrittenBody,
+      BodyForAgent: bodyForAgent,
       ...(isGroup ? { InboundHistory: inboundHistory } : {}),
       RawBody: rewrittenBody,
       CommandBody: commandParts?.length > 0 ? commandParts.join(" ") : rewrittenBody,

@@ -221,8 +221,13 @@ void test("build-context: group chat attributes @bot body with senderLabel (nick
   // Body must surface both nickname and id so the agent can tell who is asking
   // inside the shared group session.
   assert.match(payload.Body, /小明 \(user-001\): 我叫小明/);
-  // BodyForAgent stays the raw message without the attribution prefix.
-  assert.equal(payload.BodyForAgent, "我叫小明");
+  // BodyForAgent drives agentText / the persisted session transcript, so it
+  // must also carry the sender label — otherwise group members collapse into
+  // one anonymous voice in the shared session.
+  assert.match(payload.BodyForAgent, /小明 \(user-001\): 我叫小明/);
+  // RawBody / CommandBody stay raw so command parsing is not polluted.
+  assert.equal(payload.RawBody, "我叫小明");
+  assert.equal(payload.CommandBody, "我叫小明");
 });
 
 void test("build-context: group chat falls back to fromAccount in body when nickname is absent", async (t) => {
@@ -245,6 +250,9 @@ void test("build-context: group chat falls back to fromAccount in body when nick
   const payload = getFinalizedPayload();
   // No nickname -> body uses fromAccount only, no empty parens.
   assert.equal(payload.Body, "user-002: hi");
+  // BodyForAgent must mirror the attributed body so the agent can attribute
+  // the message even when only the raw id is known.
+  assert.equal(payload.BodyForAgent, "user-002: hi");
 });
 
 void test("build-context: C2C body is not attributed with a sender prefix", async (t) => {
@@ -266,4 +274,7 @@ void test("build-context: C2C body is not attributed with a sender prefix", asyn
   const payload = getFinalizedPayload();
   // C2C does not need in-body sender attribution; body stays as rewrittenBody.
   assert.equal(payload.Body, "你好");
+  // C2C BodyForAgent also stays as the raw body — no sender prefix leak.
+  assert.equal(payload.BodyForAgent, "你好");
+  assert.equal(payload.RawBody, "你好");
 });
