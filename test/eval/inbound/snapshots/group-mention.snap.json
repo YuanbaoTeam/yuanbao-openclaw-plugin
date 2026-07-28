@@ -24,7 +24,7 @@
     "mediaPaths": [],
     "mediaTypes": [],
     "ctxBody": "群成员 (user_grp): @元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "ctxBodyForAgent": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxBodyForAgent": "群成员 (user_grp): @元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
     "ctxRawBody": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
     "ctxMessageSid": "user_grp-1",
     "traceId": "trace-eval-fixed",
