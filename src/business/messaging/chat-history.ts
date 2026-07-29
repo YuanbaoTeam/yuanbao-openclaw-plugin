@@ -8,6 +8,7 @@
  */
 
 import type { HistoryEntry } from "openclaw/plugin-sdk/reply-history";
+import type { MediaItem } from "./handlers/types.js";
 
 /** Extended history entry, additionally stores media resources carried by the message (for batch download on @bot) */
 export type GroupHistoryEntry = HistoryEntry & {
@@ -19,7 +20,8 @@ export type MediaHistoryEntry = {
   sender: string;
   messageId?: string;
   timestamp: number;
-  medias: Array<{ url: string; mediaName?: string }>;
+  /** MediaItem preserves mediaType ("image" | "file") so auxiliary injection doesn't mislabel files as images. */
+  medias: MediaItem[];
 };
 
 /** Group chat message history Map, keyed by groupCode */

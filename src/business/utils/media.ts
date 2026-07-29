@@ -264,12 +264,21 @@ function inferFilenameFromResponse(
   return `${randomBytes(8).toString("hex")}${inferredExt}`;
 }
 
-/** Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present. */
-async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
+/**
+ * Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present.
+ *
+ * Matches any `/api/resource/` path carrying a `resourceId` query param (prefix match),
+ * which covers the real `/api/resource/v1/download` endpoint (and is robust to version
+ * segment changes). This restores the pre-`b4bae42` semantics where the old
+ * `isYuanbaoResourceUrl` used `pathname.startsWith("/api/resource/")`; the precise
+ * `=== "/api/resource/download"` compare was a regression that never matched the real
+ * `/v1/` path, silently breaking document downloads.
+ */
+export async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
   if (!account) { return url; }
   try {
     const parsed = new URL(url);
-    if (parsed.pathname === "/api/resource/download" && parsed.searchParams.has("resourceId")) {
+    if (parsed.pathname.startsWith("/api/resource/") && parsed.searchParams.has("resourceId")) {
       return apiGetDownloadUrl(account, parsed.searchParams.get("resourceId")!);
     }
   } catch { /* not a valid URL, pass through */ }
@@ -580,7 +589,13 @@ export async function downloadMediasToLocalFiles(
       results.push(r.value);
       log.debug(`media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`);
     } else {
-      log.warn(`media ${i + 1}/${medias.length} download failed, skipping: ${String(r.reason)}`);
+      // Surface the failing url/mediaName so silent allSettled swallowing doesn't
+      // leave only a downstream "file not in cache" symptom for the agent to debug.
+      const failed = medias[i];
+      log.warn(
+        `media ${i + 1}/${medias.length} download failed, skipping:`
+        + ` name=${failed?.mediaName ?? "?"} url=${failed?.url ?? "?"} reason=${String(r.reason)}`,
+      );
     }
   }
   return {
