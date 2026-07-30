@@ -354,6 +354,35 @@ void test("build-context: bot identity display name falls back to account.name w
   );
 });
 
+void test("build-context: bot identity display name falls back to raw botId when no mention and no account.name", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-001",
+    fromAccount: "user-001",
+    senderNickname: "小明",
+    rewrittenBody: "hi",
+    raw: { msg_id: "msg-grp-botid-only" },
+    // Bot not in mentions AND account.name absent — display name must fall
+    // back to the raw botId so [You are: …] still carries a non-empty identity
+    // (acceptance: UntrustedContext self-identity must contain account.botId).
+    account: { accountId: "bot-001", botId: "bot_456", historyLimit: 0 },
+    mentions: [{ text: "@朋友", userId: "user-002" }] as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  const untrusted = payload.UntrustedContext as string[];
+  assert.ok(
+    untrusted.some(s => s === "[You are: bot_456(userId: bot_456)]"),
+    "bot identity should fall back to raw botId when no mention text and no account.name",
+  );
+});
+
 void test("build-context: C2C UntrustedContext has no bot identity or mentions", async (t) => {
   setupMocks(t);
   const { buildContext } = await import("./build-context.js");
