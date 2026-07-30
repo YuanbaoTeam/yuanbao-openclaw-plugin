@@ -29,6 +29,9 @@
     "ctxBody": "看这张图\n[image:sample_1_1.png]",
     "ctxBodyForAgent": "看这张图\n[image:sample_1_1.png]",
     "ctxRawBody": "看这张图\n[image:sample_1_1.png]",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_image-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

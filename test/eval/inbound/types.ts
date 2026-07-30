@@ -140,6 +140,8 @@ export type AssertableParams = {
   ctxBody?: string;
   ctxBodyForAgent?: string;
   ctxRawBody?: string;
+  /** UntrustedContext entries (Current Time normalized for determinism). */
+  ctxUntrustedContext: string[];
   ctxMessageSid?: string;
   traceId?: string;
   seqId?: string;

@@ -27,6 +27,9 @@
     "ctxBody": "/reset",
     "ctxBodyForAgent": "/reset",
     "ctxRawBody": "/reset",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_reset-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

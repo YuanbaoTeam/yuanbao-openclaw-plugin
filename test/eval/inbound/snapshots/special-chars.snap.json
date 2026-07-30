@@ -25,6 +25,9 @@
     "ctxBody": "[EMOJI:smile] 🎉 <tag> & \"quotes\" 'apos' 中文/한국/にほんご",
     "ctxBodyForAgent": "[EMOJI:smile] 🎉 <tag> & \"quotes\" 'apos' 中文/한국/にほんご",
     "ctxRawBody": "[EMOJI:smile] 🎉 <tag> & \"quotes\" 'apos' 中文/한국/にほんご",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_special-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

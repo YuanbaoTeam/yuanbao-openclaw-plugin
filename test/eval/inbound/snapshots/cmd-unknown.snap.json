@@ -25,6 +25,9 @@
     "ctxBody": "/asdasdasd",
     "ctxBodyForAgent": "/asdasdasd",
     "ctxRawBody": "/asdasdasd",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_unknown_cmd-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"
