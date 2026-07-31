@@ -19,7 +19,7 @@ export type MediaHistoryEntry = {
   sender: string;
   messageId?: string;
   timestamp: number;
-  medias: Array<{ url: string; mediaName?: string }>;
+  medias: Array<{ url: string; mediaName?: string; mediaType: "image" | "file" }>;
 };
 
 /** Group chat message history Map, keyed by groupCode */

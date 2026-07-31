@@ -11,9 +11,12 @@ let mockDownloadResult = {
   mediaTypes: ["image"] as string[],
 };
 
-let mockMediaHistories = new Map<string, Array<{ sender: string; messageId?: string; timestamp: number; medias: Array<{ url: string; mediaName?: string }> }>>();
+// Stable Map reference: t.mock.module captures this reference once at first
+// registration, so we MUST mutate (clear + copy) rather than reassign to make
+// per-test history data visible to the code under test.
+const mockMediaHistories = new Map<string, Array<{ sender: string; messageId?: string; timestamp: number; medias: Array<{ url: string; mediaName?: string; mediaType: "image" | "file" }> }>>();
 let mockRecordCalls: Array<{ sessionKey: string; entry: unknown }> = [];
-let mockDownloadCalls: Array<Array<{ url: string; mediaName?: string }>> = [];
+let mockDownloadCalls: Array<Array<{ url: string; mediaName?: string; mediaType?: string }>> = [];
 
 let mockRegistered = false;
 
@@ -25,13 +28,18 @@ function setupMocks(t: any, opts?: {
     mediaPaths: ["/tmp/img1.jpg"],
     mediaTypes: ["image"],
   };
-  mockMediaHistories = opts?.mediaHistories ?? new Map();
+  mockMediaHistories.clear();
+  if (opts?.mediaHistories) {
+    for (const [k, v] of opts.mediaHistories) {
+      mockMediaHistories.set(k, v);
+    }
+  }
   mockRecordCalls = [];
   mockDownloadCalls = [];
   if (!mockRegistered) {
     t.mock.module("../../utils/media.js", {
       namedExports: {
-        downloadMediasToLocalFiles: async (medias: Array<{ url: string; mediaName?: string }>) => {
+        downloadMediasToLocalFiles: async (medias: Array<{ url: string; mediaName?: string; mediaType?: string }>) => {
           mockDownloadCalls.push(medias);
           return { ...mockDownloadResult };
         },
@@ -176,7 +184,7 @@ void test("download-media: multiple media files download", async (t) => {
 void test("download-media: C2C quote - merges quoted message media", async (t) => {
   const histories = new Map();
   histories.set("direct:user-001", [
-    { sender: "other-user", messageId: "quoted-msg-1", timestamp: Date.now(), medias: [{ url: "https://example.com/quoted-img.jpg" }] },
+    { sender: "other-user", messageId: "quoted-msg-1", timestamp: Date.now(), medias: [{ url: "https://example.com/quoted-img.jpg", mediaType: "image" }] },
   ]);
   setupMocks(t, {
     downloadResult: { mediaPaths: ["/tmp/quoted-img.jpg"], mediaTypes: ["image"] },
@@ -225,7 +233,7 @@ void test("download-media: no quote + recent history within window → injects r
       sender: "user-001",
       messageId: "old-msg",
       timestamp: Date.now() - 3 * 60 * 1000, // 3 minutes ago, within window
-      medias: [{ url: "https://example.com/recent-img.jpg" }],
+      medias: [{ url: "https://example.com/recent-img.jpg", mediaType: "image" }],
     },
   ]);
   setupMocks(t, {
@@ -255,7 +263,7 @@ void test("download-media: no quote + history outside window → not injected", 
       sender: "user-001",
       messageId: "old-msg",
       timestamp: Date.now() - 15 * 60 * 1000, // 15 minutes ago, outside window
-      medias: [{ url: "https://example.com/old-img.jpg" }],
+      medias: [{ url: "https://example.com/old-img.jpg", mediaType: "image" }],
     },
   ]);
   setupMocks(t, {
@@ -285,7 +293,7 @@ void test("download-media: no quote + history from different sender → not inje
       sender: "other-user",
       messageId: "other-msg",
       timestamp: Date.now() - 1 * 60 * 1000,
-      medias: [{ url: "https://example.com/other-img.jpg" }],
+      medias: [{ url: "https://example.com/other-img.jpg", mediaType: "image" }],
     },
   ]);
   setupMocks(t, {
@@ -315,13 +323,13 @@ void test("download-media: with quote → uses quoted media, not recent history"
       sender: "user-001",
       messageId: "recent-msg",
       timestamp: Date.now() - 1 * 60 * 1000,
-      medias: [{ url: "https://example.com/recent-img.jpg" }],
+      medias: [{ url: "https://example.com/recent-img.jpg", mediaType: "image" }],
     },
     {
       sender: "user-001",
       messageId: "quoted-msg",
       timestamp: Date.now() - 5 * 60 * 1000,
-      medias: [{ url: "https://example.com/quoted-img.jpg" }],
+      medias: [{ url: "https://example.com/quoted-img.jpg", mediaType: "image" }],
     },
   ]);
   setupMocks(t, {
@@ -350,7 +358,7 @@ void test("download-media: current msg has media + no quote → does NOT inject 
       sender: "user-001",
       messageId: "old-msg",
       timestamp: Date.now() - 2 * 60 * 1000, // within window
-      medias: [{ url: "https://example.com/old-img.jpg", mediaName: "old.jpg" }],
+      medias: [{ url: "https://example.com/old-img.jpg", mediaName: "old.jpg", mediaType: "image" }],
     },
   ]);
   setupMocks(t, {
@@ -377,4 +385,34 @@ void test("download-media: current msg has media + no quote → does NOT inject 
     ["https://example.com/current-img.jpg"],
     "should download only current message media, NOT inject historical media when current msg already has media",
   );
+});
+
+void test("download-media: quoted file media preserves mediaType=file (not hardcoded to image)", async (t) => {
+  const histories = new Map();
+  histories.set("direct:user-001", [
+    {
+      sender: "other-user",
+      messageId: "quoted-file-msg",
+      timestamp: Date.now(),
+      medias: [{ url: "https://example.com/quoted-doc.pdf", mediaName: "doc.pdf", mediaType: "file" }],
+    },
+  ]);
+  setupMocks(t, {
+    downloadResult: { mediaPaths: ["/tmp/quoted-doc.pdf"], mediaTypes: ["application/pdf"] },
+    mediaHistories: histories,
+  });
+  const { downloadMedia } = await import("./download-media.js");
+
+  const ctx = createMockCtx({
+    isGroup: false,
+    fromAccount: "user-001",
+    medias: [],
+    quoteInfo: { id: "quoted-file-msg", desc: "[file]" } as any,
+  });
+  const { next } = createMockNext();
+
+  await downloadMedia.handler(ctx, next);
+
+  assert.equal(mockDownloadCalls.length, 1);
+  assert.equal(mockDownloadCalls[0][0]?.mediaType, "file", "auxiliary file media must preserve mediaType=file");
 });

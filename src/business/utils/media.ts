@@ -264,12 +264,14 @@ function inferFilenameFromResponse(
   return `${randomBytes(8).toString("hex")}${inferredExt}`;
 }
 
-/** Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present. */
-async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
+/** Resolve actual download URL: exchange resourceId for real COS URL via Yuanbao API if present.
+ *  Matches any `/api/resource/...` path (e.g. `/api/resource/v1/download`) so versioned
+ *  endpoints are covered; the real endpoint lives at `DOWNLOAD_INFO_PATH`. */
+export async function resolveFetchUrl(url: string, account?: ResolvedYuanbaoAccount): Promise<string> {
   if (!account) { return url; }
   try {
     const parsed = new URL(url);
-    if (parsed.pathname === "/api/resource/download" && parsed.searchParams.has("resourceId")) {
+    if (parsed.pathname.startsWith("/api/resource/") && parsed.searchParams.has("resourceId")) {
       return apiGetDownloadUrl(account, parsed.searchParams.get("resourceId")!);
     }
   } catch { /* not a valid URL, pass through */ }
@@ -580,7 +582,11 @@ export async function downloadMediasToLocalFiles(
       results.push(r.value);
       log.debug(`media ${i + 1}/${medias.length} download complete: ${r.value.path} (${r.value.contentType})`);
     } else {
-      log.warn(`media ${i + 1}/${medias.length} download failed, skipping: ${String(r.reason)}`);
+      // Surface url/mediaName so download failures are not silently swallowed by allSettled.
+      const failed = medias[i];
+      log.warn(
+        `media ${i + 1}/${medias.length} download failed, skipping: url=${failed?.url ?? "?"} mediaName=${failed?.mediaName ?? "?"} — ${String(r.reason)}`,
+      );
     }
   }
   return {

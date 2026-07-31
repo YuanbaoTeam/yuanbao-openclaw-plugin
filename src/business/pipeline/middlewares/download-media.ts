@@ -45,7 +45,7 @@ function getQuotedMedias(chatKey: string, quoteInfo?: QuoteInfo): MediaItem[] {
   }
   return entry.medias
     .filter(m => m.url)
-    .map(m => ({ mediaType: "image" as const, url: m.url, mediaName: m.mediaName }));
+    .map(m => ({ mediaType: m.mediaType, url: m.url, mediaName: m.mediaName }));
 }
 
 /**
@@ -68,7 +68,7 @@ function getRecentHistoryMedias(
   }
   return entry.medias
     .filter(m => m.url)
-    .map(m => ({ mediaType: "image" as const, url: m.url, mediaName: m.mediaName }));
+    .map(m => ({ mediaType: m.mediaType, url: m.url, mediaName: m.mediaName }));
 }
 
 export const downloadMedia: MiddlewareDescriptor = {

@@ -22,14 +22,14 @@ void test("recordMediaHistory skips entries with no media", () => {
 });
 
 void test("recordMediaHistory appends entries", () => {
-  recordMediaHistory("group:g-1", { sender: "u", timestamp: 1, medias: [{ url: "http://a" }] });
-  recordMediaHistory("group:g-1", { sender: "u", timestamp: 2, medias: [{ url: "http://b" }] });
+  recordMediaHistory("group:g-1", { sender: "u", timestamp: 1, medias: [{ url: "http://a", mediaType: "image" }] });
+  recordMediaHistory("group:g-1", { sender: "u", timestamp: 2, medias: [{ url: "http://b", mediaType: "file" }] });
   assert.equal(chatMediaHistories.get("group:g-1")!.length, 2);
 });
 
 void test("recordMediaHistory evicts oldest beyond the per-chat cap (50)", () => {
   for (let i = 0; i < 55; i++) {
-    recordMediaHistory("group:g-1", { sender: "u", timestamp: i, medias: [{ url: `http://${i}` }] });
+    recordMediaHistory("group:g-1", { sender: "u", timestamp: i, medias: [{ url: `http://${i}`, mediaType: "image" }] });
   }
   const list = chatMediaHistories.get("group:g-1")!;
   assert.equal(list.length, 50);
