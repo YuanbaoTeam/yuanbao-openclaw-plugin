@@ -11,9 +11,9 @@ let mockDownloadResult = {
   mediaTypes: ["image"] as string[],
 };
 
-let mockMediaHistories = new Map<string, Array<{ sender: string; messageId?: string; timestamp: number; medias: Array<{ url: string; mediaName?: string }> }>>();
+let mockMediaHistories = new Map<string, Array<{ sender: string; messageId?: string; timestamp: number; medias: Array<{ url: string; mediaName?: string; mediaType?: "image" | "file" }> }>>();
 let mockRecordCalls: Array<{ sessionKey: string; entry: unknown }> = [];
-let mockDownloadCalls: Array<Array<{ url: string; mediaName?: string }>> = [];
+let mockDownloadCalls: Array<Array<{ url: string; mediaName?: string; mediaType?: "image" | "file" }>> = [];
 
 let mockRegistered = false;
 
@@ -25,13 +25,21 @@ function setupMocks(t: any, opts?: {
     mediaPaths: ["/tmp/img1.jpg"],
     mediaTypes: ["image"],
   };
-  mockMediaHistories = opts?.mediaHistories ?? new Map();
+  // Mutate the shared map in place: the mocked chatMediaHistories binding holds this
+  // map reference (registered once on first setupMocks), so reassignment wouldn't
+  // propagate — we must clear+repopulate the same object.
+  mockMediaHistories.clear();
+  if (opts?.mediaHistories) {
+    for (const [k, v] of opts.mediaHistories) {
+      mockMediaHistories.set(k, v);
+    }
+  }
   mockRecordCalls = [];
   mockDownloadCalls = [];
   if (!mockRegistered) {
     t.mock.module("../../utils/media.js", {
       namedExports: {
-        downloadMediasToLocalFiles: async (medias: Array<{ url: string; mediaName?: string }>) => {
+        downloadMediasToLocalFiles: async (medias: Array<{ url: string; mediaName?: string; mediaType?: "image" | "file" }>) => {
           mockDownloadCalls.push(medias);
           return { ...mockDownloadResult };
         },
@@ -377,4 +385,68 @@ void test("download-media: current msg has media + no quote → does NOT inject 
     ["https://example.com/current-img.jpg"],
     "should download only current message media, NOT inject historical media when current msg already has media",
   );
+});
+
+void test("download-media: quoted file media preserves mediaType=file (not hardcoded image)", async (t) => {
+  const histories = new Map();
+  histories.set("direct:user-001", [
+    {
+      sender: "other-user",
+      messageId: "quoted-file",
+      timestamp: Date.now(),
+      medias: [{ url: "https://example.com/doc.docx", mediaType: "file" as const, mediaName: "doc.docx" }],
+    },
+  ]);
+  setupMocks(t, {
+    downloadResult: {
+      mediaPaths: ["/tmp/doc.docx"],
+      mediaTypes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    },
+    mediaHistories: histories,
+  });
+  const { downloadMedia } = await import("./download-media.js");
+
+  const ctx = createMockCtx({
+    isGroup: false,
+    fromAccount: "user-001",
+    medias: [],
+    quoteInfo: { id: "quoted-file", desc: "[file:doc.docx]" } as any,
+  });
+  const { next } = createMockNext();
+
+  await downloadMedia.handler(ctx, next);
+
+  assert.equal(mockDownloadCalls.length, 1);
+  assert.equal(mockDownloadCalls[0][0]?.mediaType, "file", "quoted file media should preserve mediaType=file");
+});
+
+void test("download-media: recent-history file media preserves mediaType=file", async (t) => {
+  const histories = new Map();
+  histories.set("group:group-001", [
+    {
+      sender: "user-001",
+      messageId: "recent-file",
+      timestamp: Date.now() - 60 * 1000, // within window
+      medias: [{ url: "https://example.com/report.pdf", mediaType: "file" as const, mediaName: "report.pdf" }],
+    },
+  ]);
+  setupMocks(t, {
+    downloadResult: { mediaPaths: ["/tmp/report.pdf"], mediaTypes: ["application/pdf"] },
+    mediaHistories: histories,
+  });
+  const { downloadMedia } = await import("./download-media.js");
+
+  const ctx = createMockCtx({
+    isGroup: true,
+    groupCode: "group-001" as any,
+    fromAccount: "user-001",
+    medias: [], // no current media → recent-history fallback
+    quoteInfo: undefined,
+  });
+  const { next } = createMockNext();
+
+  await downloadMedia.handler(ctx, next);
+
+  assert.equal(mockDownloadCalls.length, 1);
+  assert.equal(mockDownloadCalls[0][0]?.mediaType, "file", "recent-history file media should preserve mediaType=file");
 });
