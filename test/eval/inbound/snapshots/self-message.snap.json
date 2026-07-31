@@ -15,6 +15,7 @@
     "effectiveWasMentioned": false,
     "mediaCount": 0,
     "mediaPaths": [],
-    "mediaTypes": []
+    "mediaTypes": [],
+    "ctxUntrustedContext": []
   }
 }

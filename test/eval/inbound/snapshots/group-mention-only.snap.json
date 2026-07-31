@@ -12,8 +12,8 @@
     "senderName": "user_mention_only",
     "groupCode": "group_002",
     "rawBody": "@元宝助手",
-    "rewrittenBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "commandBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "rewrittenBody": "@元宝助手",
+    "commandBody": "@元宝助手",
     "commandParts": [],
     "hasControlCommand": false,
     "commandAuthorized": false,
@@ -23,9 +23,14 @@
     "mediaCount": 0,
     "mediaPaths": [],
     "mediaTypes": [],
-    "ctxBody": "user_mention_only: @元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "ctxBodyForAgent": "user_mention_only: @元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "ctxRawBody": "@元宝助手\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxBody": "user_mention_only: @元宝助手",
+    "ctxBodyForAgent": "user_mention_only: @元宝助手",
+    "ctxRawBody": "@元宝助手",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>",
+      "[You are: @元宝助手(userId: bot_456)]",
+      "[Message mentions the following users: @元宝助手(userId: bot_456)]"
+    ],
     "ctxMessageSid": "user_mention_only-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

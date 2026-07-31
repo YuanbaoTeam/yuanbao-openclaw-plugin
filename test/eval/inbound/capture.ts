@@ -42,6 +42,20 @@ function normalizeMediaPaths(paths: string[]): string[] {
 }
 
 /**
+ * Normalize UntrustedContext entries so snapshots stay deterministic.
+ *
+ * `[Current Time] <date>` is produced from `new Date()` at runtime, so the
+ * trailing date string would break snapshot diffing on every run — collapse it
+ * to a stable placeholder. Other entries (bot identity, mentions) are already
+ * deterministic and pass through unchanged.
+ */
+function normalizeUntrustedContext(items: string[]): string[] {
+  return items.map(item => (item.startsWith("[Current Time]")
+    ? "[Current Time] <normalized>"
+    : item));
+}
+
+/**
  * Build the AssertableParams snapshot from a dispatch capture + the final ctx.
  *
  * When `capture.called` is false (a gate middleware aborted), ctxPayload is
@@ -90,6 +104,7 @@ export function extractAssertableParams(
     ctxBody: str(ctxPayload, "Body"),
     ctxBodyForAgent: str(ctxPayload, "BodyForAgent"),
     ctxRawBody: str(ctxPayload, "RawBody"),
+    ctxUntrustedContext: normalizeUntrustedContext(strArr(ctxPayload, "UntrustedContext")),
     ctxMessageSid: str(ctxPayload, "MessageSid"),
     traceId: traceContext?.traceId,
     seqId: traceContext?.seqId,

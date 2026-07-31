@@ -103,6 +103,28 @@ export const buildContext: MiddlewareDescriptor = {
     // RawBody / CommandBody stay raw so command parsing (e.g. /reset, /new) is
     // not polluted by the sender prefix.
     const bodyForAgent = isGroup && senderLabel ? attributedBody : rewrittenBody;
+
+    // UntrustedContext: low-trust metadata surfaced to the agent prompt.
+    // Group chat additionally exposes the bot's own identity (so the agent can
+    // reliably recognize "@me" in the body) and the @mentions list (migrated
+    // out of rewrittenBody to keep Body/CommandBody clean). The bot display
+    // name is reverse-looked-up from ctx.mentions when the bot itself was @-ed;
+    // otherwise it falls back to the account config name, then the raw botId.
+    const untrustedContext: string[] = [`[Current Time] ${new Date().toString()}`];
+    if (isGroup) {
+      const botId = account.botId;
+      if (botId) {
+        const botMention = ctx.mentions.find(m => m.userId === botId);
+        const botDisplayName = botMention?.text ?? account.name ?? botId;
+        untrustedContext.push(`[You are: ${botDisplayName}(userId: ${botId})]`);
+      }
+      if (ctx.mentions.length > 0) {
+        untrustedContext.push(
+          `[Message mentions the following users: ${ctx.mentions.map(m => `${m.text}(userId: ${m.userId})`).join(", ")}]`,
+        );
+      }
+    }
+
     ctx.ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: combinedBody,
       BodyForAgent: bodyForAgent,
@@ -128,7 +150,7 @@ export const buildContext: MiddlewareDescriptor = {
       OriginatingTo: `yuanbao:${label}`,
       CommandAuthorized: commandAuthorized,
       ...(account.markdownHintEnabled && { GroupSystemPrompt: YUANBAO_MARKDOWN_HINT }),
-      UntrustedContext: [`[Current Time] ${new Date().toString()}`],
+      UntrustedContext: untrustedContext,
       ...(mediaPaths.length > 0 && { MediaPaths: mediaPaths, MediaPath: mediaPaths[0] }),
       ...(mediaTypes.length > 0 && { MediaTypes: mediaTypes, MediaType: mediaTypes[0] }),
       ...(ctx.linkUrls.length > 0 && { LinkUnderstanding: [...new Set(ctx.linkUrls)] }),
