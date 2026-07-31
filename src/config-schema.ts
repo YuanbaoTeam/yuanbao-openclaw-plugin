@@ -45,22 +45,6 @@ export const yuanbaoConfigSchema = {
         enum: ["immediate", "merge-text"],
         default: "merge-text",
       },
-      /** Default 2800 */
-      minChars: {
-        type: "integer",
-        title: "消息聚合最小字符数",
-        description: "merge-text 策略下，缓冲区积累到此字符数后触发发送",
-        minimum: 1,
-        default: 2800,
-      },
-      /** Default 3000 */
-      maxChars: {
-        type: "integer",
-        title: "单条消息最大字符数",
-        description: "merge-text 策略下，超过此字符数时强制切割（fence-aware）",
-        minimum: 1,
-        default: 3000,
-      },
       /** Default 5000 */
       idleMs: {
         type: "integer",
