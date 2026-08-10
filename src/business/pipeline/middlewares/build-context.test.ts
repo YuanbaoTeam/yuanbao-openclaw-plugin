@@ -221,8 +221,13 @@ void test("build-context: group chat attributes @bot body with senderLabel (nick
   // Body must surface both nickname and id so the agent can tell who is asking
   // inside the shared group session.
   assert.match(payload.Body, /小明 \(user-001\): 我叫小明/);
-  // BodyForAgent stays the raw message without the attribution prefix.
-  assert.equal(payload.BodyForAgent, "我叫小明");
+  // BodyForAgent drives agentText / the persisted session transcript, so it
+  // must also carry the sender label — otherwise group members collapse into
+  // one anonymous voice in the shared session.
+  assert.match(payload.BodyForAgent, /小明 \(user-001\): 我叫小明/);
+  // RawBody / CommandBody stay raw so command parsing is not polluted.
+  assert.equal(payload.RawBody, "我叫小明");
+  assert.equal(payload.CommandBody, "我叫小明");
 });
 
 void test("build-context: group chat falls back to fromAccount in body when nickname is absent", async (t) => {
@@ -245,6 +250,9 @@ void test("build-context: group chat falls back to fromAccount in body when nick
   const payload = getFinalizedPayload();
   // No nickname -> body uses fromAccount only, no empty parens.
   assert.equal(payload.Body, "user-002: hi");
+  // BodyForAgent must mirror the attributed body so the agent can attribute
+  // the message even when only the raw id is known.
+  assert.equal(payload.BodyForAgent, "user-002: hi");
 });
 
 void test("build-context: C2C body is not attributed with a sender prefix", async (t) => {
@@ -266,4 +274,136 @@ void test("build-context: C2C body is not attributed with a sender prefix", asyn
   const payload = getFinalizedPayload();
   // C2C does not need in-body sender attribution; body stays as rewrittenBody.
   assert.equal(payload.Body, "你好");
+  // C2C BodyForAgent also stays as the raw body — no sender prefix leak.
+  assert.equal(payload.BodyForAgent, "你好");
+  assert.equal(payload.RawBody, "你好");
+});
+
+void test("build-context: group chat surfaces bot identity + mentions in UntrustedContext", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-001",
+    fromAccount: "user-001",
+    senderNickname: "小明",
+    rewrittenBody: "@元宝助手 帮我总结",
+    raw: { msg_id: "msg-grp-mention" },
+    account: { accountId: "bot-001", botId: "bot_456", historyLimit: 0 },
+    mentions: [
+      { text: "@元宝助手", userId: "bot_456" },
+      { text: "@朋友", userId: "user-002" },
+    ] as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  const untrusted = payload.UntrustedContext as string[];
+  assert.ok(Array.isArray(untrusted), "UntrustedContext should be an array");
+  // [Current Time] always present.
+  assert.ok(untrusted[0].includes("[Current Time]"), "first element should be Current Time");
+  // Bot self-identity: display name reverse-looked-up from mentions (text has @).
+  assert.ok(
+    untrusted.some(s => s === "[You are: @元宝助手(userId: bot_456)]"),
+    "UntrustedContext should expose bot identity with display name from mentions",
+  );
+  // Mentions list migrated here from rewrittenBody.
+  assert.ok(
+    untrusted.some(s => s.includes("[Message mentions the following users:") && s.includes("@元宝助手(userId: bot_456)") && s.includes("@朋友(userId: user-002)")),
+    "UntrustedContext should carry the mentions list",
+  );
+  // Body / RawBody / CommandBody must stay free of the mentions suffix.
+  assert.ok(!payload.Body.includes("Message mentions"), "Body should not contain mentions suffix");
+  assert.ok(!payload.RawBody.includes("Message mentions"), "RawBody should not contain mentions suffix");
+  assert.ok(!payload.CommandBody.includes("Message mentions"), "CommandBody should not contain mentions suffix");
+});
+
+void test("build-context: bot identity display name falls back to account.name when bot not @-ed", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-001",
+    fromAccount: "user-001",
+    senderNickname: "小明",
+    rewrittenBody: "大家看好不好玩",
+    raw: { msg_id: "msg-grp-no-bot-mention" },
+    // requireMention=false path: bot itself is NOT in mentions, so display
+    // name cannot be reverse-looked-up — must fall back to account.name.
+    account: { accountId: "bot-001", botId: "bot_456", name: "元宝账号", historyLimit: 0 },
+    mentions: [{ text: "@朋友", userId: "user-002" }] as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  const untrusted = payload.UntrustedContext as string[];
+  assert.ok(
+    untrusted.some(s => s === "[You are: 元宝账号(userId: bot_456)]"),
+    "bot identity should fall back to account.name when bot not in mentions",
+  );
+  // Mentions list still present (non-empty mentions in group chat).
+  assert.ok(
+    untrusted.some(s => s.includes("[Message mentions the following users:") && s.includes("@朋友(userId: user-002)")),
+    "mentions list should still be present",
+  );
+});
+
+void test("build-context: bot identity display name falls back to raw botId when no mention and no account.name", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: true,
+    groupCode: "group-001",
+    fromAccount: "user-001",
+    senderNickname: "小明",
+    rewrittenBody: "hi",
+    raw: { msg_id: "msg-grp-botid-only" },
+    // Bot not in mentions AND account.name absent — display name must fall
+    // back to the raw botId so [You are: …] still carries a non-empty identity
+    // (acceptance: UntrustedContext self-identity must contain account.botId).
+    account: { accountId: "bot-001", botId: "bot_456", historyLimit: 0 },
+    mentions: [{ text: "@朋友", userId: "user-002" }] as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  const untrusted = payload.UntrustedContext as string[];
+  assert.ok(
+    untrusted.some(s => s === "[You are: bot_456(userId: bot_456)]"),
+    "bot identity should fall back to raw botId when no mention text and no account.name",
+  );
+});
+
+void test("build-context: C2C UntrustedContext has no bot identity or mentions", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    isGroup: false,
+    fromAccount: "user-001",
+    rewrittenBody: "你好",
+    raw: { msg_id: "msg-c2c-2" },
+    account: { accountId: "bot-001", botId: "bot_456", historyLimit: 0 },
+    // C2C path must stay unchanged even if mentions happen to be populated.
+    mentions: [{ text: "@元宝助手", userId: "bot_456" }] as any,
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const payload = getFinalizedPayload();
+  const untrusted = payload.UntrustedContext as string[];
+  assert.equal(untrusted.length, 1, "C2C UntrustedContext should only contain Current Time");
+  assert.ok(untrusted[0].includes("[Current Time]"));
+  assert.ok(!untrusted.some(s => s.includes("[You are:")), "C2C should not expose bot identity");
+  assert.ok(!untrusted.some(s => s.includes("Message mentions")), "C2C should not expose mentions");
 });

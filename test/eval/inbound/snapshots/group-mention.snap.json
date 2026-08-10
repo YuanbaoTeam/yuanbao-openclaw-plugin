@@ -12,8 +12,8 @@
     "senderName": "群成员",
     "groupCode": "group_001",
     "rawBody": "@元宝助手\n帮我总结一下这段内容",
-    "rewrittenBody": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "commandBody": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "rewrittenBody": "@元宝助手\n帮我总结一下这段内容",
+    "commandBody": "@元宝助手\n帮我总结一下这段内容",
     "commandParts": [],
     "hasControlCommand": false,
     "commandAuthorized": false,
@@ -23,9 +23,14 @@
     "mediaCount": 0,
     "mediaPaths": [],
     "mediaTypes": [],
-    "ctxBody": "群成员 (user_grp): @元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "ctxBodyForAgent": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
-    "ctxRawBody": "@元宝助手\n帮我总结一下这段内容\n[Message mentions the following users: @元宝助手(userId: bot_456)]",
+    "ctxBody": "群成员 (user_grp): @元宝助手\n帮我总结一下这段内容",
+    "ctxBodyForAgent": "群成员 (user_grp): @元宝助手\n帮我总结一下这段内容",
+    "ctxRawBody": "@元宝助手\n帮我总结一下这段内容",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>",
+      "[You are: @元宝助手(userId: bot_456)]",
+      "[Message mentions the following users: @元宝助手(userId: bot_456)]"
+    ],
     "ctxMessageSid": "user_grp-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

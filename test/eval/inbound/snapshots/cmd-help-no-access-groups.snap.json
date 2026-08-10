@@ -27,6 +27,9 @@
     "ctxBody": "/help",
     "ctxBodyForAgent": "/help",
     "ctxRawBody": "/help",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_no_groups-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

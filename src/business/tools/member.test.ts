@@ -35,22 +35,22 @@ void test("factory returns null for non-yuanbao channels", () => {
 
 void test("no group context → success:false", async () => {
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "agent:a:yuanbao:user:u", agentAccountId: "acct-m0" }));
-  const res = await tool!.execute("t", { action: "list_all", mention: false });
+  const res = await tool!.execute("t", { action: "list_all" });
   assert.equal(res.details?.success, false);
 });
 
 void test("no members recorded → success:false", async () => {
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "agent:a:yuanbao:group:m-empty", agentAccountId: "acct-m1" }));
-  const res = await tool!.execute("t", { action: "list_all", mention: false });
+  const res = await tool!.execute("t", { action: "list_all" });
   assert.equal(res.details?.success, false);
   assert.match(res.details!.msg!, /No members recorded/);
   removeMember("acct-m1");
 });
 
-void test("list_all returns all seeded members with a mention hint when asked", async () => {
+void test("list_all returns all seeded members and always includes a mention hint", async () => {
   seed("acct-m2", "m-all");
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-all", agentAccountId: "acct-m2" }));
-  const res = await tool!.execute("t", { action: "list_all", mention: true });
+  const res = await tool!.execute("t", { action: "list_all" });
   assert.equal(res.details?.success, true);
   assert.equal(res.details?.members?.length, 2);
   assert.ok(res.details?.mentionHint);
@@ -60,21 +60,24 @@ void test("list_all returns all seeded members with a mention hint when asked", 
 void test("find matches by nickname; no match returns all with success:false", async () => {
   seed("acct-m3", "m-find");
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-find", agentAccountId: "acct-m3" }));
-  const hit = await tool!.execute("t", { action: "find", name: "alice", mention: false });
+  const hit = await tool!.execute("t", { action: "find", name: "alice" });
   assert.equal(hit.details?.success, true);
   assert.equal(hit.details?.members?.length, 1);
-  const miss = await tool!.execute("t", { action: "find", name: "nobody", mention: false });
+  assert.ok(hit.details?.mentionHint);
+  const miss = await tool!.execute("t", { action: "find", name: "nobody" });
   assert.equal(miss.details?.success, false);
   assert.equal(miss.details?.members?.length, 2);
+  assert.ok(miss.details?.mentionHint);
   removeMember("acct-m3");
 });
 
 void test("list_bots filters yuanbao/bot user types", async () => {
   seed("acct-m4", "m-bots");
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-bots", agentAccountId: "acct-m4" }));
-  const res = await tool!.execute("t", { action: "list_bots", mention: false });
+  const res = await tool!.execute("t", { action: "list_bots" });
   assert.equal(res.details?.success, true);
   assert.equal(res.details?.members?.length, 1); // only the userType=2 bot
+  assert.ok(res.details?.mentionHint);
   removeMember("acct-m4");
 });
 
@@ -82,7 +85,7 @@ void test("list_bots reports failure when no bots are present", async () => {
   const m = getMember("acct-m5");
   m.session.upsertUser("m-nobots", { userId: "u-1", nickName: "Alice", lastSeen: Date.now(), userType: 1 });
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-nobots", agentAccountId: "acct-m5" }));
-  const res = await tool!.execute("t", { action: "list_bots", mention: false });
+  const res = await tool!.execute("t", { action: "list_bots" });
   assert.equal(res.details?.success, false);
   removeMember("acct-m5");
 });
@@ -90,7 +93,7 @@ void test("list_bots reports failure when no bots are present", async () => {
 void test("find without a name falls back to listing all members", async () => {
   seed("acct-m6", "m-noname");
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-noname", agentAccountId: "acct-m6" }));
-  const res = await tool!.execute("t", { action: "find", mention: false }); // no `name`
+  const res = await tool!.execute("t", { action: "find" }); // no `name`
   assert.equal(res.details?.success, true);
   assert.equal(res.details?.members?.length, 2);
   removeMember("acct-m6");
@@ -99,7 +102,7 @@ void test("find without a name falls back to listing all members", async () => {
 void test("unsupported action returns an error", async () => {
   seed("acct-m7", "m-bad");
   const tool = captureFactory()(ctx({ messageChannel: "yuanbao", sessionKey: "x:yuanbao:group:m-bad", agentAccountId: "acct-m7" }));
-  const res = await tool!.execute("t", { action: "nonsense", mention: false });
+  const res = await tool!.execute("t", { action: "nonsense" });
   assert.equal(res.details?.success, false);
   removeMember("acct-m7");
 });

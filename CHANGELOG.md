@@ -1,16 +1,19 @@
 # Changelog
 
+## 2.18.0 (2026-08-05)
+
+- **fix:** 群聊消息在 Body / BodyForAgent 标注 senderLabel，修正多人群聊发送者归属串线
+- **fix:** bot 身份与 mentions 迁入 UntrustedContext，避免污染 Body / 命令解析
+- **fix:** 出站 @mention 缓存未命中时回源拉取群成员列表
+- **fix:** `query_session_members` 始终携带 mentionHint，并强化工具描述
+- **fix:** merge-text 合并阈值下调至 2000/3000
+- **fix:** sticker / action 已投递后抑制 incomplete-turn 误告警
+- **refactor:** 迁移 3 个已废弃 SDK 子路径到非废弃窄接口
+
 ## 2.17.2 (2026-07-22)
 
 - **feat:** 创建 `pipeline.execute` Span，写入 auth-bind deviceInfo 与 `yuanbao.bot_id` 属性，供 APM 按 bot/终端维度过滤
 - **fix:** 对齐 DiagnosticTrace traceId/traceparent 与 OpenClaw logger，供下游 OpenClaw / APM 链路关联
-
-## 2.17.1 (2026-07-08)
-
-- **fix:** 群消息在 body 中标注 senderName，修正多人群聊场景下的发送者归属
-- **fix:** 修复 outbound @mention 兜底拉取，并强化 `query_session_members` 工具描述
-- **fix:** sticker/action 已投递后抑制 incomplete-turn 误告警
-- **refactor:** 迁移 3 个已废弃 SDK 子路径到非废弃的窄接口
 
 ## 2.17.0 (2026-07-01)
 

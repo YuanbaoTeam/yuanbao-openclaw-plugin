@@ -1,5 +1,9 @@
 /**
- * Unit tests for rewrite-body middleware: slash command rewrite, quote concat, mentions concat.
+ * Unit tests for rewrite-body middleware: slash command rewrite, quote concat.
+ *
+ * @mentions metadata was migrated out of rewrittenBody into UntrustedContext
+ * (see build-context) — rewrittenBody must stay free of the
+ * `[Message mentions …]` suffix so command parsing and Body stay clean.
  */
 
 import assert from "node:assert/strict";
@@ -73,7 +77,7 @@ void test("rewrite-body: quote message concat", async (t) => {
   assert.ok(ctx.rewrittenBody.includes("这是什么意思"), "should contain original message");
 });
 
-void test("rewrite-body: group chat mentions concat", async (t) => {
+void test("rewrite-body: group chat does not concat mentions into rewrittenBody", async (t) => {
   setupMocks(t);
   const { rewriteBody } = await import("./rewrite-body.js");
 
@@ -89,9 +93,12 @@ void test("rewrite-body: group chat mentions concat", async (t) => {
 
   await rewriteBody.handler(ctx, next);
 
-  assert.ok(ctx.rewrittenBody.includes("@张三"), "should contain @张三");
-  assert.ok(ctx.rewrittenBody.includes("@李四"), "should contain @李四");
-  assert.ok(ctx.rewrittenBody.includes("user-002"), "should contain userId");
+  // rewrittenBody must carry only the real message body — mentions metadata
+  // now lives in UntrustedContext (build-context), not the body.
+  assert.equal(ctx.rewrittenBody, "帮我看看");
+  assert.ok(!ctx.rewrittenBody.includes("@张三"), "should not leak mentions into body");
+  assert.ok(!ctx.rewrittenBody.includes("@李四"), "should not leak mentions into body");
+  assert.ok(!ctx.rewrittenBody.includes("Message mentions"), "should not leak mentions suffix");
 });
 
 void test("rewrite-body: C2C does not concat mentions", async (t) => {
@@ -110,7 +117,7 @@ void test("rewrite-body: C2C does not concat mentions", async (t) => {
   assert.ok(!ctx.rewrittenBody.includes("@张三"), "C2C should not concat mentions");
 });
 
-void test("rewrite-body: quote + mentions both present", async (t) => {
+void test("rewrite-body: quote present but mentions not concat into body", async (t) => {
   setupMocks(t);
   const { rewriteBody } = await import("./rewrite-body.js");
 
@@ -125,8 +132,10 @@ void test("rewrite-body: quote + mentions both present", async (t) => {
   await rewriteBody.handler(ctx, next);
 
   assert.ok(ctx.rewrittenBody.includes("引用内容"), "should contain quote");
-  assert.ok(ctx.rewrittenBody.includes("@赵六"), "should contain mentions");
   assert.ok(ctx.rewrittenBody.includes("这个怎么理解"), "should contain original message");
+  // mentions must NOT be appended to rewrittenBody anymore.
+  assert.ok(!ctx.rewrittenBody.includes("@赵六"), "should not leak mentions into body");
+  assert.ok(!ctx.rewrittenBody.includes("Message mentions"), "should not leak mentions suffix");
 });
 
 void test("rewrite-body: calls next to continue pipeline", async (t) => {

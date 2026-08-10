@@ -25,6 +25,9 @@
     "ctxBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
     "ctxBodyForAgent": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
     "ctxRawBody": "# 标题\n\n**加粗** 和 *斜体*\n\n- 列表项一\n- 列表项二\n\n`代码` 和 [链接](https://example.com)",
+    "ctxUntrustedContext": [
+      "[Current Time] <normalized>"
+    ],
     "ctxMessageSid": "user_rich-1",
     "traceId": "trace-eval-fixed",
     "seqId": "trace-eval-fixed"

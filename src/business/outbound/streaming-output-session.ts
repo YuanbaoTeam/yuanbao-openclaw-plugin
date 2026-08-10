@@ -155,8 +155,8 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
     sender,
     sessionKey = "",
     disableBlockStreaming = false,
-    minChars = 3000,
-    maxChars = 4000,
+    minChars = 2000,
+    maxChars = 3000,
     minSendIntervalMs = DEFAULT_MIN_SEND_INTERVAL_MS,
     onComplete,
   } = opts;

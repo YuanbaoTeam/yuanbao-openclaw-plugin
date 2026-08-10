@@ -39,7 +39,7 @@ function toMembers(records: MemberRecord[]) {
 }
 
 /** List bots in the group (including Yuanbao AI assistants and other bots) */
-function handleListBots(allMembers: MemberRecord[], mention: boolean) {
+function handleListBots(allMembers: MemberRecord[]) {
   const bots = allMembers.filter(u => u.userType === 2 || u.userType === 3);
   if (bots.length === 0) {
     return json({ success: false, msg: "No bot info available. Role data requires API fetch." });
@@ -48,7 +48,7 @@ function handleListBots(allMembers: MemberRecord[], mention: boolean) {
     success: true,
     msg: `Found ${bots.length} bot(s) in this group.`,
     members: toMembers(bots),
-    ...(mention ? { mentionHint: MENTION_HINT_TEXT } : {}),
+    mentionHint: MENTION_HINT_TEXT,
   });
 }
 
@@ -60,9 +60,7 @@ function handleListBots(allMembers: MemberRecord[], mention: boolean) {
  * 2. nameFilter provided + no match -> return all members for model analysis
  * 3. No nameFilter -> fallback to list_all behavior
  */
-function handleFind(allMembers: MemberRecord[], nameFilter: string, mention: boolean) {
-  const hint = mention ? { mentionHint: MENTION_HINT_TEXT } : {};
-
+function handleFind(allMembers: MemberRecord[], nameFilter: string) {
   if (nameFilter) {
     const filter = nameFilter.toLowerCase();
     const matched = allMembers.filter(u => u.nickName.toLowerCase().includes(filter));
@@ -72,7 +70,7 @@ function handleFind(allMembers: MemberRecord[], nameFilter: string, mention: boo
         success: true,
         msg: `Found ${matched.length} member(s) matching "${nameFilter}".`,
         members: toMembers(matched),
-        ...hint,
+        mentionHint: MENTION_HINT_TEXT,
       });
     }
 
@@ -81,7 +79,7 @@ function handleFind(allMembers: MemberRecord[], nameFilter: string, mention: boo
       success: false,
       msg: `No exact match for "${nameFilter}". Please find the target user from the members list below.`,
       members: toMembers(allMembers),
-      ...hint,
+      mentionHint: MENTION_HINT_TEXT,
     });
   }
 
@@ -90,17 +88,17 @@ function handleFind(allMembers: MemberRecord[], nameFilter: string, mention: boo
     success: true,
     msg: `Found ${allMembers.length} member(s) in this group.`,
     members: toMembers(allMembers),
-    ...hint,
+    mentionHint: MENTION_HINT_TEXT,
   });
 }
 
 /** List all members */
-function handleListAll(allMembers: MemberRecord[], mention: boolean) {
+function handleListAll(allMembers: MemberRecord[]) {
   return json({
     success: true,
     msg: `Found ${allMembers.length} member(s) in this group.`,
     members: toMembers(allMembers),
-    ...(mention ? { mentionHint: MENTION_HINT_TEXT } : {}),
+    mentionHint: MENTION_HINT_TEXT,
   });
 }
 
@@ -109,6 +107,7 @@ function handleListAll(allMembers: MemberRecord[], mention: boolean) {
  *
  * Merges the original lookup_session_members and query_group_members into one tool.
  * Prefers API-fetched full member list; session cache as fallback.
+ * Every response carries mentionHint so the model always has the valid @ format.
  */
 function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
   const log = createLog("tools.member");
@@ -123,7 +122,7 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
     description:
       'Query session members in the current group (called "派/Pai" in the app): '
       + "find a user by name, @mention someone, list bots (including Yuanbao AI assistants), or list all members. "
-      + "In group chats, whenever you need to @mention someone or reference member context, you MUST call this tool first (with mention:true) to obtain the correct userId and the @ format (mentionHint); writing @xxx directly without calling this tool will NOT be rendered as an @mention by the client.",
+      + "In group chats, whenever you need to @mention someone or reference member context, you MUST call this tool first to obtain the correct userId and the @ format (mentionHint); writing @xxx directly without calling this tool will NOT be rendered as an @mention by the client.",
     parameters: {
       type: "object",
       properties: {
@@ -142,27 +141,21 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
             "User name to search (partial match, case-insensitive). "
             + 'Required for "find", ignored for other actions.',
         },
-        mention: {
-          type: "boolean",
-          description: "Set to true when you need to @mention the user(s) in the reply. "
-          + "Required when the reply involves @mention or member context; the returned mentionHint is the only source of the valid @ format.",
-        },
       },
-      required: ["action", "mention"],
+      required: ["action"],
     },
     /**
      * Execute session member query.
      *
      * 1. No groupCode -> inform model no group context
      * 2. Query via Member facade: prefer GroupMember (WS API) -> fallback SessionMember (cache)
-     * 3. Dispatch to action handlers
+     * 3. Dispatch to action handlers (all responses include mentionHint)
      */
     async execute(toolCallId: string, params: Record<string, unknown>) {
       log.debug("execute", { toolCallId });
 
       const action = typeof params.action === "string" ? params.action : "list_all";
       const nameFilter = typeof params.name === "string" ? params.name.trim() : "";
-      const mention = params.mention === true || params.mention === "true";
       const groupCode = extractGroupCode(sessionKey);
 
       if (!groupCode) {
@@ -180,11 +173,11 @@ function createQuerySessionMembersTool(ctx: OpenClawPluginToolContext) {
 
       switch (action) {
         case "list_bots":
-          return handleListBots(allMembers, mention);
+          return handleListBots(allMembers);
         case "find":
-          return handleFind(allMembers, nameFilter, mention);
+          return handleFind(allMembers, nameFilter);
         case "list_all":
-          return handleListAll(allMembers, mention);
+          return handleListAll(allMembers);
         default:
           return json({
             success: false,

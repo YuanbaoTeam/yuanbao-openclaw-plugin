@@ -1,5 +1,10 @@
 /**
- * Middleware: rewrite slash commands + append quote context + append mentions.
+ * Middleware: rewrite slash commands + append quote context.
+ *
+ * Note: group-chat @mentions metadata has migrated to `UntrustedContext` in
+ * build-context. rewrittenBody must carry only the real message body (slash
+ * rewrite + quote) so command parsing (/reset, /new, …) and Body/BodyForAgent
+ * stay free of the `[Message mentions …]` suffix.
  */
 
 import { formatQuoteContext } from "../../messaging/quote.js";
@@ -46,22 +51,18 @@ function rewriteSlashCommand(
 export const rewriteBody: MiddlewareDescriptor = {
   name: "rewrite-body",
   handler: async (ctx, next) => {
-    const { rawBody, quoteInfo, mentions, isGroup } = ctx;
+    const { rawBody, quoteInfo } = ctx;
 
     // Slash command rewrite
     const rewritten = rewriteSlashCommand(rawBody, (orig, result) => {
       ctx.log.info("[rewrite-body] command rewrite", { orig, result });
     });
 
-    // Group chat scenario: append mentions info
-    const mentionsContext = isGroup && mentions && mentions.length > 0
-      ? `\n[Message mentions the following users: ${mentions.map(m => `${m.text}(userId: ${m.userId})`).join(", ")}]`
-      : "";
-
-    // Append quote context
+    // Append quote context. @mentions metadata is intentionally NOT appended
+    // here — see build-context for its placement in UntrustedContext.
     ctx.rewrittenBody = quoteInfo
-      ? `${formatQuoteContext(quoteInfo)}\n${rewritten}${mentionsContext}`
-      : `${rewritten}${mentionsContext}`;
+      ? `${formatQuoteContext(quoteInfo)}\n${rewritten}`
+      : rewritten;
 
     await next();
   },
