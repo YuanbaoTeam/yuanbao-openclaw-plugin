@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generateTraceId, getActiveTraceContext, resolveTraceContext, runWithTraceContext } from "./context.js";
+import { generateTraceId, getActiveTraceContext, getActiveTraceparent, resolveTraceContext, runWithTraceContext } from "./context.js";
 
 void test("generateTraceId returns a 32-char lowercase hex string", () => {
   const id = generateTraceId();
@@ -41,6 +41,10 @@ void test("nextMsgSeq increments from the inbound seq, undefined when no seq", (
 
   const noSeq = resolveTraceContext({ traceId: "t" });
   assert.equal(noSeq.nextMsgSeq(), undefined);
+});
+
+void test("getActiveTraceparent returns undefined outside an OTel span", () => {
+  assert.equal(getActiveTraceparent(), undefined);
 });
 
 void test("runWithTraceContext exposes the context via getActiveTraceContext", async () => {

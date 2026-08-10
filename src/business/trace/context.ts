@@ -1,5 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomBytes } from "node:crypto";
+import {
+  context,
+  ROOT_CONTEXT,
+  trace,
+  TraceFlags,
+} from "@opentelemetry/api";
+import type { Context } from "@opentelemetry/api";
 import { createLog } from "../../logger.js";
 
 export type YuanbaoTraceContext = {
@@ -57,6 +64,30 @@ function normalizeTraceIdForTraceparent(traceId: string): string {
 
 function buildTraceparent(traceId: string): string {
   return `00-${normalizeTraceIdForTraceparent(traceId)}-${generateHex(8)}-01`;
+}
+
+/**
+ * Build an OTel parent context that links a new span to an inbound trace id.
+ * Used when the upstream only provides trace_id (no parent span id).
+ */
+export function buildRemoteParentOtelContext(traceId: string): Context {
+  const normalizedTraceId = normalizeTraceIdForTraceparent(traceId);
+  return trace.setSpanContext(ROOT_CONTEXT, {
+    traceId: normalizedTraceId,
+    spanId: generateHex(8),
+    traceFlags: TraceFlags.SAMPLED,
+    isRemote: true,
+  });
+}
+
+/** Read the W3C traceparent for the currently active OTel span, if any. */
+export function getActiveTraceparent(): string | undefined {
+  const spanContext = trace.getSpan(context.active())?.spanContext();
+  if (!spanContext || !trace.isSpanContextValid(spanContext)) {
+    return undefined;
+  }
+  const flags = spanContext.traceFlags.toString(16).padStart(2, "0");
+  return `00-${spanContext.traceId}-${spanContext.spanId}-${flags}`;
 }
 
 function normalizeSeqId(seqId?: string | number): string | undefined {

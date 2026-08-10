@@ -7,6 +7,7 @@
 
 import protobuf from "protobufjs";
 import { createLog } from "../../logger.js";
+import { buildDeviceInfo } from "../../infra/env.js";
 import jsonDescriptor from "./proto/conn.json" with { type: "json" };
 
 let root: protobuf.Root | null = null;
@@ -142,8 +143,6 @@ export function decodeConnMsg(raw: Uint8Array | ArrayBuffer): PBConnMsg | null {
   return decodePB(PB_MSG_TYPES.ConnMsg, raw) as PBConnMsg | null;
 }
 
-const OPENCLAW_ID = 16;
-
 interface AuthBindParams {
   bizId: string;
   uid: string;
@@ -151,9 +150,6 @@ interface AuthBindParams {
   token: string;
   msgId: string;
   routeEnv?: string;
-  appVersion: string;
-  operationSystem: string;
-  botVersion: string;
 }
 
 /**
@@ -167,12 +163,7 @@ export function buildAuthBindMsg(params: AuthBindParams): Uint8Array | null {
       source: params.source,
       token: params.token,
     },
-    deviceInfo: {
-      appVersion: params.appVersion,
-      appOperationSystem: params.operationSystem,
-      botVersion: params.botVersion,
-      instanceId: String(OPENCLAW_ID),
-    },
+    deviceInfo: buildDeviceInfo(),
   };
   if (params.routeEnv) {
     authBindPayload.envName = params.routeEnv;

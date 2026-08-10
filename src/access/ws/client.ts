@@ -3,7 +3,6 @@
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import { msgBodyDesensitization } from "../../business/utils/utils.js";
-import { getPluginVersion, getOpenclawVersion, getOperationSystem } from "../../infra/env.js";
 import { createLog } from "../../logger.js";
 import type { LogSink, ModuleLog } from "../../logger.js";
 import {
@@ -546,9 +545,6 @@ export class YuanbaoWsClient {
       token: auth.token,
       msgId,
       routeEnv: auth.routeEnv,
-      appVersion: getPluginVersion(),
-      operationSystem: getOperationSystem(),
-      botVersion: getOpenclawVersion(),
     };
 
     const binary = buildAuthBindMsg(payload);

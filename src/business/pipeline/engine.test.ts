@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getActiveTraceContext } from "../trace/context.js";
 import { MessagePipeline } from "./engine.js";
 import type { PipelineContext } from "./types.js";
 
@@ -214,4 +215,30 @@ void test("MessagePipeline: empty pipeline executes without error", async () => 
   const pipeline = new MessagePipeline();
   await pipeline.execute(makeMockPipelineCtx());
   // No exception means pass
+});
+
+void test("MessagePipeline execute: seeds trace context for the full middleware chain", async () => {
+  let traceAtFirstMiddleware: PipelineContext["traceContext"];
+  let pluginTraceAtFirstMiddleware: ReturnType<typeof getActiveTraceContext>;
+  const pipeline = new MessagePipeline().use({
+    name: "first",
+    handler: async (ctx, next) => {
+      traceAtFirstMiddleware = ctx.traceContext;
+      pluginTraceAtFirstMiddleware = getActiveTraceContext();
+      await next();
+    },
+  });
+
+  const ctx = makeMockPipelineCtx();
+  ctx.raw = {
+    trace_id: "558548be9c0eef30fa5656815d8ce5e5",
+    seq_id: "9",
+  } as PipelineContext["raw"];
+
+  await pipeline.execute(ctx);
+
+  assert.equal(traceAtFirstMiddleware?.traceId, "558548be9c0eef30fa5656815d8ce5e5");
+  assert.equal(pluginTraceAtFirstMiddleware?.traceId, "558548be9c0eef30fa5656815d8ce5e5");
+  assert.equal(getActiveTraceContext(), undefined);
+  assert.equal(ctx.traceContext?.traceId, "558548be9c0eef30fa5656815d8ce5e5");
 });

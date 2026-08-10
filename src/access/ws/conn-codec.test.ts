@@ -12,6 +12,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { initEnv } from "../../infra/env.js";
 import {
   buildAuthBindMsg,
   buildBusinessConnMsg,
@@ -130,15 +131,13 @@ void test("encodePB → decodePB round-trip for AuthBindReq payload", () => {
 
 // ── frame builders ──────────────────────────────────────────────────────────
 void test("buildAuthBindMsg produces a decodable auth-bind frame with nested payload", () => {
+  initEnv({ version: "1.0", config: { meta: { lastTouchedVersion: "2.0" } } } as any);
   const frame = buildAuthBindMsg({
     bizId: "biz-1",
     uid: "u-1",
     source: "openclaw",
     token: "tok",
     msgId: "m-1",
-    appVersion: "1.0",
-    operationSystem: "mac",
-    botVersion: "2.0",
   });
   assert.ok(frame);
   const decoded = decodeConnMsg(frame);
@@ -148,12 +147,14 @@ void test("buildAuthBindMsg produces a decodable auth-bind frame with nested pay
   const inner = decodePB(PB_MSG_TYPES.AuthBindReq, decoded.data) as Record<string, any>;
   assert.equal(inner.bizId, "biz-1");
   assert.equal(inner.authInfo.token, "tok");
+  assert.equal(inner.deviceInfo.appVersion, "1.0");
+  assert.equal(inner.deviceInfo.botVersion, "2.0");
+  assert.equal(inner.deviceInfo.instanceId, "16");
 });
 
 void test("buildAuthBindMsg includes envName when routeEnv provided", () => {
   const frame = buildAuthBindMsg({
-    bizId: "b", uid: "u", source: "s", token: "t", msgId: "m",
-    appVersion: "1", operationSystem: "mac", botVersion: "2", routeEnv: "test-env",
+    bizId: "b", uid: "u", source: "s", token: "t", msgId: "m", routeEnv: "test-env",
   });
   assert.ok(frame);
   const inner = decodePB(PB_MSG_TYPES.AuthBindReq, decodeConnMsg(frame)!.data) as Record<string, any>;
