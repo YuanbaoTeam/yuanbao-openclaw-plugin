@@ -8,6 +8,10 @@ import {
 } from "@opentelemetry/api";
 import type { Context } from "@opentelemetry/api";
 import { createLog } from "../../logger.js";
+import {
+  runWithPublishedInboundTrace,
+  type PublishedInboundTrace,
+} from "./inbound-channel.js";
 
 export type YuanbaoTraceContext = {
   traceId: string;
@@ -28,6 +32,8 @@ export type YuanbaoTraceContext = {
 
 const traceStorage = new AsyncLocalStorage<YuanbaoTraceContext>();
 const EMPTY_TRACE_ID = "0".repeat(32);
+const TRACE_ID_PATTERN = /^[0-9a-f]{32}$/;
+const SPAN_ID_PATTERN = /^[0-9a-f]{16}$/;
 
 function generateHex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
@@ -152,13 +158,31 @@ export function getActiveTraceContext(): YuanbaoTraceContext | undefined {
 }
 
 /**
+ * Project a trace context onto the cross-plugin channel shape. `traceparent` is
+ * the normalized (W3C-legal) view of `traceId`, so it is the field to read.
+ */
+function toPublishedInboundTrace(traceContext: YuanbaoTraceContext): PublishedInboundTrace {
+  const [, traceparentTraceId, traceparentSpanId] = traceContext.traceparent.split("-");
+  const traceId = TRACE_ID_PATTERN.test(traceparentTraceId ?? "")
+    ? (traceparentTraceId as string)
+    : normalizeTraceIdForTraceparent(traceContext.traceId);
+  const spanId = SPAN_ID_PATTERN.test(traceparentSpanId ?? "")
+    ? (traceparentSpanId as string)
+    : undefined;
+  return { traceId, ...(spanId ? { spanId } : {}), channel: "yuanbao" };
+}
+
+/**
  * Run an async callback within the given trace context.
  * Inside the callback (and all spawned async ops), the context is available
  * via {@link getActiveTraceContext}, and the fetch interceptor auto-injects X-Traceparent.
+ * The trace is also published on the cross-plugin channel so observability
+ * plugins can parent their spans onto the upstream trace.
  */
 export function runWithTraceContext<T>(
   traceContext: YuanbaoTraceContext,
   callback: () => Promise<T>,
 ): Promise<T> {
-  return traceStorage.run(traceContext, callback);
+  return traceStorage.run(traceContext, () =>
+    runWithPublishedInboundTrace(toPublishedInboundTrace(traceContext), callback));
 }

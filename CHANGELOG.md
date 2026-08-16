@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.2 (2026-08-16)
+
+- **fix:** 修复服务重启后首次问答 traceId 三方不一致（后端 / APM / 日志各自生成随机 id）
+- **feat:** 新增跨插件 inbound trace 通道，观测插件可直接消费后端 traceId，不再依赖 OTel 全局注册时序
+- **fix:** 将后端 traceId 写入宿主 DiagnosticTrace scope，日志行 traceId 与后端对齐；宿主缺少该能力时告警而非静默降级
+
 ## 2.18.1 (2026-08-10)
 
 - **feat:** 增强可观测性，完善链路追踪与 APM 关联能力
