@@ -1,6 +1,6 @@
 {
   "id": "openclaw-plugin-yuanbao",
-  "version": "2.18.1",
+  "version": "2.18.2",
   "name": "YuanBao",
   "description": "YuanBao channel plugin",
   "channels": [

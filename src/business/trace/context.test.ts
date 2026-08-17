@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { generateTraceId, getActiveTraceContext, getActiveTraceparent, resolveTraceContext, runWithTraceContext } from "./context.js";
+import { getPublishedInboundTrace } from "./inbound-channel.js";
 
 void test("generateTraceId returns a 32-char lowercase hex string", () => {
   const id = generateTraceId();
@@ -53,4 +54,22 @@ void test("runWithTraceContext exposes the context via getActiveTraceContext", a
   const seen = await runWithTraceContext(ctx, async () => getActiveTraceContext());
   assert.equal(seen, ctx);
   assert.equal(getActiveTraceContext(), undefined); // restored after
+});
+
+void test("runWithTraceContext publishes the inbound traceId on the shared channel", async () => {
+  assert.equal(getPublishedInboundTrace(), undefined);
+  const traceId = "d74fe06927f8b3b3a025dad534d83b24";
+  const ctx = resolveTraceContext({ traceId });
+  const published = await runWithTraceContext(ctx, async () => getPublishedInboundTrace());
+  assert.equal(published?.traceId, traceId);
+  assert.match(published?.spanId ?? "", /^[0-9a-f]{16}$/);
+  assert.equal(published?.channel, "yuanbao");
+  assert.equal(getPublishedInboundTrace(), undefined); // restored after
+});
+
+void test("published traceId is the normalized form of a non-hex inbound traceId", async () => {
+  const ctx = resolveTraceContext({ traceId: "human-readable-trace-id" });
+  const published = await runWithTraceContext(ctx, async () => getPublishedInboundTrace());
+  assert.match(published?.traceId ?? "", /^[0-9a-f]{32}$/);
+  assert.equal(published?.traceId, ctx.traceparent.split("-")[1]);
 });
