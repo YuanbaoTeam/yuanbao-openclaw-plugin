@@ -2,7 +2,7 @@
  * Action target resolution module.
  *
  * Unified action delivery target resolution, compatible with two sources:
- * 1. channel.ts sendText/sendMedia direct pass: top-level to + text
+ * 1. channel.ts sendText/sendMedia direct pass: top-level to + text + mediaUrl
  * 2. Agent tool call: params.message / params.to / params.__sessionKey / params.__agentId + toolContext
  */
 
@@ -13,13 +13,14 @@ import { parseTarget } from "../messaging/targets.js";
  * Action params structure passed by framework.
  *
  * Compatible with two sources:
- * 1. channel.ts sendText/sendMedia direct pass: top-level to + text
+ * 1. channel.ts sendText/sendMedia direct pass: top-level to + text + mediaUrl
  * 2. Agent tool call: params.message / params.to / params.__sessionKey / params.__agentId + toolContext
  */
 export interface ActionParams {
   cfg: OpenClawConfig;
   to?: string;
   text?: string;
+  mediaUrl?: string;
   accountId?: string | null;
   params?: {
     action?: string;
@@ -27,6 +28,7 @@ export interface ActionParams {
     message?: string;
     to?: string;
     target?: string;
+    media?: string;
     mediaUrl?: string;
     mediaUrls?: string[];
     sticker_id?: string;
