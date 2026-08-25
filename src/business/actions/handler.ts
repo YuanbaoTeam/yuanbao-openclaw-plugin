@@ -164,7 +164,7 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
       }
       if (!result.ok) {
         const sendError = thrownError ?? new Error(result.error || `${item.type} send failed`);
-        // Text send failure returns directly, media failure continues to send subsequent items
+        // Text failures remain fail-fast; non-text failures are recorded while later items run.
         if (item.type === "text") {
           return {
             channel: "yuanbao",

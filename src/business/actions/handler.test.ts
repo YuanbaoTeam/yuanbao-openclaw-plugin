@@ -89,6 +89,25 @@ void test("text send failure returns ok:false with the error", async () => {
   assert.match(res.error!.message, /ws down/);
 });
 
+void test("a thrown text error stops remaining items and preserves the error", async () => {
+  const expectedError = new Error("text send threw");
+  queuedSendOutcomes = [
+    expectedError,
+    { ok: true, messageId: "m-media" },
+  ];
+
+  const res = await handleAction({
+    cfg,
+    to: "user:u-1",
+    params: { action: "send", message: "caption", mediaUrls: ["http://a"] },
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.messageId, "");
+  assert.equal(res.error, expectedError);
+  assert.deepEqual(sentItems, [{ type: "text", text: "caption" }]);
+});
+
 void test("missing runtime surfaces an error result", async () => {
   setYuanbaoRuntime(null as unknown as PluginRuntime);
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", message: "hi" } });
@@ -104,10 +123,13 @@ void test("missing active WS client surfaces an error result", async () => {
 });
 
 void test("media send failures do not abort remaining items but return ok:false", async () => {
-  sendResult = { ok: false, error: "media boom" };
+  queuedSendOutcomes = [
+    { ok: false, error: "first media failed" },
+    { ok: false, error: "second media failed" },
+  ];
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", mediaUrls: ["http://a", "http://b"] } });
   assert.equal(res.ok, false);
-  assert.match(res.error!.message, /media boom/);
+  assert.match(res.error!.message, /first media failed/);
   assert.equal(sentItems.filter(i => i.type === "media").length, 2);
 });
 
