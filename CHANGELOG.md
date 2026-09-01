@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **fix:** 从 command-auth 导入 resolveControlCommandGate，兼容 openclaw 2026.8.1
+- **fix:** 兼容 openclaw 2026.8.1 的 CommandsConfig / inbound debounce 类型
 
 ## 2.18.2 (2026-08-16)
 

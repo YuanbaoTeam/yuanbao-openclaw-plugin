@@ -11,10 +11,20 @@ import assert from "node:assert/strict";
 import test, { afterEach, beforeEach, mock } from "node:test";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 
+type HostInboundDebounceFlush = {
+  admission: Promise<void>;
+  completion: Promise<void>;
+};
+
 type Captured = {
   buildKey: (item: unknown) => string;
   shouldDebounce: (item: unknown) => boolean;
-  onFlush: (items: unknown[]) => Promise<void>;
+  onFlush: (
+    items: unknown[],
+    createFlush?: (params: {
+      dispatch: (lifecycle: { abortSignal: AbortSignal }) => Promise<void>;
+    }) => HostInboundDebounceFlush,
+  ) => Promise<void> | HostInboundDebounceFlush;
   onError: (err: unknown, items: unknown[]) => void;
 };
 let captured: Captured;
@@ -146,4 +156,14 @@ void test("onError logs without throwing", () => {
 
 void test("onFlush with no items returns early", async () => {
   await assert.doesNotReject(captured.onFlush([]));
+});
+
+void test("onFlush uses host createFlush and still executes the pipeline", async () => {
+  const result = captured.onFlush([item()], ({ dispatch }) => {
+    const completion = dispatch({ abortSignal: new AbortController().signal });
+    return { admission: Promise.resolve(), completion };
+  });
+  assert.ok(result && typeof result === "object" && "completion" in result);
+  await result.completion;
+  assert.equal(executedContexts.length, 1);
 });
