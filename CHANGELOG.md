@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **fix:** 从 command-auth 导入 resolveControlCommandGate，兼容 openclaw 2026.8.1
+
 ## 2.18.2 (2026-08-16)
 
 - **fix:** 修复重启后首次问答后端 / APM / 日志 traceId 不一致

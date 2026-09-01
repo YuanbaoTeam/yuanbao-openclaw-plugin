@@ -36,7 +36,7 @@ export function createPipeline(): MessagePipeline {
       .use(recordMember) // Record group member info (group chat)
       // Phase 2: Guards
       .use(guardSpecialCommand) // Upgrade command / issue-log owner guard
-      .use(guardCommand) // SDK resolveControlCommandGate
+      .use(guardCommand) // SDK resolveControlCommandGate (command-auth)
       .use(resolveMention) // SDK resolveInboundMentionDecision (group chat)
       .use(guardGroupCommand) // Group command whitelist (group chat)
       .use(guardSendAccess) // Send access control guard (C2C)

@@ -22,7 +22,7 @@ function setupMocks(
   mockGateResult = opts?.gateResult ?? { commandAuthorized: false, shouldBlock: true };
   mockGateCallback = opts?.gateCallback ?? null;
   if (!mockRegistered) {
-    t.mock.module("openclaw/plugin-sdk/command-gating", {
+    t.mock.module("openclaw/plugin-sdk/command-auth", {
       namedExports: {
         resolveControlCommandGate: (args: any) => {
           if (mockGateCallback) {
