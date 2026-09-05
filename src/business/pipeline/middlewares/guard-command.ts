@@ -3,8 +3,16 @@
  * Checks for control commands and applies DM allowFrom + useAccessGroups policies.
  */
 
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-gating";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
 import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
+
+/** Read commands.useAccessGroups without depending on CommandsConfig (removed in openclaw 2026.8.1). */
+function readUseAccessGroups(commands: unknown): boolean {
+  if (!commands || typeof commands !== "object") {
+    return true;
+  }
+  return (commands as { useAccessGroups?: unknown }).useAccessGroups !== false;
+}
 
 /** Extract pure text content from msg_body (TIMTextElem only, skipping @mention custom elements). */
 function extractTextOnly(ctx: PipelineContext): string {
@@ -43,7 +51,8 @@ export const guardCommand: MiddlewareDescriptor = {
     const rawAllowFrom = (account.config.dm?.allowFrom ?? []).map(String);
     const effectiveAllowFrom = dmPolicy === "open" && !rawAllowFrom.includes("*") ? [...rawAllowFrom, "*"] : rawAllowFrom;
     const senderAllowed = effectiveAllowFrom.includes("*") || effectiveAllowFrom.includes(fromAccount);
-    const useAccessGroups = config.commands?.useAccessGroups !== false;
+    // 2026.8.1 dropped useAccessGroups from CommandsConfig; still honor it when present.
+    const useAccessGroups = readUseAccessGroups(config.commands);
 
     const { commandAuthorized, shouldBlock } = resolveControlCommandGate({
       useAccessGroups,

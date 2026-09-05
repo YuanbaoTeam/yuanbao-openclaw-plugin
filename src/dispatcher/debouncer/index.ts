@@ -190,6 +190,105 @@ function cleanupSessionSignal(primary: DebouncerItem): void {
   }
 }
 
+/**
+ * 2026.5.7: onFlush(items) => Promise<void>
+ * 2026.8.1: onFlush(items, createFlush) => { admission, completion }
+ * Cast to the installed SDK's onFlush so both versions typecheck.
+ */
+type ChannelInboundDebouncerParams = Parameters<typeof createChannelInboundDebouncer>[0];
+
+type HostInboundDebounceFlush = {
+  admission: Promise<void>;
+  completion: Promise<void>;
+};
+
+type HostCreateInboundDebounceFlush = (params: {
+  dispatch: (lifecycle: { abortSignal: AbortSignal }) => Promise<void>;
+}) => HostInboundDebounceFlush;
+
+async function flushDebouncedItems(items: DebouncerItem[], log: ModuleLog): Promise<void> {
+  const primary = items.at(-1);
+  if (!primary) {
+    return;
+  }
+
+  const sessionKey = buildSessionKey(primary);
+
+  // Group owner /stop: invalidate base queue → skip remaining queued tasks
+  if (primary.isGroup && isAbortRequestText(extractRawText(primary)) && isOwnerMessage(primary)) {
+    const baseKey = buildBaseSessionKey(primary);
+    sessionQueue.invalidate(baseKey);
+  }
+
+  // ⭐ Direct normal message: abort old inference + invalidate queued old tasks
+  if (isDirectNormalMessage(primary)) {
+    const baseKey = buildBaseSessionKey(primary);
+    // Invalidate queued old tasks in base queue (skip execution)
+    sessionQueue.invalidate(baseKey);
+    // Rotate AbortController: abort old inference, get new signal
+    const sessionSignal = sessionAbortManager.rotate(baseKey);
+    // Attach session-level signal to primary for buildPipelineContext
+    (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal = sessionSignal;
+  }
+
+  if (items.length === 1) {
+    await sessionQueue.enqueue(sessionKey, async () => {
+      const pipelineCtx = buildPipelineContext(primary, items);
+      try {
+        await pipeline.execute(pipelineCtx);
+      } finally {
+        cleanupSessionSignal(primary);
+      }
+    });
+    return;
+  }
+
+  // Merge text + media from multiple messages; skip if empty
+  const combinedText = items
+    .map(item => extractRawText(item))
+    .filter(Boolean)
+    .join("\n");
+  const combinedMedia = items
+    .flatMap(item => (item.msg.msg_body ?? [])
+      .filter((elem: { msg_type?: string }) => MEDIA_MSG_TYPES.has(elem.msg_type ?? "")));
+  if (!combinedText.trim() && combinedMedia.length === 0) {
+    log.info("flush skipped: no text or media after merge", {
+      count: items.length,
+    });
+    return;
+  }
+
+  // Build synthetic message: merge msg_body from all items into primary
+  const syntheticPrimary: DebouncerItem = {
+    ...primary,
+    msg: buildSyntheticMessage(primary, items),
+  };
+
+  await sessionQueue.enqueue(sessionKey, async () => {
+    const pipelineCtx = buildPipelineContext(syntheticPrimary, items);
+    try {
+      await pipeline.execute(pipelineCtx);
+    } finally {
+      cleanupSessionSignal(primary);
+    }
+  });
+}
+
+function adaptOnFlush(
+  items: DebouncerItem[],
+  log: ModuleLog,
+  createFlush?: HostCreateInboundDebounceFlush,
+): HostInboundDebounceFlush | Promise<void> {
+  if (typeof createFlush === "function") {
+    return createFlush({
+      dispatch: async () => {
+        await flushDebouncedItems(items, log);
+      },
+    });
+  }
+  return flushDebouncedItems(items, log);
+}
+
 export function ensureDebouncer(config: OpenClawConfig) {
   if (debouncer) {
     return debouncer;
@@ -213,73 +312,8 @@ export function ensureDebouncer(config: OpenClawConfig) {
       });
     },
 
-    onFlush: async (items) => {
-      const primary = items.at(-1);
-      if (!primary) {
-        return;
-      }
-
-      const sessionKey = buildSessionKey(primary);
-
-      // Group owner /stop: invalidate base queue → skip remaining queued tasks
-      if (primary.isGroup && isAbortRequestText(extractRawText(primary)) && isOwnerMessage(primary)) {
-        const baseKey = buildBaseSessionKey(primary);
-        sessionQueue.invalidate(baseKey);
-      }
-
-      // ⭐ Direct normal message: abort old inference + invalidate queued old tasks
-      if (isDirectNormalMessage(primary)) {
-        const baseKey = buildBaseSessionKey(primary);
-        // Invalidate queued old tasks in base queue (skip execution)
-        sessionQueue.invalidate(baseKey);
-        // Rotate AbortController: abort old inference, get new signal
-        const sessionSignal = sessionAbortManager.rotate(baseKey);
-        // Attach session-level signal to primary for buildPipelineContext
-        (primary as DebouncerItem & { _sessionAbortSignal?: AbortSignal })._sessionAbortSignal = sessionSignal;
-      }
-
-      if (items.length === 1) {
-        await sessionQueue.enqueue(sessionKey, async () => {
-          const pipelineCtx = buildPipelineContext(primary, items);
-          try {
-            await pipeline.execute(pipelineCtx);
-          } finally {
-            cleanupSessionSignal(primary);
-          }
-        });
-        return;
-      }
-
-      // Merge text + media from multiple messages; skip if empty
-      const combinedText = items
-        .map(item => extractRawText(item))
-        .filter(Boolean)
-        .join("\n");
-      const combinedMedia = items
-        .flatMap(item => (item.msg.msg_body ?? [])
-          .filter((elem: { msg_type?: string }) => MEDIA_MSG_TYPES.has(elem.msg_type ?? "")));
-      if (!combinedText.trim() && combinedMedia.length === 0) {
-        debouncerLog.info("flush skipped: no text or media after merge", {
-          count: items.length,
-        });
-        return;
-      }
-
-      // Build synthetic message: merge msg_body from all items into primary
-      const syntheticPrimary: DebouncerItem = {
-        ...primary,
-        msg: buildSyntheticMessage(primary, items),
-      };
-
-      await sessionQueue.enqueue(sessionKey, async () => {
-        const pipelineCtx = buildPipelineContext(syntheticPrimary, items);
-        try {
-          await pipeline.execute(pipelineCtx);
-        } finally {
-          cleanupSessionSignal(primary);
-        }
-      });
-    },
+    onFlush: ((items: DebouncerItem[], createFlush?: HostCreateInboundDebounceFlush) =>
+      adaptOnFlush(items, debouncerLog, createFlush)) as ChannelInboundDebouncerParams["onFlush"],
 
     // Similar to telegram: onError receives items for richer context logging
     onError: (err, items) => {

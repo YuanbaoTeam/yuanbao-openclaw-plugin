@@ -73,3 +73,34 @@ jobs:
           name: package
           path: dist/package.tgz
           retention-days: 7
+
+  # Lockfile path above stays on openclaw@2026.5.7.
+  # This job is the PR/main gate for npm `openclaw@latest` (same steps as upstream-compat.yml).
+  compat-latest:
+    name: compat (openclaw@latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Override openclaw to latest
+        run: |
+          pnpm add -D openclaw@latest
+          pnpm list openclaw --depth 0
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
