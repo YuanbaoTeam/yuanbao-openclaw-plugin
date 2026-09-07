@@ -17,6 +17,7 @@ import { resolveTraceContext, runWithTraceContext } from "../trace/context.js";
 
 let sentItems: OutboundItem[];
 let sendResult: SendResult;
+let queuedSendOutcomes: Array<SendResult | Error>;
 let handleAction: typeof import("./handler.js").handleAction;
 
 const cfg = {} as ActionParams["cfg"];
@@ -24,10 +25,18 @@ const cfg = {} as ActionParams["cfg"];
 beforeEach(async () => {
   sentItems = [];
   sendResult = { ok: true, messageId: "m-1" };
+  queuedSendOutcomes = [];
   mock.module("../outbound/create-sender.js", {
     namedExports: {
       createMessageSender: () => ({
-        send: async (item: OutboundItem) => { sentItems.push(item); return sendResult; },
+        send: async (item: OutboundItem) => {
+          sentItems.push(item);
+          const outcome = queuedSendOutcomes.shift() ?? sendResult;
+          if (outcome instanceof Error) {
+            throw outcome;
+          }
+          return outcome;
+        },
         sendText: async () => sendResult,
         sendMedia: async () => sendResult,
         sendSticker: async () => sendResult,
@@ -80,6 +89,25 @@ void test("text send failure returns ok:false with the error", async () => {
   assert.match(res.error!.message, /ws down/);
 });
 
+void test("a thrown text error stops remaining items and preserves the error", async () => {
+  const expectedError = new Error("text send threw");
+  queuedSendOutcomes = [
+    expectedError,
+    { ok: true, messageId: "m-media" },
+  ];
+
+  const res = await handleAction({
+    cfg,
+    to: "user:u-1",
+    params: { action: "send", message: "caption", mediaUrls: ["http://a"] },
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.messageId, "");
+  assert.equal(res.error, expectedError);
+  assert.deepEqual(sentItems, [{ type: "text", text: "caption" }]);
+});
+
 void test("missing runtime surfaces an error result", async () => {
   setYuanbaoRuntime(null as unknown as PluginRuntime);
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", message: "hi" } });
@@ -94,12 +122,75 @@ void test("missing active WS client surfaces an error result", async () => {
   assert.ok(res.error);
 });
 
-void test("media send failure continues (does not abort) and returns ok", async () => {
-  // media items keep going on failure; only text failure aborts.
-  sendResult = { ok: false, error: "media boom" };
+void test("media send failures do not abort remaining items but return ok:false", async () => {
+  queuedSendOutcomes = [
+    { ok: false, error: "first media failed" },
+    { ok: false, error: "second media failed" },
+  ];
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", mediaUrls: ["http://a", "http://b"] } });
-  assert.equal(res.ok, true); // text-less media-only send tolerates media failure
+  assert.equal(res.ok, false);
+  assert.match(res.error!.message, /first media failed/);
   assert.equal(sentItems.filter(i => i.type === "media").length, 2);
+});
+
+void test("partial media failure preserves the last successful message id", async () => {
+  queuedSendOutcomes = [
+    { ok: false, error: "first media failed" },
+    { ok: true, messageId: "m-2" },
+  ];
+  const trace = resolveTraceContext({ traceId: "t-partial-media" });
+
+  const res = await runWithTraceContext(trace, async () => {
+    return handleAction({ cfg, to: "user:u-1", params: { action: "send", mediaUrls: ["http://a", "http://b"] } });
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.messageId, "m-2");
+  assert.match(res.error!.message, /first media failed/);
+  assert.equal(sentItems.filter(i => i.type === "media").length, 2);
+  assert.equal(trace.hasActionDelivered(), true);
+});
+
+void test("a thrown media error does not abort remaining items", async () => {
+  const expectedError = new Error("second media threw");
+  queuedSendOutcomes = [
+    { ok: true, messageId: "m-1" },
+    expectedError,
+    { ok: true, messageId: "m-3" },
+  ];
+
+  const res = await handleAction({
+    cfg,
+    to: "user:u-1",
+    params: { action: "send", mediaUrls: ["http://a", "http://b", "http://c"] },
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.messageId, "m-3");
+  assert.equal(res.error, expectedError);
+  assert.equal(sentItems.filter(i => i.type === "media").length, 3);
+});
+
+void test("text success followed by media failure reports partial delivery", async () => {
+  queuedSendOutcomes = [
+    { ok: true, messageId: "m-text" },
+    { ok: false, error: "media failed" },
+  ];
+  const trace = resolveTraceContext({ traceId: "t-text-media" });
+
+  const res = await runWithTraceContext(trace, async () => {
+    return handleAction({
+      cfg,
+      to: "user:u-1",
+      params: { action: "send", message: "caption", mediaUrls: ["http://a"] },
+    });
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.messageId, "m-text");
+  assert.match(res.error!.message, /media failed/);
+  assert.deepEqual(sentItems.map(item => item.type), ["text", "media"]);
+  assert.equal(trace.hasActionDelivered(), true);
 });
 
 void test("unresolvable target surfaces an error result", async () => {
@@ -142,9 +233,11 @@ void test("failed sticker send does not mark the trace context as delivered", as
   sendResult = { ok: false, error: "sticker boom" };
   const trace = resolveTraceContext({ traceId: "t-2" });
 
-  await runWithTraceContext(trace, async () => {
-    await handleAction({ cfg, to: "user:u-1", params: { action: "sticker", stickerId: "s-9" } });
+  const result = await runWithTraceContext(trace, async () => {
+    return handleAction({ cfg, to: "user:u-1", params: { action: "sticker", stickerId: "s-9" } });
   });
 
+  assert.equal(result.ok, false);
+  assert.match(result.error!.message, /sticker boom/);
   assert.equal(trace.hasActionDelivered(), false);
 });

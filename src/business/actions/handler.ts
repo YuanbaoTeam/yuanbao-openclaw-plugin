@@ -16,7 +16,7 @@ import { resolveYuanbaoAccount } from "../../accounts.js";
 import { createLog } from "../../logger.js";
 import { getYuanbaoRuntime } from "../../runtime.js";
 import { createMessageSender } from "../outbound/create-sender.js";
-import type { OutboundItem } from "../outbound/types.js";
+import type { OutboundItem, SendResult } from "../outbound/types.js";
 import { getActiveTraceContext } from "../trace/context.js";
 import type { ActionParams } from "./resolve-target.js";
 import { resolveActionTarget } from "./resolve-target.js";
@@ -147,23 +147,34 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
       core,
     });
 
-    // Send items sequentially, collect last successful messageId
+    // Send items sequentially, collect the last successful messageId and the first failure.
+    // Non-text items remain best-effort so one attachment does not block the rest.
     let lastMessageId = "";
+    let firstSendError: Error | undefined;
     for (const item of items) {
       log.info("send for", { type: item.type });
 
-      const result = await sender.send(item);
+      let result: SendResult;
+      let thrownError: Error | undefined;
+      try {
+        result = await sender.send(item);
+      } catch (err) {
+        thrownError = err instanceof Error ? err : new Error(String(err));
+        result = { ok: false, error: thrownError.message };
+      }
       if (!result.ok) {
-        // Text send failure returns directly, media failure continues to send subsequent items
+        const sendError = thrownError ?? new Error(result.error || `${item.type} send failed`);
+        // Text failures remain fail-fast; non-text failures are recorded while later items run.
         if (item.type === "text") {
           return {
             channel: "yuanbao",
             ok: false,
             messageId: result.messageId ?? "",
-            error: new Error(result.error ?? "text send failed"),
+            error: sendError,
           };
         }
-        log.error(`${item.type} send failed: ${result.error}`);
+        firstSendError ??= sendError;
+        log.error(`${item.type} send failed: ${sendError.message}`);
       } else {
         // Mark outbound delivered on the active agent-run trace context so
         // dispatch-reply won't mistake an action-only reply (e.g. a sticker
@@ -173,6 +184,15 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
           lastMessageId = result.messageId;
         }
       }
+    }
+
+    if (firstSendError) {
+      return {
+        channel: "yuanbao",
+        ok: false,
+        messageId: lastMessageId,
+        error: firstSendError,
+      };
     }
 
     return { channel: "yuanbao", ok: true, messageId: lastMessageId };
