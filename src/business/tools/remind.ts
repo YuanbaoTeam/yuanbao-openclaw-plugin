@@ -2,7 +2,9 @@
 
 /**
  * Three-tier execution chain, attempted top-down:
- * 1. Gateway API (agent-harness-runtime available): calls cron API directly, status="ok"
+ * 1. Gateway API (agent-harness-runtime available): calls cron API directly, status="ok";
+ *    falls back to tier 2 when the RPC itself fails (newer hosts may reject unknown
+ *    job shapes, e.g. the agent-runtime toolsAllow contract added in 2026.8.1)
  * 2. CLI (plugin-sdk/run-command available): runs `openclaw cron` command, status="ok"; falls back to tier 3 on failure
  * 3. Legacy fallback: returns status="PENDING_CRON_CALL" with cronToolParams to guide the model
  */
@@ -274,10 +276,14 @@ type CronBase = { name: string; expr: string; tz: string; message: string };
 /** Resolves shared fields for a one-time job. */
 function resolveOnceBase(params: RemindParams, time: TimeSpec, intent: 'remind' | 'task'): OnceBase {
   const content = params.content!;
+  const atMs = time.type === 'absolute' ? time.atMs : Date.now() + time.delayMs;
   return {
     name: params.name || generateJobName(content),
-    atMs: time.type === 'absolute' ? time.atMs : Date.now() + time.delayMs,
-    atStr: time.type === 'absolute' ? time.iso : `${Math.max(1, Math.round(time.delayMs / 1000))}s`,
+    atMs,
+    // The gateway cron.add API only accepts ISO-8601 (or epoch-ms) for schedule.at
+    // (validateScheduleTimestamp); duration strings like "300s" are rejected on
+    // every host version. Always resolve relative delays to an absolute ISO time.
+    atStr: new Date(atMs).toISOString(),
     message: buildReminderPrompt(content, intent),
   };
 }
@@ -306,7 +312,7 @@ function buildOnceJob(params: RemindParams, time: TimeSpec, to: string, accountI
     sessionTarget: 'isolated' as const,
     wakeMode: 'now' as const,
     deleteAfterRun: true,
-    payload: { kind: 'agentTurn' as const, message },
+    payload: { kind: 'agentTurn' as const, message, toolsAllow: ['*'] },
     delivery: { mode: 'announce' as const, channel: 'yuanbao' as const, to, accountId },
   };
 }
@@ -319,7 +325,7 @@ function buildCronJob(params: RemindParams, to: string, accountId: string, inten
     schedule: { kind: 'cron' as const, expr, tz },
     sessionTarget: 'isolated' as const,
     wakeMode: 'now' as const,
-    payload: { kind: 'agentTurn' as const, message },
+    payload: { kind: 'agentTurn' as const, message, toolsAllow: ['*'] },
     delivery: { mode: 'announce' as const, channel: 'yuanbao' as const, to, accountId },
   };
 }
@@ -422,6 +428,15 @@ function formatSchedulerError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Logs a gateway-tier RPC failure before falling through to the CLI tier. */
+function logGatewayFallback(action: string, error: unknown): void {
+  const log = createLog('tools.remind');
+  log.warn('gateway cron call failed, falling back to CLI tier', {
+    action,
+    error: formatSchedulerError(error),
+  });
+}
+
 function tryParseJson(text: string): unknown | null {
   try {
     return JSON.parse(text);
@@ -463,6 +478,8 @@ function parseAndValidateTime(time: string): { timeSpec: TimeSpec } | { error: s
 
 // ============================================================================
 // Gateway execute implementation
+// Returns null on RPC failure (falls through to the CLI tier);
+// parameter-validation errors return json directly (no fallback).
 // ============================================================================
 
 async function executeGateway(
@@ -470,7 +487,7 @@ async function executeGateway(
   p: RemindParams,
   resolvedTo: string | null,
   accountId: string,
-) {
+): Promise<ReturnType<typeof json> | null> {
   switch (p.action) {
     case 'list': {
       try {
@@ -478,7 +495,8 @@ async function executeGateway(
         const filtered = filterJobsByTarget(cronResult, resolvedTo);
         return json({ status: 'ok', action: 'list', _via: 'gateway', jobs: filtered });
       } catch (error) {
-        return json({ error: `查询定时任务失败: ${formatSchedulerError(error)}` });
+        logGatewayFallback('list', error);
+        return null;
       }
     }
 
@@ -489,7 +507,8 @@ async function executeGateway(
         const cronResult = await gatewayTool('cron.remove', { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, { jobId: p.jobId!.trim() });
         return json({ status: 'ok', action: 'remove', _via: 'gateway', cronResult });
       } catch (error) {
-        return json({ error: `删除定时任务失败: ${formatSchedulerError(error)}` });
+        logGatewayFallback('remove', error);
+        return null;
       }
     }
 
@@ -512,7 +531,8 @@ async function executeGateway(
             cronResult,
           });
         } catch (error) {
-          return json({ error: `创建周期任务失败: ${formatSchedulerError(error)}` });
+          logGatewayFallback('add(cron)', error);
+          return null;
         }
       }
 
@@ -530,7 +550,8 @@ async function executeGateway(
           cronResult,
         });
       } catch (error) {
-        return json({ error: `创建定时任务失败: ${formatSchedulerError(error)}` });
+        logGatewayFallback('add(once)', error);
+        return null;
       }
     }
 
@@ -708,7 +729,10 @@ function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
 
       const gatewayTool = await resolveCallGatewayTool();
       if (gatewayTool) {
-        return executeGateway(gatewayTool, p, resolvedTo, accountId);
+        const gwResult = await executeGateway(gatewayTool, p, resolvedTo, accountId);
+        // null => gateway RPC failed (host contract change, gateway unreachable, ...);
+        // fall through to the CLI tier instead of surfacing the error directly.
+        if (gwResult !== null) return gwResult;
       }
 
       const runner = await resolveRunPluginCommand();

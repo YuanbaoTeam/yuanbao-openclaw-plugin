@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **fix:** 修复 yuanbao_remind 在 openclaw 2026.8.1+ / 2026.9.x 下总是失败的问题：
+  - gateway 直连创建定时任务时 payload 显式携带 `toolsAllow: ["*"]`，满足 2026.8.1 起对 agent-runtime 调用方的强制要求（`agent-runtime tool jobs require an explicit payload.toolsAllow cap`）
+  - 一次性任务的 `schedule.at` 一律输出 ISO-8601 绝对时间（相对时间如 "5m" 先换算），修复所有版本下网关 `validateScheduleTimestamp` 拒绝 "300s" 时长字符串的问题
+  - gateway 层 RPC 失败时降级到 CLI 层（参数校验错误仍直接返回），提升对未来宿主版本契约变化的容错性
 - **fix:** 从 command-auth 导入 resolveControlCommandGate，兼容 openclaw 2026.8.1
 - **fix:** 兼容 openclaw 2026.8.1 的 CommandsConfig / inbound debounce 类型
 
