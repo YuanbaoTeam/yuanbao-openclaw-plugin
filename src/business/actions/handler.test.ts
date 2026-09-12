@@ -115,10 +115,29 @@ void test("sticker-search short-circuits without creating a sender", async () =>
   assert.equal(sentItems.length, 0);
 });
 
-void test("action read from top-level input + single mediaUrl branch", async () => {
-  // no params.action → falls back to input.action; single `mediaUrl` (not mediaUrls)
+void test("action read from top-level input + nested single mediaUrl branch", async () => {
+  // no params.action → falls back to input.action; single nested `mediaUrl` (not mediaUrls)
   await handleAction({ cfg, to: "user:u-1", action: "send", params: { mediaUrl: "http://one.png" } } as never);
   assert.equal(sentItems.filter(i => i.type === "media").length, 1);
+});
+
+void test("direct outbound mediaUrl dispatches a media item", async () => {
+  const res = await handleAction({ cfg, to: "user:u-1", mediaUrl: "http://one.png" });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.messageId, "m-1");
+  assert.deepEqual(sentItems, [{ type: "media", mediaUrl: "http://one.png" }]);
+});
+
+void test("nested mediaUrl takes precedence over direct outbound mediaUrl", async () => {
+  await handleAction({
+    cfg,
+    to: "user:u-1",
+    mediaUrl: "http://outbound.png",
+    params: { action: "send", mediaUrl: "http://action.png" },
+  });
+
+  assert.deepEqual(sentItems, [{ type: "media", mediaUrl: "http://action.png" }]);
 });
 
 void test("react action with sticker_id as an array dispatches a sticker", async () => {
