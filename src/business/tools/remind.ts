@@ -1,10 +1,10 @@
 /** Scheduled reminder tool (yuanbao_remind). */
 
 /**
- * Three-tier execution chain, attempted top-down:
- * 1. Gateway API (agent-harness-runtime available): calls cron API directly, status="ok"
- * 2. CLI (plugin-sdk/run-command available): runs `openclaw cron` command, status="ok"; falls back to tier 3 on failure
- * 3. Legacy fallback: returns status="PENDING_CRON_CALL" with cronToolParams to guide the model
+ * Two-tier execution chain, attempted top-down:
+ * 1. Gateway API (agent-harness-runtime available): calls cron.add directly, status="ok"
+ * 2. CLI (plugin-sdk/run-command available): runs `openclaw cron`, status="ok"
+ * Failures return an error. The model must not call cron or automations itself.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
@@ -133,7 +133,7 @@ const TASK_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个任务执�
   + '- 不要回复 HEARTBEAT_OK\n'
   + '- 不要解释你是谁\n'
   + '- 直接执行任务并输出可直接给用户的结果\n'
-  + '- **禁止**调用 yuanbao_remind 或 cron 工具，**禁止**新建任何定时任务\n';
+  + '- **禁止**调用 yuanbao_remind、cron 或 automations，**禁止**新建任何定时任务\n';
 
 /** remind mode: warm reminder, keep reply brief */
 const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个暖心的提醒助手。请用温暖、有趣的方式提醒用户：${content}。\n\n`
@@ -143,22 +143,14 @@ const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个暖心的
   + '- 直接输出一条暖心的提醒消息，不要携带其他和该提醒无关的内容\n'
   + '- 可以加一句简短的关怀话语\n'
   + '- 控制在 2-3 句话以内\n'
-  + '- **禁止**调用 yuanbao_remind 或 cron 工具，**禁止**新建任何定时任务\n';
+  + '- **禁止**调用 yuanbao_remind、cron 或 automations，**禁止**新建任何定时任务\n';
 
 const TOOL_DESCRIPTION = [
-  '创建/查询/删除元宝定时任务。当用户提出提醒、闹钟、定时、X分钟/小时后、每天/每周/每月/每年X点等需求时，必须调用本工具。',
-  '重要：调用后必须检查返回结果中的 status 字段判断操作是否完成。',
-  'status="ok" 表示已完成，可以告知用户；status="PENDING_CRON_CALL" 表示还需要调用 cron 工具才能生效。',
-  '禁止在 status 不是 "ok" 时告知用户任务已设置成功。',
+  '创建/查询/删除元宝定时任务。当用户提出提醒、闹钟、定时、X分钟/小时后、每天/每周/每月/每年X点等需求时，必须调用本工具，且只调用本工具。',
+  '本工具会直接创建、查询或删除任务。不要再调用 cron 或 automations。',
+  '调用后根据返回结果回复：status="ok" 表示已完成，可以告知用户；返回 error 时只转述 error 字段。',
+  '禁止在没有 status="ok" 时告知用户任务已设置成功。',
 ].join('\n');
-
-// Legacy fallback: imperative instructions guiding the model to call cron (concise, non-ignorable)
-
-const LEGACY_ADD_NEXT_STEP = '你必须立即调用 cron 工具，将 cronToolParams 中的参数传入。只有 cron 返回成功后才能告知用户。未调用 cron 之前，禁止回复"已设置"或"已创建"。';
-
-const LEGACY_LIST_NEXT_STEP = '你必须立即调用 cron 工具执行 list，获取全量任务后按 filter.to 过滤，只返回当前会话的任务。禁止在调用 cron 之前回复任务列表。';
-
-const LEGACY_REMOVE_NEXT_STEP = '你必须立即调用 cron 工具执行 remove，传入 cronToolParams.jobId。只有 cron 返回成功后才能告知用户已删除。';
 
 // ============================================================================
 // Time parsing & formatting
@@ -367,22 +359,6 @@ function buildCronCliArgs(params: RemindParams, to: string, accountId: string, i
 }
 
 // ============================================================================
-// Legacy mode: cron params builders (used by executeLegacy)
-// ============================================================================
-
-/** Builds Legacy cronToolParams for a one-time job. */
-function buildOnceLegacyParams(params: RemindParams, time: TimeSpec, to: string, intent: 'remind' | 'task') {
-  const { name, atStr, message } = resolveOnceBase(params, time, intent);
-  return { action: 'add', name, at: atStr, session: 'isolated', deleteAfterRun: true, message, channel: 'yuanbao', to };
-}
-
-/** Builds Legacy cronToolParams for a recurring (cron) job. */
-function buildCronLegacyParams(params: RemindParams, to: string, intent: 'remind' | 'task') {
-  const { name, expr, tz, message } = resolveCronBase(params, intent);
-  return { action: 'add', name, cron: expr, tz, session: 'isolated', deleteAfterRun: false, message, channel: 'yuanbao', to };
-}
-
-// ============================================================================
 // Result filtering & error formatting
 // ============================================================================
 
@@ -420,6 +396,10 @@ function formatTimeLabel(time: TimeSpec, intent: 'remind' | 'task'): string {
 
 function formatSchedulerError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function commandFailureDetail(result: { code: number; stdout: string; stderr: string }): string {
+  return result.stderr.trim() || result.stdout.trim() || `exit code ${result.code}`;
 }
 
 function tryParseJson(text: string): unknown | null {
@@ -541,31 +521,28 @@ async function executeGateway(
 
 // ============================================================================
 // CLI execute implementation
-// Returns null on command failure; validation errors return json directly (no fallback).
 // ============================================================================
 
-/**
- * CLI execution tier. Returns null on command failure to trigger Legacy fallback.
- */
+/** CLI execution tier. Command failures return an error instead of asking the model to call cron. */
 async function executeCli(
   runner: PluginCommandRunner,
   p: RemindParams,
   resolvedTo: string | null,
   accountId: string,
-): Promise<ReturnType<typeof json> | null> {
+): Promise<ReturnType<typeof json>> {
   switch (p.action) {
     case 'list': {
       try {
         const result = await runner({ argv: ['openclaw', 'cron', 'list', '--json'], timeoutMs: DEFAULT_CLI_TIMEOUT_MS });
-        if (result.code !== 0) return null;
+        if (result.code !== 0) return json({ error: `查询定时任务失败: ${commandFailureDetail(result)}` });
         const parsed = tryParseJson(result.stdout);
         if (parsed) {
           const filtered = filterJobsByTarget(parsed, resolvedTo);
           return json({ status: 'ok', action: 'list', _via: 'cli', jobs: filtered });
         }
         return json({ status: 'ok', action: 'list', _via: 'cli', raw: result.stdout.trim() });
-      } catch {
-        return null;
+      } catch (error) {
+        return json({ error: `查询定时任务失败: ${formatSchedulerError(error)}` });
       }
     }
 
@@ -577,11 +554,11 @@ async function executeCli(
           argv: ['openclaw', 'cron', 'rm', p.jobId!.trim(), '--json'],
           timeoutMs: DEFAULT_CLI_TIMEOUT_MS,
         });
-        if (result.code !== 0) return null;
+        if (result.code !== 0) return json({ error: `删除定时任务失败: ${commandFailureDetail(result)}` });
         const parsed = tryParseJson(result.stdout);
         return json({ status: 'ok', action: 'remove', _via: 'cli', cronResult: parsed ?? result.stdout.trim() });
-      } catch {
-        return null;
+      } catch (error) {
+        return json({ error: `删除定时任务失败: ${formatSchedulerError(error)}` });
       }
     }
 
@@ -607,76 +584,12 @@ async function executeCli(
 
       try {
         const result = await runner({ argv, timeoutMs: DEFAULT_CLI_TIMEOUT_MS });
-        if (result.code !== 0) return null;
+        if (result.code !== 0) return json({ error: `创建定时任务失败: ${commandFailureDetail(result)}` });
         const parsed = tryParseJson(result.stdout);
         return json({ status: 'ok', action: 'add', _via: 'cli', summary, cronResult: parsed ?? result.stdout.trim() });
-      } catch {
-        return null;
+      } catch (error) {
+        return json({ error: `创建定时任务失败: ${formatSchedulerError(error)}` });
       }
-    }
-
-    default:
-      return json({ error: `不支持的 action: ${String(p.action)}。可选值: add/list/remove。` });
-  }
-}
-
-// ============================================================================
-// Legacy execute implementation
-// ============================================================================
-
-/** Returns PENDING_CRON_CALL to guide the model to invoke the cron tool. */
-function executeLegacy(p: RemindParams, resolvedTo: string | null) {
-  switch (p.action) {
-    case 'list':
-      return json({
-        status: 'PENDING_CRON_CALL',
-        _via: 'legacy',
-        completed: false,
-        next_step: LEGACY_LIST_NEXT_STEP,
-        cronToolParams: { action: 'list' },
-        filter: { to: resolvedTo },
-      });
-
-    case 'remove': {
-      const err = validateRemoveParams(p);
-      if (err) return json(err);
-      return json({
-        status: 'PENDING_CRON_CALL',
-        _via: 'legacy',
-        completed: false,
-        next_step: LEGACY_REMOVE_NEXT_STEP,
-        cronToolParams: { action: 'remove', jobId: p.jobId!.trim() },
-      });
-    }
-
-    case 'add': {
-      const addErr = validateAddParams(p, resolvedTo);
-      if (addErr) return json(addErr);
-
-      const intent = p.intent ?? 'remind';
-
-      if (isCronExpression(p.time!)) {
-        const cronToolParams = buildCronLegacyParams({ ...p, content: p.content!.trim() }, resolvedTo!, intent);
-        return json({
-          status: 'PENDING_CRON_CALL',
-          _via: 'legacy',
-          completed: false,
-          next_step: LEGACY_ADD_NEXT_STEP,
-          cronToolParams,
-        });
-      }
-
-      const timeResult = parseAndValidateTime(p.time!);
-      if ('error' in timeResult) return json(timeResult);
-
-      const cronToolParams = buildOnceLegacyParams({ ...p, content: p.content!.trim() }, timeResult.timeSpec, resolvedTo!, intent);
-      return json({
-        status: 'PENDING_CRON_CALL',
-        _via: 'legacy',
-        completed: false,
-        next_step: LEGACY_ADD_NEXT_STEP,
-        cronToolParams,
-      });
     }
 
     default:
@@ -713,13 +626,10 @@ function createYuanbaoRemindTool(ctx: OpenClawPluginToolContext) {
 
       const runner = await resolveRunPluginCommand();
       if (runner) {
-        const cliResult = await executeCli(runner, p, resolvedTo, accountId);
-        if (cliResult !== null) return cliResult;
-        // CLI command failed (non-zero exit or exception), fall through to Legacy
+        return executeCli(runner, p, resolvedTo, accountId);
       }
 
-      // Final fallback: guide the model to call cron via PENDING response
-      return executeLegacy(p, resolvedTo);
+      return json({ error: '定时任务服务不可用，请稍后重试。' });
     },
   };
 }

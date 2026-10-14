@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 2.18.4 (2026-10-14)
+
+- **fix:** yuanbao_remind 直接创建定时任务，不再引导模型调用 cron，避免偶现配置限制拒绝
+
+## 2.18.3 (2026-09-01)
 
 - **fix:** 从 command-auth 导入 resolveControlCommandGate，兼容 openclaw 2026.8.1
 - **fix:** 兼容 openclaw 2026.8.1 的 CommandsConfig / inbound debounce 类型
