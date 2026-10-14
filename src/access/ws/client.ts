@@ -21,6 +21,7 @@ import {
   decodeSyncInformationRsp,
   encodeQueryBotInfoReq,
   decodeQueryBotInfoRsp,
+  decodeSendGroupMessageRsp,
 } from "./biz-codec.js";
 import {
   decodeConnMsg,
@@ -275,7 +276,9 @@ export class YuanbaoWsClient {
     if (!encoded) {
       return Promise.reject(new Error("Failed to encode SendGroupMessageReq"));
     }
-    return this.sendAndWait(BIZ_CMD.SendGroupMessage, BIZ_MODULE, encoded);
+    // Group-specific decoder keeps the server-assigned IM msg id/seq (the generic C2C-first
+    // decoder would drop those fields).
+    return this.sendAndWaitWith(BIZ_CMD.SendGroupMessage, BIZ_MODULE, encoded, decodeSendGroupMessageRsp);
   }
 
   /** Send a business request and wait for the response (supports custom decoders). */

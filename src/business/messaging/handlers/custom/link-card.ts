@@ -49,7 +49,7 @@ function formatSharedLink(data: SharedLinkData): string {
 
 interface LinkUnderstandingData {
   elem_type: 1007;
-  extend_type?: number;
+  extend_type?: number; // 101: card 102: upevent 103: downevent
   content?: string;
 }
 

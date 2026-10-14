@@ -1,0 +1,4705 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuanbao.tencent.com/specification/v1_0/catalogs/xcard/catalog.json",
+  "catalogId": "https://yuanbao.tencent.com/specification/v1_0/catalogs/xcard/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "description": "The text to display, as plain text. Markdown is not interpreted: `**bold**` renders with its asterisks. Use `variant`, `style.fontWeight` and `style.textDecoration` for emphasis, and separate components for structure.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "footnote",
+            "body"
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "color": {
+                  "description": "Which `tokens.json` color role the copy is drawn in. Unset inherits the container's.",
+                  "type": "string",
+                  "enum": [
+                    "basic_text_primary",
+                    "basic_text_secondary",
+                    "basic_text_tertiary",
+                    "basic_text_quaternary",
+                    "basic_text_quinary",
+                    "basic_text_disabled",
+                    "basic_text_brand",
+                    "basic_text_link",
+                    "basic_function_green",
+                    "basic_function_red",
+                    "basic_function_orange",
+                        "basic_function_blue",
+                        "basic_alpha_always_white"
+                  ]
+                },
+                "fontWeight": {
+                  "description": "Compose FontWeight value.",
+                  "type": "integer",
+                      "enum": [
+                        400,
+                        500,
+                        600
+                      ]
+                },
+                "textDecoration": {
+                  "description": "Compose TextDecoration applied to the text.",
+                  "type": "string",
+                      "enum": [
+                        "lineThrough"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "maxLines": {
+          "description": "Maximum number of rendered lines. Zero means no limit.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": true
+    },
+    "TextField": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "description": "The value of the text field. Bind a path for the typing to be written back.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "placeholder": {
+          "description": "The placeholder text for the input field.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "variant": {
+          "type": "string",
+          "description": "The type of input field to display.",
+          "enum": [
+            "longText",
+            "number",
+            "shortText",
+            "obscured"
+          ],
+          "default": "shortText"
+        },
+        "appearance": {
+          "type": "string",
+          "enum": [
+            "filled",
+            "underline"
+          ],
+          "default": "filled",
+          "description": "How the field is drawn. `filled` is the design system's capsule (or block for longText): a fill, an outline, a trailing clear / reveal button. `underline` draws no fill, outline, corner or trailing button: the text sits in body type on a hairline, as tall as one line plus 4dp, so it reads as part of the sentence it is placed in — the `Other: ____` of a ChoiceGroup option. Single-line variants only; `longText` keeps the filled block. Typing into a TextField inside a ChoiceGroup option selects that option, whatever its appearance."
+        },
+        "checks": {
+          "type": "array"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      }
+    },
+    "RichText": {
+      "type": "object",
+      "description": "One paragraph made of styled spans. Spans flow, wrap and truncate together as one block. A span may carry its own action; a span with an action and no style.color is drawn in basic_text_link. Markdown is not interpreted. Use Text when the copy has a single style.",
+      "properties": {
+        "spans": {
+          "description": "The runs of the paragraph, in reading order. A literal array: each span's text and style may be bound, the array itself may not.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/RichTextSpan"
+          }
+        },
+        "variant": {
+          "description": "Size, line height and default style of every span. Unset inherits the container's text style, falling back to body.",
+          "type": "string",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "footnote",
+            "body"
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn, and the default text style of every span. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "$ref": "#/$defs/RichTextSpanStyle"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "maxLines": {
+          "description": "Maximum number of rendered lines. Zero means no limit. Spans cut off by the ellipsis are not tappable.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "spans"
+      ],
+      "additionalProperties": true
+    },
+    "Label": {
+      "type": "object",
+      "description": "A short single-line tag: the text on a rounded fill tinted from the text color at 8%. Size, padding and corner come from `variant`; the copy truncates with an ellipsis rather than wrapping. Not tappable: wrap it in Clickable for that. Use Text for copy without a fill.",
+      "properties": {
+        "text": {
+          "description": "The tag's copy, as plain text on one line. Markdown is not interpreted. An empty string draws nothing.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "variant": {
+          "description": "Size step: `large` is 11/15 type on 3×6 padding with a 6 corner, `small` is 10/13 type on 2×4 padding with a 4 corner. Defaults to small.",
+          "type": "string",
+          "enum": [
+            "large",
+            "small"
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. `padding` is space outside the fill. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "description": "Which `tokens.json` color role the copy is drawn in; the fill is the same role at 8%. Unset is basic_function_blue. Not inherited from the container.",
+                      "type": "string",
+                      "enum": [
+                        "basic_text_primary",
+                        "basic_text_secondary",
+                        "basic_text_tertiary",
+                        "basic_text_quaternary",
+                        "basic_text_quinary",
+                        "basic_text_disabled",
+                        "basic_text_brand",
+                        "basic_text_link",
+                        "basic_function_green",
+                        "basic_function_red",
+                        "basic_function_orange",
+                        "basic_function_blue",
+                        "basic_alpha_always_white"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": true
+    },
+    "Button": {
+      "type": "object",
+      "properties": {
+        "child": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "enabled": {
+          "description": "Whether the button answers taps. `false` draws the disabled state (the whole button at 40% opacity unless style.disabled says otherwise, same size), ignores every gesture including combinedActions, skips checks and hides their message, swallows the touch, and reports the button as disabled to accessibility. A Button inside a disabled component is disabled too, whatever this says. A value that is missing, fails to resolve or is not a boolean counts as true.",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          ],
+          "default": true
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "default",
+            "primary",
+            "borderless"
+          ]
+        },
+        "checks": {
+          "type": "array"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "size": {
+                  "description": "Button size tier. Defaults to `medium`.",
+                  "type": "string",
+                      "enum": [
+                        "medium",
+                        "extraSmall"
+                      ],
+                  "default": "medium"
+                },
+                "containerColor": {
+                  "description": "Color role from `tokens.json` passed as the button container color.",
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "shape": {
+                  "description": "Compose Shape expressed as a corner radius in dp or a `tokens.json` shape role.",
+                  "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                    {
+                      "type": "string",
+                      "enum": [
+                            "cardCornerRadius",
+                            "buttonCornerRadius",
+                            "choiceChipCornerRadius",
+                            "modalCornerRadius",
+                            "textFieldCornerRadius",
+                            "textFieldLongCornerRadius",
+                            "tabsTrackCornerRadius",
+                            "tabsPillCornerRadius"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "child"
+      ],
+      "not": {
+        "required": [
+          "size"
+        ]
+      },
+      "additionalProperties": true
+    },
+    "Clickable": {
+      "type": "object",
+      "properties": {
+        "child": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "enabled": {
+          "description": "Whether the tap area answers taps. `false` draws its content at 40% opacity unless style.disabled says otherwise, ignores every gesture including combinedActions, skips checks, swallows the touch, and reports it as disabled to accessibility. It cascades: every component inside is disabled as well. A value that is missing, fails to resolve or is not a boolean counts as true.",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          ],
+          "default": true
+        },
+        "checks": {
+          "type": "array"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "child"
+      ],
+      "additionalProperties": true
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "child": {
+          "type": "string"
+        },
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "containerColor": {
+                  "description": "Color role from `tokens.json` passed as the card container color.",
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "shape": {
+                  "description": "Compose Shape expressed as a corner radius in dp or a `tokens.json` shape role.",
+                  "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                    {
+                      "type": "string",
+                      "enum": [
+                            "cardCornerRadius",
+                            "buttonCornerRadius",
+                            "choiceChipCornerRadius",
+                            "modalCornerRadius",
+                            "textFieldCornerRadius",
+                            "textFieldLongCornerRadius",
+                            "tabsTrackCornerRadius",
+                            "tabsPillCornerRadius"
+                      ]
+                    }
+                  ]
+                },
+                "spacing": {
+                  "description": "Spacing passed to `Arrangement.spacedBy`, in dp.",
+                  "type": "number",
+                  "minimum": 0
+                }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "additionalProperties": true
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "urlDark": {
+          "description": "Optional dark-mode image. Same shapes as `url`. Used when the host is in dark mode; missing or empty falls back to `url`.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "description": {
+          "description": "Accessibility text for the image.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "contain",
+            "cover",
+            "fill",
+            "fitWidth",
+            "fitHeight",
+            "none"
+          ]
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "shape": {
+                  "description": "Compose Shape expressed as a corner radius in dp or a `tokens.json` shape role.",
+                  "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                    {
+                      "type": "string",
+                      "enum": [
+                            "cardCornerRadius",
+                            "buttonCornerRadius",
+                            "choiceChipCornerRadius",
+                            "modalCornerRadius",
+                            "textFieldCornerRadius",
+                            "textFieldLongCornerRadius",
+                            "tabsTrackCornerRadius",
+                            "tabsPillCornerRadius"
+                      ]
+                    }
+                  ]
+                },
+                "border": {
+                  "description": "Draws the design system's hairline around the image, which is what keeps a pale photograph from bleeding into a white card.",
+                  "type": "boolean"
+                }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": true
+    },
+    "SvgView": {
+      "type": "object",
+      "description": "Draws one SVG document, either inline (source) or from an https URL (url). Exactly one of those two is set. Android decodes it with Coil 3 coil-svg, iOS with SDWebImageSVGCoder, and Web with the browser's SVG-as-image decoder. The guaranteed markup is the static visual subset of SVG 1.1. The box comes from style and the parent; a missing axis follows the decoder's intrinsic aspect ratio. fit places the decoded image in that box and defaults to contain. style.tint, when set, tints the decoded image with that token.",
+      "properties": {
+        "url": {
+          "description": "https URL of an SVG document. Mutually exclusive with source. Same shapes as Image url.",
+          "anyOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ]
+        },
+        "urlDark": {
+          "description": "Optional dark-mode document for url. Used when the host is in dark mode; missing or empty falls back to url. Ignored unless url is set.",
+          "anyOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ]
+        },
+        "source": {
+          "description": "Inline SVG document. Mutually exclusive with url. Passed to the platform decoder as bytes. UTF-8 size after resolution is at most 65536 bytes.",
+          "anyOf": [
+            { "type": "string", "maxLength": 65536 },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ]
+        },
+        "sourceDark": {
+          "description": "Optional dark-mode document for source. Same fallback rule as urlDark. Ignored unless source is set. UTF-8 size after resolution is at most 65536 bytes.",
+          "anyOf": [
+            { "type": "string", "maxLength": 65536 },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ]
+        },
+        "description": {
+          "description": "Accessibility name for the graphic. Empty and without an action, the view is decorative.",
+          "anyOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ]
+        },
+        "fit": {
+          "description": "How the decoded image is placed inside the content box. Does not change the box size. Defaults to contain.",
+          "type": "string",
+          "enum": ["contain", "cover", "fill", "none"],
+          "default": "contain"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/CommonStyle" },
+                {
+                  "type": "object",
+                  "properties": {
+                    "tint": {
+                      "description": "When set, tints the decoded image with this token. Does not rewrite the SVG.",
+                      "type": "string",
+                      "enum": [
+                        "basic_text_primary",
+                        "basic_text_secondary",
+                        "basic_text_tertiary",
+                        "basic_text_quaternary",
+                        "basic_text_quinary",
+                        "basic_text_disabled",
+                        "basic_text_brand",
+                        "basic_text_link",
+                        "basic_function_green",
+                        "basic_function_red",
+                        "basic_function_orange",
+                        "basic_function_blue",
+                        "basic_alpha_always_white"
+                      ]
+                    },
+                    "shape": {
+                      "description": "Corner radius in dp, or a tokens.json shape role. Clips the graphic.",
+                      "anyOf": [
+                        { "type": "number", "minimum": 0 },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cardCornerRadius",
+                            "buttonCornerRadius",
+                            "choiceChipCornerRadius",
+                            "modalCornerRadius",
+                            "textFieldCornerRadius",
+                            "textFieldLongCornerRadius",
+                            "tabsTrackCornerRadius",
+                            "tabsPillCornerRadius"
+                          ]
+                        }
+                      ]
+                    },
+                    "border": {
+                      "description": "Draws the design system's hairline around the box.",
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            { "$ref": "#/$defs/StyleBinding" }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": { "$ref": "#/$defs/CombinedActions" }
+      },
+      "additionalProperties": true
+    },
+    "List": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "type": "object",
+              "properties": {
+                    "spacing": {
+                      "description": "Step between items, in dp. Defaults to 8.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "justify": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "spacing": {
+                  "description": "Spacing passed to `Arrangement.spacedBy`, in dp.",
+                  "type": "number",
+                  "minimum": 0
+                }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "justify": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly",
+            "stretch"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "spacing": {
+                  "description": "Spacing passed to `Arrangement.spacedBy`, in dp.",
+                  "type": "number",
+                  "minimum": 0
+                }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "FlowRow": {
+      "type": "object",
+      "description": "Lays children out left to right and moves to the next line when the current one is full. Use for chips and tags. As wide as the space it is given; without style.height it grows with its lines.",
+      "properties": {
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "justify": {
+          "description": "Main-axis arrangement applied to each line independently.",
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly"
+          ],
+          "default": "start"
+        },
+        "align": {
+          "description": "Cross-axis alignment of items inside their own line. A line is as thick as its thickest item.",
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end"
+          ],
+          "default": "start"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "spacing": {
+                      "description": "Minimum gap between two items on the same line, in dp. Defaults to 8.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "lineSpacing": {
+                      "description": "Gap between two lines, in dp. Defaults to the resolved `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "FlowColumn": {
+      "type": "object",
+      "description": "Lays children out top to bottom and moves to the next column when the current one is full. Requires style.height. Without style.width it is as wide as its columns, up to the space it is given.",
+      "properties": {
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "justify": {
+          "description": "Main-axis arrangement applied to each line independently.",
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly"
+          ],
+          "default": "start"
+        },
+        "align": {
+          "description": "Cross-axis alignment of items inside their own line. A line is as thick as its thickest item.",
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end"
+          ],
+          "default": "start"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "spacing": {
+                      "description": "Minimum gap between two items on the same line, in dp. Defaults to 8.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "lineSpacing": {
+                      "description": "Gap between two lines, in dp. Defaults to the resolved `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "VerticalGrid": {
+      "type": "object",
+      "description": "A lazy grid with a fixed number of columns, like Compose LazyVerticalGrid with GridCells.Fixed(n): only the rows in or near its viewport are rendered, and rows scrolled away are disposed, so keep any state that must survive scrolling in the data model. `columns` decides the columns; rows are added downward. Takes the full width it is offered. Children are stretched to the width of their cell and keep their content height. As tall as its rows up to its style.height, or up to 2048dp when nothing bounds it; beyond that it scrolls vertically inside itself.",
+      "properties": {
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "columns": {
+          "description": "The number of columns, as with `GridCells.Fixed(n)`. The columns share the width equally. Defaults to 2. Literal only.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "default": 2
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "spacing": {
+                      "description": "Shorthand for both `columnSpacing` and `rowSpacing`, like CSS `gap`, in dp. Defaults to 0, as in Compose.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "columnSpacing": {
+                      "description": "Gap between two neighbouring columns, in dp. Overrides `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "rowSpacing": {
+                      "description": "Gap between two neighbouring rows, in dp. Overrides `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "HorizontalGrid": {
+      "type": "object",
+      "description": "A lazy grid with a fixed number of rows, like Compose LazyHorizontalGrid with GridCells.Fixed(n): only the columns in or near its viewport are rendered, and columns scrolled away are disposed, so keep any state that must survive scrolling in the data model. `rows` decides the rows; columns are added toward the end side. Needs a bounded height, usually style.height. Children are stretched to the height of their cell and keep their content width. As wide as its columns up to the width it is offered, or up to 2048dp inside a horizontal List; beyond that it scrolls sideways inside itself.",
+      "properties": {
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "rows": {
+          "description": "The number of rows, as with `GridCells.Fixed(n)`. The rows share the height equally. Defaults to 2. Literal only.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "default": 2
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "spacing": {
+                      "description": "Shorthand for both `columnSpacing` and `rowSpacing`, like CSS `gap`, in dp. Defaults to 0, as in Compose.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "columnSpacing": {
+                      "description": "Gap between two neighbouring columns, in dp. Overrides `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "rowSpacing": {
+                      "description": "Gap between two neighbouring rows, in dp. Overrides `spacing`.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "Box": {
+      "type": "object",
+      "properties": {
+        "contentAlignment": {
+          "description": "Where children sit inside the box. Defaults to `topStart`.",
+          "type": "string",
+          "enum": [
+            "topStart",
+            "topCenter",
+            "topEnd",
+            "centerStart",
+            "center",
+            "centerEnd",
+            "bottomStart",
+            "bottomCenter",
+            "bottomEnd"
+          ]
+        },
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "Icon": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "tint": {
+                  "description": "Which `tokens.json` color role the glyph is drawn in. Unset inherits the container's.",
+                  "type": "string",
+                  "enum": [
+                    "basic_text_primary",
+                    "basic_text_secondary",
+                    "basic_text_tertiary",
+                    "basic_text_quaternary",
+                    "basic_text_quinary",
+                    "basic_text_disabled",
+                    "basic_text_brand",
+                    "basic_text_link",
+                    "basic_function_green",
+                    "basic_function_red",
+                    "basic_function_orange",
+                        "basic_function_blue",
+                        "basic_alpha_always_white"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    },
+    "IconButton": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Icon name, from the same set `Icon` takes.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "enabled": {
+          "description": "Whether the button answers taps. `false` draws the disabled state (the whole button at 40% opacity unless style.disabled says otherwise, same size), ignores every gesture including combinedActions, swallows the touch, and reports the button as disabled to accessibility. An IconButton inside a disabled component is disabled too, whatever this says. A value that is missing, fails to resolve or is not a boolean counts as true.",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          ],
+          "default": true
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                    {
+                      "type": "object",
+                      "properties": {
+                "tint": {
+                  "description": "Which `tokens.json` color role the glyph is drawn in. Unset inherits the container's.",
+                  "type": "string",
+                  "enum": [
+                    "basic_text_primary",
+                    "basic_text_secondary",
+                    "basic_text_tertiary",
+                    "basic_text_quaternary",
+                    "basic_text_quinary",
+                    "basic_text_disabled",
+                    "basic_text_brand",
+                    "basic_text_link",
+                    "basic_function_green",
+                    "basic_function_red",
+                    "basic_function_orange",
+                        "basic_function_blue",
+                        "basic_alpha_always_white"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "combinedActions": {
+          "$ref": "#/$defs/CombinedActions"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    },
+    "ItemPicker": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "description": "The indicator collection. Each entry is an object with an id and a label.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "items": {
+          "description": "Object keyed by the option id. The matching entry is written to value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "value": {
+          "description": "Where the looked-up item is written. Everything that renders the selection binds under this path.",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "JSON Pointer into the data model"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "keyField": {
+          "description": "Option field that identifies the selection. Defaults to `id`.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "labelField": {
+          "description": "Entry field shown on the chip. Defaults to `label`.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+                    {
+                      "type": "object",
+                      "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "options",
+        "items",
+        "value"
+      ],
+      "additionalProperties": true
+    },
+    "Stepper": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "description": "Label shown before the numeric controls.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "value": {
+          "description": "Bound numeric value updated by the controls.",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "min": {
+          "description": "Minimum allowed value. Defaults to 0.",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "max": {
+          "description": "Maximum allowed value. Defaults to 100.",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "step": {
+          "description": "Amount added or subtracted per tap. Defaults to 1.",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "additionalProperties": true
+    },
+    "Switcher": {
+              "type": "object",
+              "properties": {
+        "value": {
+          "description": "The selected item. `content` and everything that renders the selection binds under this path.",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "JSON Pointer into the data model"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "content": {
+          "description": "What the selected item is shown in. Each distinct value keeps its own scroll position.",
+          "type": "string"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+                  "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "value",
+        "content"
+      ],
+      "additionalProperties": true
+    },
+    "Pager": {
+      "type": "object",
+      "description": "Horizontal pages that snap one at a time, like Compose HorizontalPager. Each child is a page as wide as the pager (less 2 × (peek + pageSpacing) when peek is set); only the pages in or next to the viewport are rendered, and pages swiped away are disposed, so keep any state that must survive in the data model. At most 50 pages. Takes the width it is offered; as tall as style.height / aspectRatio, otherwise as its tallest rendered page. Has no indicator of its own: bind currentPage and a DotIndicator to the same path. Gestures belong to a Clickable inside a page, not to the pager.",
+      "properties": {
+        "children": {
+          "description": "One page per child, as component ids or a template expansion. Only the first 50 are drawn.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "currentPage": {
+          "description": "Index of the page shown, from 0. Bound to a path it is two-way: a swipe, an autoPlay step or a DotIndicator tap writes the new page there, and writing the path from outside (updateData, updateDataModel) animates the pager to it. Floored, then wrapped when loop is on and clamped to the last page when it is not; the corrected value is written back. Defaults to 0.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            }
+          ]
+        },
+        "loop": {
+          "description": "Joins the last page to the first, so swiping and autoPlay never stop. No effect with fewer than 2 pages. Defaults to false. Literal only.",
+          "type": "boolean"
+        },
+        "autoPlay": {
+          "description": "Advances one page every interval once the pager has settled. Without loop, the last page goes back to the first. Pauses while touched, while the pager is off screen or the app is in the background, and never runs when the system asks for reduced motion. Unset does not auto-play.",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "description": "Milliseconds between pages. Below 2000 is raised to 2000.",
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "interval"
+          ],
+          "additionalProperties": true
+        },
+        "userScrollEnabled": {
+          "description": "Whether a swipe turns the page. False still lets currentPage and autoPlay turn it. Defaults to true.",
+          "type": "boolean"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "pageSpacing": {
+                      "description": "Gap between two neighbouring pages, in dp. Defaults to 0.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "peek": {
+                      "description": "How much of each neighbouring page shows beside the current one, in dp. Defaults to 0: pages are as wide as the pager.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "containerColor": {
+                      "description": "Which `tokens.json` color role the pager is filled with, under its padding.",
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                    },
+                    "shape": {
+                      "description": "Corner radius of the pager in dp, or a `tokens.json` shape role. Pages are clipped to it.",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "children"
+      ],
+      "additionalProperties": true
+    },
+    "DotIndicator": {
+      "type": "object",
+      "description": "A row of dots with one highlighted, for a Pager or any other paged content. Linked to nothing but the data model: bind current to the same path as the Pager's currentPage, and count to the array the pages come from. Decorative unless interactive.",
+      "properties": {
+        "count": {
+          "description": "How many dots. A number is floored; bound to an array it is the array's length. Held to 0–50.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            {
+              "type": "array"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            }
+          ]
+        },
+        "current": {
+          "description": "Index of the highlighted dot, from 0. Out of range is shown clamped and not written back. Defaults to 0.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            }
+          ]
+        },
+        "interactive": {
+          "description": "When true, tapping dot i writes i to current, which turns a Pager bound to the same path. Defaults to false.",
+          "type": "boolean"
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "dotSize": {
+                      "description": "Diameter of a dot, and the height of the row, in dp. Defaults to 6.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "activeDotWidth": {
+                      "description": "Width of the highlighted dot, in dp; wider than dotSize draws a capsule. Defaults to dotSize.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "dotSpacing": {
+                      "description": "Gap between two neighbouring dots, in dp. Defaults to 6.",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "activeColor": {
+                      "description": "Which `tokens.json` color role the highlighted dot is drawn in. Defaults to basic_text_primary.",
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                    },
+                    "inactiveColor": {
+                      "description": "Which `tokens.json` color role the other dots are drawn in. Defaults to basic_text_disabled.",
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "additionalProperties": true
+    },
+    "WebCard": {
+      "type": "object",
+      "description": "An H5 slot. uriPath and host are interpreted by the host URL policy. value is pushed to the page. Without a policy the slot is 0 tall and the host reports WEBCARD_URL_REJECTED.",
+      "properties": {
+        "uriPath": {
+          "description": "Page identity: a path such as /e/kline, or an absolute URL. The host URL policy decides how to read it.",
+                  "anyOf": [
+            {
+              "type": "string"
+            },
+                    {
+                      "type": "object",
+                      "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "host": {
+          "description": "Optional host identity, also interpreted by the URL policy.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+                      "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "value": {
+          "description": "Business data pushed to the page. Any JSON value, usually a data binding."
+        }
+      },
+      "required": [
+        "uriPath"
+      ],
+      "additionalProperties": true
+    },
+    "xCardTemplate": {
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "description": "Which template to fetch. Unset renders whatever content has already been mounted.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "path": {
+          "description": "Where in the data model the template binds. Defaults to `/`.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "children": {
+          "description": "Child component ids or a template expansion.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "componentId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "componentId"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "additionalProperties": true
+    },
+    "PlatformSwitch": {
+      "type": "object",
+      "description": "Picks one child tree by host formFactor. Each condition value is a component id defined in the same list (e.g. mobile-root). Missing the current key falls back to mobile.",
+      "properties": {
+        "condition": {
+          "type": "object",
+          "description": "Keys are formFactor tokens. Values are component ids, not layout names. desktop and web may point at the same id.",
+          "properties": {
+            "mobile": {
+              "type": "string",
+              "description": "Fallback tree when the current formFactor key is missing."
+            },
+            "ios": {
+              "type": "string",
+              "description": "iPhone tree. Host formFactor=ios."
+            },
+            "android": {
+              "type": "string",
+              "description": "Android phone tree. Host formFactor=android."
+            },
+            "harmony": {
+              "type": "string",
+              "description": "HarmonyOS phone tree. Host formFactor=harmony."
+            },
+            "tablet": {
+              "type": "string",
+              "description": "Component id of the tablet tree."
+            },
+            "desktop": {
+              "type": "string",
+              "description": "Component id of the native desktop tree, e.g. wide-root."
+            },
+            "web": {
+              "type": "string",
+              "description": "Component id of the web tree. May reuse the same id as desktop."
+            },
+            "tv": {
+              "type": "string",
+              "description": "Component id of the TV tree."
+            }
+          },
+          "additionalProperties": false
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        }
+      },
+      "required": [
+        "condition"
+      ],
+      "additionalProperties": true
+    },
+    "ConditionView": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "description": "Value compared against each case match."
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+          "type": "object",
+          "properties": {
+              "match": {
+                "description": "Literal string, number, or boolean. Same type within one component."
+              },
+              "child": {
+                "type": "string",
+                "description": "Component id of this branch."
+              }
+            },
+            "required": [
+              "match",
+              "child"
+            ],
+          "additionalProperties": false
+          }
+        },
+        "default": {
+          "type": "string",
+          "description": "Component id when no case matches."
+        },
+        "style": {
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommonStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        }
+      },
+      "required": [
+        "value",
+        "cases"
+      ],
+      "additionalProperties": true
+    },
+    "ChoiceGroup": {
+              "type": "object",
+      "description": "Selects one or more options, each drawn by a template component fed with the option's uiData. The group owns the selection state, the item frame and the selection indicator; the template only draws content.",
+              "properties": {
+        "options": {
+          "description": "Option data together with the option template.",
+          "type": "object",
+          "properties": {
+            "items": {
+              "description": "Path to the option array in the data model; literals and function calls are not accepted. Each entry is { uiData, value }: uiData is a plain object (not a binding) that relative paths in the template resolve against; value is a string unique within the group.",
+              "$ref": "#/$defs/DataBinding"
+            },
+            "componentId": {
+              "type": "string",
+              "description": "Component id of the option template, instantiated once per option and scoped to its uiData."
+            }
+          },
+          "required": [
+            "items",
+            "componentId"
+          ],
+          "additionalProperties": false
+        },
+        "value": {
+          "description": "Values of the selected options. Always a string array; at most one entry in mutuallyExclusive.",
+          "$ref": "#/$defs/DataBinding"
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "mutuallyExclusive",
+            "multipleSelection"
+          ],
+          "default": "mutuallyExclusive"
+        },
+        "indicator": {
+          "type": "string",
+          "description": "How selection is shown. `control` draws a radio or check control and only that control toggles selection (see toggleArea); `border` wraps each option in a container, outlines the selected ones, and the whole option toggles selection; `none` draws no frame or control, the whole option toggles selection, and the template shows the selected state itself through `@selected`.",
+          "enum": [
+            "control",
+            "border",
+            "none"
+          ],
+          "default": "control"
+        },
+        "toggleArea": {
+          "type": "string",
+          "description": "What a tap toggles on when indicator is `control`: only the control, or the whole option. Ignored for `border` and `none`, where the whole option always toggles. Components inside the template that declare their own action still answer the tap themselves.",
+          "enum": [
+            "control",
+            "option"
+          ],
+          "default": "control"
+        },
+        "focusInputOnSelect": {
+          "type": "boolean",
+          "default": false,
+          "description": "When a user taps an option to select it, focus the first TextField in that option and open the keyboard. Does not focus on initial render or when selection changes through data binding. Tapping inside a TextField retains its normal focus behavior; deselecting an option never requests focus."
+        },
+        "optionEnabled": {
+          "description": "Whether one option answers the user, evaluated in each option's scope: relative paths read that option's uiData, `@index` is its index and `@selected` its current state. `false` makes the option ignore taps on its frame, control and template, keeps its selection exactly as it is, disables every component in its template the way `enabled` does, reports it as disabled to accessibility, and draws the group's `style.disabled.effect` over the whole option (frame, outline and control included), 40% opacity by default. A disabled group disables every option whatever this says. A value that is missing, fails to resolve or is not a boolean counts as true.",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          ],
+          "default": true
+        },
+        "action": {
+          "description": "Runs after each user tap on an option, once the selection has been written back to `value`, including a tap on an already selected option in mutuallyExclusive. It runs in the tapped option's scope: relative paths read that option's uiData, `@index` is the option index and `@selected` its new state. Changes to `value` that do not come from a tap do not run it. The renderer starts it with invokeAction(\"option:<i>\"), where i is the option's position among the rendered options.",
+          "$ref": "#/$defs/Action"
+        },
+        "indicatorAlign": {
+          "type": "string",
+          "description": "Side the control sits on. Only used when indicator is `control`.",
+          "enum": [
+            "start",
+            "end"
+          ],
+          "default": "end"
+        },
+        "selectedEffect": {
+          "description": "Visual effect over the whole rendering of a selected option: template content, control, and in border mode the frame fill and outline. Visual only; the option stays interactive. `dimmed` overlays the basic_container_primary color at 70% opacity.",
+                  "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "dimmed"
+              ]
+            },
+                    {
+                      "type": "object",
+                      "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "grayscale"
+                  ]
+                },
+                "alpha": {
+                          "type": "number",
+                          "minimum": 0,
+                  "maximum": 1,
+                  "default": 1
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/CommonStyle"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "spacing": {
+                          "type": "number",
+                          "minimum": 0,
+                      "description": "Step between options, in dp. Defaults to 12 for control and 4 for border."
+                    },
+                    "itemPadding": {
+                      "$ref": "#/$defs/Insets",
+                      "description": "Inset inside each option frame, in dp. Defaults to 0 for control and none, and 14 for border."
+                    },
+                    "pressedColor": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                      "description": "Color role from `tokens.json` filling the option frame while it is pressed. Only drawn where the whole option toggles: border, none, or control with toggleArea `option`. Unset draws no pressed state."
+                    },
+                    "itemShape": {
+                      "description": "Corner radius of each option frame, in dp or a `tokens.json` shape role; it also clips the pressed fill. Defaults to 0 for control and none, and 16 for border.",
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cardCornerRadius",
+                            "buttonCornerRadius",
+                            "choiceChipCornerRadius",
+                            "modalCornerRadius",
+                            "textFieldCornerRadius",
+                            "textFieldLongCornerRadius",
+                            "tabsTrackCornerRadius",
+                            "tabsPillCornerRadius"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ],
+          "description": "How the component is drawn. Anything left out stays at whatever the design system already decided."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        }
+      },
+      "required": [
+        "options",
+        "value"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "functions": {
+    "repeatQuery": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Repeat the current Yuanbao chat request. The optional params object is merged into the repeated request. For an action FunctionCall, the triggering component's metadata.extensions is delivered separately to the host dispatcher, not inside args.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "params": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+              },
+                "required": [
+                  "path"
+                ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "sendQuery": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Host follow-up prompt. Engine forwards action.functionCall args to the host; BizModel sends the prompt. The triggering component's metadata.extensions is delivered separately to the host dispatcher, not inside args.",
+      "parameters": {
+      "type": "object",
+      "properties": {
+          "prompt": {
+          "anyOf": [
+              {
+                "type": "string"
+              },
+            {
+              "type": "object",
+              "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+              },
+                "required": [
+                  "path"
+                ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "params": {
+          "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+            {
+              "type": "object",
+              "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+              },
+                "required": [
+                  "path"
+                ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "openUrl": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Open an http(s) URL. Engine forwards args.url to the host; BizModel opens it. The triggering component's metadata.extensions is delivered separately to the host dispatcher, not inside args.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "description": "http(s) URL.",
+          "anyOf": [
+              {
+                "type": "string"
+              },
+            {
+              "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+            {
+              "type": "object",
+              "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "openHostRoute": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Open an in-app route. Engine forwards args.route to the host; BizModel routes it. The triggering component's metadata.extensions is delivered separately to the host dispatcher, not inside args.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "description": "Host route token or path. Not an http URL.",
+                  "anyOf": [
+              {
+                "type": "string"
+              },
+                    {
+                      "type": "object",
+                      "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+                    }
+                  ]
+                }
+              },
+        "required": [
+          "route"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "openWechatMiniProgram": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Open a WeChat mini program from the host App via OpenSDK (WXLaunchMiniProgramReq). Not wx.navigateToMiniProgram (that JSAPI is mini-program to mini-program and uses appId).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "userName": {
+            "description": "Mini-program original ID, must start with gh_. Maps to WXLaunchMiniProgramReq.userName. Do not pass the wx AppID; OpenSDK returns bad_param.",
+            "anyOf": [
+              {
+                "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+              },
+                "required": [
+                  "path"
+                ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "path": {
+            "description": "Page path inside the mini program, optional query included. Maps to WXLaunchMiniProgramReq.path. Omit or empty opens the home page.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+      "type": "object",
+      "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+          "type": "object",
+          "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "userName"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "yb_chat_repeat": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Wire name `repeatQuery` was published under before the camelCase names existed. Same behaviour, and it reaches the host under this name rather than as `repeatQuery`, which is what lets a card written for an older Yuanbao keep working on it. Write `repeatQuery` in new documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "params": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "yb_chat_send_prompt": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Wire name `sendQuery` was published under before the camelCase names existed. Same behaviour, and it reaches the host under this name rather than as `sendQuery`, which is what lets a card written for an older Yuanbao keep working on it. Write `sendQuery` in new documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "yb_navigation_open_url": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Wire name `openUrl` was published under before the camelCase names existed. Same behaviour, and it reaches the host under this name rather than as `openUrl`, which is what lets a card written for an older Yuanbao keep working on it. Write `openUrl` in new documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "description": "http(s) URL.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "yb_navigation_open_host_route": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "requiresUserActivation": true,
+      "description": "Wire name `openHostRoute` was published under before the camelCase names existed. Same behaviour, and it reaches the host under this name rather than as `openHostRoute`, which is what lets a card written for an older Yuanbao keep working on it. Write `openHostRoute` in new documents.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "description": "Host route token or path. Not an http URL.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "catalogId": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "greaterThan": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when a > b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "greaterThanOrEqual": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when a >= b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "lessThan": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when a < b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "lessThanOrEqual": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when a <= b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "equalsNumber": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when a == b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "equalsString": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when string a equals string b. Null operands coerce to empty string.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "String literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "String literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "isEmpty": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when value is null, empty string, empty array, or empty object.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "description": "Literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "value"
+        ]
+      }
+    },
+    "contains": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when the array values holds an element deeply equal to value. Numbers compare by value. A values that is not an array yields false.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "description": "Array literal, data binding, or nested function call."
+          },
+          "value": {
+            "description": "Literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "values",
+          "value"
+        ]
+      }
+    },
+    "map": {
+      "returnType": "array",
+      "allowedCallers": "rendererOnly",
+      "description": "Map a data-model array in order. items must be a path binding. Evaluate template once per item in that item's scope; relative paths, @index and @indexValue refer to the item, absolute paths retain the model root. Empty arrays return []; non-arrays and failed item evaluations fail the whole call. Object and array literals in template are evaluated field by field, so a template can build one object per item. Does not write to the data model.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "template": {
+            "description": "Literal, data binding or nested function call, evaluated in each item scope. Object and array literals are evaluated field by field; an object with a string path or call is a binding or call."
+          }
+        },
+        "required": [
+          "items",
+          "template"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "filter": {
+      "returnType": "array",
+      "allowedCallers": "rendererOnly",
+      "description": "The elements of items whose field equals any element of in, in their original order. A missing field reads as null. A non-array items yields []; a non-array in is treated as a one-element array.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Array literal, data binding, or nested function call."
+          },
+          "field": {
+            "type": "string",
+            "description": "JSON Pointer relative to each element, such as `value` or `uiData/editor`. Omit to compare the element itself."
+          },
+          "in": {
+            "description": "Candidate values: array literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "items",
+          "in"
+        ]
+      }
+    },
+    "join": {
+      "returnType": "string",
+      "allowedCallers": "rendererOnly",
+      "description": "Joins the display text of each element of values with separator. With field, each element contributes the first listed field that is not empty. Null, empty strings, objects and arrays are skipped without leaving an extra separator.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "description": "Array literal, data binding, or nested function call."
+          },
+          "separator": {
+            "type": "string",
+            "description": "Placed between joined entries. Defaults to the empty string."
+          },
+          "field": {
+            "description": "JSON Pointer relative to each element, or an array of them tried in order.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "values"
+        ]
+      }
+    },
+    "select": {
+      "returnType": "any",
+      "allowedCallers": "rendererOnly",
+      "description": "Evaluates and returns then when condition is true, else otherwise (null when else is omitted). Only the chosen branch is evaluated. The result may be any JSON value, including a whole style object.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "condition": {
+            "description": "Boolean or validation result: literal, data binding, or nested function call."
+          },
+          "then": {
+            "description": "Value when condition is true."
+          },
+          "else": {
+            "description": "Value when condition is false. Defaults to null."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "condition",
+          "then"
+        ]
+      }
+    },
+    "add": {
+      "returnType": "number",
+      "allowedCallers": "rendererOnly",
+      "description": "a + b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "subtract": {
+      "returnType": "number",
+      "allowedCallers": "rendererOnly",
+      "description": "a - b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "multiply": {
+      "returnType": "number",
+      "allowedCallers": "rendererOnly",
+      "description": "a * b. Null operands coerce to 0.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "description": "Number literal, data binding, or nested function call."
+          },
+          "b": {
+            "description": "Number literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "urlEncode": {
+      "returnType": "string",
+      "allowedCallers": "rendererOnly",
+      "description": "Percent-encode value per RFC 3986 unreserved set. Spaces become %20.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "description": "String literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "value"
+        ]
+      }
+    },
+    "updateData": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Atomically write entries into this surface's data model. Null value deletes the path.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Literal JSON Pointer."
+                },
+                "value": {
+                  "description": "Literal, data binding, or nested function call."
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "entries"
+        ]
+      }
+    },
+    "toast": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Show a host toast with message.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "description": "String literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "message"
+        ]
+      }
+    },
+    "copyContent": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Copy content onto the host clipboard.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "description": "String literal, data binding, or nested function call."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "content"
+        ]
+      }
+    },
+    "publishDataModel": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Hand this surface's whole data model to the host as an action named publishDataModel, with the snapshot in context.dataModel. The host uploads it; the renderer sends nothing itself.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": true
+      }
+    },
+    "sequence": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Run actions in order. Each action is parsed just before it runs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object"
+            }
+          },
+          "waitForResults": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, a direct step whose result is pending (agent or async host function) holds the remaining steps until its result is written. A failed step stops the sequence; a superseded, cancelled or timed-out step reports SEQUENCE_INTERRUPTED. Nested sequences wait only for their own steps."
+          },
+          "awaitTimeoutMs": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Literal per-step wait limit in milliseconds; 0 waits indefinitely. Requires waitForResults: true and a host event loop."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "actions"
+        ]
+      }
+    },
+    "switch": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Run the first case whose literal match equals value, or default.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "description": "Literal, data binding, or nested function call."
+          },
+          "cases": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "match": {
+                  "description": "Literal string, number, or boolean."
+                },
+                "action": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "match",
+                "action"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "default": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "value",
+          "cases"
+        ]
+      }
+    },
+    "setTimeout": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Run action after delay milliseconds. Cancelled when the surface is destroyed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "delay": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Literal delay in milliseconds."
+          },
+          "action": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "delay",
+          "action"
+        ]
+      }
+    },
+    "closeModal": {
+      "returnType": "void",
+      "allowedCallers": "rendererOnly",
+      "description": "Close the Modal with this literal id. Nested modals inside it close with it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "modalId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "modalId"
+        ]
+      }
+    },
+    "rendererVersionAtLeast": {
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly",
+      "description": "True when the host rendererVersion is a semver at least version.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Literal semver, for example 1.2.0."
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "version"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "Insets": {
+      "description": "Inset in dp. A number applies to every side; an object insets the sides it names and leaves the rest at whatever the broader key gave them.",
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Every side no other key names."
+            },
+            "horizontal": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Both ends."
+            },
+            "vertical": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Above and below."
+            },
+            "top": {
+              "type": "number",
+              "minimum": 0
+            },
+            "bottom": {
+              "type": "number",
+              "minimum": 0
+            },
+            "start": {
+              "type": "number",
+              "minimum": 0,
+              "description": "The leading end — the left in a left-to-right surface."
+            },
+            "end": {
+              "type": "number",
+              "minimum": 0,
+              "description": "The trailing end — the right in a left-to-right surface."
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CommonStyle": {
+      "type": "object",
+      "description": "Layout and inset keys shared by every xCard component style bag.",
+      "properties": {
+        "width": {
+          "description": "Width of the component, in dp. Unset takes what the parent offers.",
+          "type": "number",
+          "minimum": 0
+        },
+        "height": {
+          "description": "Height of the component, in dp. Unset is as tall as the content.",
+          "type": "number",
+          "minimum": 0
+        },
+        "padding": {
+          "description": "Inset around the component, in dp.",
+          "$ref": "#/$defs/Insets"
+        },
+        "fillMaxWidth": {
+          "description": "Fraction of the parent's available width, 0 to 1. Ignored when the parent width is wrap-content, or when width or a live weight already sizes this axis.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fillMaxHeight": {
+          "description": "Fraction of the parent's available height, 0 to 1. Ignored when the parent height is wrap-content, or when height or a live weight already sizes this axis.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aspectRatio": {
+          "description": "Width over height used to compute the missing axis. Ignored when both axes are already determined.",
+          "type": "number",
+          "minimum": 0
+        },
+        "disabled": {
+          "$ref": "#/$defs/DisabledStyle"
+        }
+      },
+      "additionalProperties": true
+    },
+    "DisabledStyle": {
+      "type": "object",
+      "description": "How the component is drawn while it is disabled — its own `enabled` or an ancestor's is false. `effect` is drawn over the whole rendering. Every other key replaces the same key of this style while disabled, and only color keys are taken (`color`, `tint` and any key ending in `Color`, each a color role from `tokens.json`), so `{\"containerColor\": \"basic_container_secondary\"}` swaps the background; sizes, padding and other layout keys are ignored, so disabling never moves anything.",
+      "properties": {
+        "effect": {
+          "$ref": "#/$defs/DisabledEffect"
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      }
+    },
+    "DisabledEffect": {
+      "description": "Visual effect over the whole rendering of a disabled component, content and children included. Unset draws `fade` on the outermost disabled component and nothing on the components inside it, so opacity never multiplies down a disabled subtree; a component inside one draws an effect only when it declares one here. `fade` is 40% opacity; `{\"type\":\"fade\",\"alpha\":a}` picks the opacity (default 0.4); `{\"type\":\"grayscale\",\"alpha\":a}` removes the color and then applies the opacity (default 1); `none` draws nothing, for a card that shows the disabled state through color keys alone.",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "fade",
+            "none"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "fade",
+                "grayscale"
+              ]
+            },
+            "alpha": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StyleBinding": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "JSON Pointer into the data model"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "call": {
+              "type": "string"
+            },
+            "catalogId": {
+              "type": "string"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "call"
+          ]
+        }
+      ]
+    },
+    "CombinedActions": {
+      "type": "object",
+      "description": "Per-gesture actions. Mutually exclusive with action. At least one gesture, and every one of them is a full Action — the same shape the action property takes. A gesture left out is not an action: invoking it fails rather than falling back to click, so a Column that binds only longPress stays untappable. The nearest component that declares any gesture answers the touch and it stops there, so a tappable child inside a tappable container runs the child's action alone. A gesture name this renderer does not know is ignored rather than rejected, which is what lets a card bind one a later renderer will add.",
+      "properties": {
+        "click": {
+          "$ref": "#/$defs/Action"
+        },
+        "longPress": {
+          "$ref": "#/$defs/Action"
+        },
+        "doubleClick": {
+          "$ref": "#/$defs/Action"
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": true
+    },
+    "DataBinding": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "JSON Pointer into the data model."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "FunctionCall": {
+      "type": "object",
+      "description": "Invokes a named catalog function.",
+      "properties": {
+        "call": {
+          "type": "string"
+        },
+        "catalogId": {
+          "type": "string"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "Tracking": {
+      "type": "object",
+      "description": "This action's click anchor, reported when the action fires.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Throttle": {
+      "type": "object",
+      "description": "Leading-only throttle shared by surfaceId + id.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0,
+          "default": 3000,
+          "description": "Window in milliseconds. Defaults to 3000."
+        },
+        "toast": {
+          "type": "string",
+          "description": "Optional message shown when a call is dropped."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "CheckRule": {
+      "type": "object",
+      "properties": {
+        "condition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition"
+      ],
+      "additionalProperties": false
+    },
+    "Action": {
+      "description": "An interaction handler: either an agent-side event or a renderer / agent function call, never both.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "userMessage": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/DataBinding"
+                    },
+                    {
+                      "$ref": "#/$defs/FunctionCall"
+                    }
+                  ]
+                },
+                "context": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "tracking": {
+              "$ref": "#/$defs/Tracking"
+            },
+            "checks": {
+              "type": "array",
+              "description": "Skip this action when a rule fails.",
+              "items": {
+                "$ref": "#/$defs/CheckRule"
+              }
+            },
+            "throttle": {
+              "$ref": "#/$defs/Throttle"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "functionCall": {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            "resultPath": {
+              "type": "string"
+            },
+            "tracking": {
+              "$ref": "#/$defs/Tracking"
+            },
+            "checks": {
+              "type": "array",
+              "description": "Skip this action when a rule fails.",
+              "items": {
+                "$ref": "#/$defs/CheckRule"
+              }
+            },
+            "throttle": {
+              "$ref": "#/$defs/Throttle"
+            }
+          },
+          "required": [
+            "functionCall"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RichTextSpan": {
+      "type": "object",
+      "description": "One run of text inside a RichText.",
+      "properties": {
+        "text": {
+          "description": "The run's text, as plain text. Same shapes as Text.text; Markdown and HTML are not interpreted. A run whose text resolves to empty is not drawn.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON Pointer into the data model"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "call": {
+                  "type": "string"
+                },
+                "catalogId": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "call"
+              ]
+            }
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RichTextSpanStyle"
+            },
+            {
+              "$ref": "#/$defs/StyleBinding"
+            }
+          ]
+        },
+        "action": {
+          "description": "Runs when this span is tapped. It is evaluated on tap only, never when the span is read. The tap is consumed and does not reach ancestors.",
+          "$ref": "#/$defs/Action"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "RichTextSpanStyle": {
+      "type": "object",
+      "description": "Text styling shared by RichText and its spans. On a span every key falls back to the RichText style, then to the variant's typography. Size and line height always come from the RichText variant.",
+      "properties": {
+        "color": {
+          "description": "Which `tokens.json` color role the text is drawn in. A span with an action and no color of its own is drawn in basic_text_link; the RichText style.color does not apply to it.",
+          "type": "string",
+          "enum": [
+            "basic_text_primary",
+            "basic_text_secondary",
+            "basic_text_tertiary",
+            "basic_text_quaternary",
+            "basic_text_quinary",
+            "basic_text_disabled",
+            "basic_text_brand",
+            "basic_text_link",
+            "basic_function_green",
+            "basic_function_red",
+            "basic_function_orange",
+            "basic_function_blue",
+            "basic_alpha_always_white"
+          ]
+        },
+        "fontWeight": {
+          "description": "Compose FontWeight value.",
+          "type": "integer",
+          "enum": [
+            400,
+            500,
+            600
+          ]
+        },
+        "textDecoration": {
+          "description": "Line drawn with the text. A span's value replaces, rather than adds to, the one it would inherit.",
+          "type": "string",
+          "enum": [
+            "lineThrough",
+            "underline"
+          ]
+        },
+        "fontStyle": {
+          "description": "Upright or italic. Hosts synthesize a slant where the typeface has no italic face.",
+          "type": "string",
+          "enum": [
+            "normal",
+            "italic"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/renderer_capabilities.json",
+  "type": "object",
+  "properties": {
+    "v1.0": {
+      "type": "object",
+      "properties": {
+        "supportedCatalogIds": {"type": "array", "items": {"type": "string"}},
+        "inlineCatalogs": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  }
+}

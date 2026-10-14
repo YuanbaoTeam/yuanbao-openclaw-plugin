@@ -5,6 +5,7 @@
 export { extractContent } from "./extract-content.js";
 export { skipSelf } from "./skip-self.js";
 export { skipPlaceholder } from "./skip-placeholder.js";
+export { skipXCardEcho } from "./skip-xcard-echo.js";
 export { resolveQuote } from "./resolve-quote.js";
 export { recordMember } from "./record-member.js";
 export { guardCommand } from "./guard-command.js";

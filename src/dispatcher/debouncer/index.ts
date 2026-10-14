@@ -127,7 +127,25 @@ function buildSyntheticMessage(
   };
 }
 
-function buildPipelineContext(primary: DebouncerItem, items: DebouncerItem[]): PipelineContext {
+type GroupAbortListener = (accountId: string, groupCode: string) => void;
+const groupAbortListeners = new Set<GroupAbortListener>();
+
+/** Subscribe to group owner /stop (used to cancel tool calls blocked waiting on an xCard). */
+export function onGroupAbort(listener: GroupAbortListener): () => void {
+  groupAbortListeners.add(listener);
+  return () => groupAbortListeners.delete(listener);
+}
+
+/**
+ * Run a task in the group's serial session queue, bypassing debounce. Used by non-message
+ * events (xCard operations) that must wake the group session as a new turn without racing
+ * an in-flight reply. Owner /stop invalidates tasks enqueued here like any other.
+ */
+export function enqueueGroupTask(accountId: string, groupCode: string, task: () => Promise<void>): Promise<void> {
+  return sessionQueue.enqueue(`group:${accountId}:${groupCode || "unknown"}`, task);
+}
+
+export function buildPipelineContext(primary: DebouncerItem, items: DebouncerItem[]): PipelineContext {
   return {
     // Immutable input
     raw: primary.msg,
@@ -218,6 +236,14 @@ async function flushDebouncedItems(items: DebouncerItem[], log: ModuleLog): Prom
   if (primary.isGroup && isAbortRequestText(extractRawText(primary)) && isOwnerMessage(primary)) {
     const baseKey = buildBaseSessionKey(primary);
     sessionQueue.invalidate(baseKey);
+    const groupCode = primary.msg.group_code?.trim() || "unknown";
+    for (const listener of groupAbortListeners) {
+      try {
+        listener(primary.account.accountId, groupCode);
+      } catch (err) {
+        log.warn("group abort listener failed", { error: String(err) });
+      }
+    }
   }
 
   // ⭐ Direct normal message: abort old inference + invalidate queued old tasks

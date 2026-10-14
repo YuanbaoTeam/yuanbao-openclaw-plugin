@@ -1,0 +1,4 @@
+interface:
+  display_name: "XCard Generator"
+  short_description: "生成、粘贴预览并对比设计稿的 XCard A2UI 页面"
+  default_prompt: "Use $xcard-generator to generate and validate an XCard A2UI v1.0 page, then preview it in the iOS XCard debugger and compare it with my design when the runtime toolchain is ready."

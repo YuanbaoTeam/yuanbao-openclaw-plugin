@@ -1,0 +1,11 @@
+{
+  "colors": {
+    "brand_primary": { "light": "#0022F5FF", "dark": "#4D6BFFFF" },
+    "basic_text_brand": { "light": "#0022F5FF", "dark": "#4D6BFFFF" },
+    "components_button_primary": { "light": "#0022F5FF", "dark": "#4D6BFFFF" },
+    "components_button_primary_title": { "light": "#FFFFFFFF", "dark": "#FFFFFFFF" }
+  },
+  "typography": {
+    "h4": { "size": 16, "weight": 600, "lineHeight": 22, "color": "basic_text_brand" }
+  }
+}

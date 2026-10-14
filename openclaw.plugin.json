@@ -6,6 +6,17 @@
   "channels": [
     "yuanbao"
   ],
+  "skills": [
+    "./skills"
+  ],
+  "contracts": {
+    "tools": [
+      "query_group_info",
+      "query_session_members",
+      "yuanbao_remind",
+      "yuanbao_xcard_send"
+    ]
+  },
   "channelEnvVars": {
     "yuanbao": [
       "YUANBAO_APP_KEY",

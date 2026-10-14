@@ -9,6 +9,7 @@ import {
   extractContent,
   skipSelf,
   skipPlaceholder,
+  skipXCardEcho,
   resolveQuote,
   recordMember,
   guardSpecialCommand,
@@ -32,6 +33,7 @@ export function createPipeline(): MessagePipeline {
       .use(extractContent) // Extract text/media/@info
       .use(skipSelf) // Skip bot's own messages
       .use(skipPlaceholder) // Skip placeholder/empty messages
+      .use(skipXCardEcho) // Skip group echo of an xCard button's userMessage
       .use(resolveQuote) // Parse quoted messages
       .use(recordMember) // Record group member info (group chat)
       // Phase 2: Guards
@@ -51,4 +53,20 @@ export function createPipeline(): MessagePipeline {
       .use(prepareSender)
       .use(dispatchReply)
   ); // ⭐ SDK dispatchInboundReplyWithBase
+}
+
+/**
+ * Reduced pipeline for xCard operation callbacks (synthetic inbound, already validated).
+ *
+ * Skips parsing/guards/mention gating/history recording: the event is not a chat message, a
+ * non-@ group message would be dropped by resolveMention, and it must not enter group history.
+ * Note buildContext still consumes (and clears) pending group history, like an @bot turn.
+ */
+export function createXCardEventPipeline(): MessagePipeline {
+  return new MessagePipeline()
+    .use(resolveRoute)
+    .use(resolveTrace)
+    .use(buildContext)
+    .use(prepareSender)
+    .use(dispatchReply);
 }

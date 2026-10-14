@@ -12,6 +12,8 @@ import type {
   YuanbaoMsgBodyElement,
 } from "../../types.js";
 import { getSignToken, forceRefreshSignToken } from "../api.js";
+import { handleXCardUpEvent, type XCardEventDeps } from "../../business/xcard/events.js";
+import { parseIm1007UpEvent } from "../../business/xcard/transport-im1007.js";
 import { decodeInboundMessage } from "./biz-codec.js";
 import { YuanbaoWsClient } from "./client.js";
 import { setActiveWsClient } from "./runtime.js";
@@ -359,6 +361,21 @@ function handleWsDispatchEvent(params: {
 
   dlog.debug(`[${account.accountId}][dispatch] cmd=${pushEvent.cmd}, module=${pushEvent.module}, msgId=${pushEvent.msgId}`);
 
+  const xcardDeps = (): XCardEventDeps => ({
+    account,
+    config,
+    core: runtime,
+    wsClient: client,
+    log: {
+      info: (m: string) => gwLog?.info?.(m),
+      warn: (m: string) => gwLog?.warn?.(m),
+      error: (m: string) => gwLog?.error?.(m),
+      verbose: (m: string) => gwLog?.debug?.(m),
+    },
+    statusSink: statusSink as XCardEventDeps["statusSink"],
+    abortSignal,
+  });
+
   const converted = wsPushToInboundMessage(pushEvent, gwLog);
   if (!converted) {
     dlog.debug(`[${account.accountId}][dispatch] cmd=${pushEvent.cmd} (non-message event, skipping)`);
@@ -376,6 +393,19 @@ function handleWsDispatchEvent(params: {
   msg.seq_id = traceContext.seqId;
 
   const isGroup = chatType === "group";
+
+  // Temporary im1007 xCard transport: an upevent is an ordinary group message (carrier elem 1013
+  // with extend_type=102) — divert it before the chat pipeline. Off unless xCard runs on im1007, so
+  // the original custom-elem handling is unchanged otherwise.
+  if (isGroup && account.xcardEnabled) {
+    const upEvent = parseIm1007UpEvent(msg);
+    if (upEvent) {
+      void handleXCardUpEvent(msg, upEvent, xcardDeps()).catch((err) => {
+        dlog.error(`[${account.accountId}][dispatch] xcard upevent handler failed: ${String(err)}`);
+      });
+      return;
+    }
+  }
 
   dlog.debug("[msg-trace] dispatch resolved", {
     traceId: traceContext.traceId,

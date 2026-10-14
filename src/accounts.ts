@@ -131,6 +131,8 @@ export function resolveYuanbaoAccount(params: {
   const fallbackReply = merged.fallbackReply?.trim() || "暂时无法解答，你可以换个问题问问我哦";
   // Whether to inject Markdown anti-wrapping instructions (default true)
   const markdownHintEnabled = merged.markdownHintEnabled !== false;
+  // xCard interactive cards (draft protocol, default off)
+  const xcardEnabled = merged.xcardEnabled === true;
 
   // Configuration is complete when appKey + appSecret are both present
   const configured = Boolean(appKey && appSecret);
@@ -167,6 +169,7 @@ export function resolveYuanbaoAccount(params: {
     requireMention,
     fallbackReply,
     markdownHintEnabled,
+    xcardEnabled,
     config: merged,
   };
 }

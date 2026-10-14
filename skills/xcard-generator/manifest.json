@@ -1,0 +1,591 @@
+{
+  "name": "xcard-generator",
+  "entrypoint": "SKILL.md",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "size": 14397,
+      "sha256": "e77154a29f1b40a948ce5ddba48c252c23281df8e66c7091fafcd3b5f5fcce7a"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "size": 329,
+      "sha256": "61d167835ef9c3fcdcf0aac80a4d2ac99de17b5ac1f83a00716843f1320a412a"
+    },
+    {
+      "path": "assets/examples-gated/45_luckin-xcard-template.jsonl",
+      "size": 952,
+      "sha256": "c6600c5f8b84aa85c462d727b132b430552476fcd30b1957eaab4f4ae65dd0da"
+    },
+    {
+      "path": "assets/examples-gated/50_tracking-click.jsonl",
+      "size": 4686,
+      "sha256": "b452910747046c637cfe8423578b3e57eb168d815f3244ca9f9de63646fc8eaf"
+    },
+    {
+      "path": "assets/examples-gated/73_async-function-result.jsonl",
+      "size": 3380,
+      "sha256": "21ec65bdf28a8d0a8750d5c69b48fca61c99ea5476b312ddb9e8cd4944878753"
+    },
+    {
+      "path": "assets/examples-gated/74_host-environment.jsonl",
+      "size": 993,
+      "sha256": "3f91166f029edc88e83c6c2348e85c8f5ccb6f82b47a9cd77b894d0156dbee58"
+    },
+    {
+      "path": "assets/examples/41_yuanbao-store-shelf.jsonl",
+      "size": 3864,
+      "sha256": "40e09d9a21082db1dd07bfe09b3e45f9222bf9acf0c00a118da8ab9d11e9b656"
+    },
+    {
+      "path": "assets/examples/43_luckin-nearby-store-selection.jsonl",
+      "size": 4877,
+      "sha256": "49207d52452e15cb073656ef51b6c0914c0e301d1bc8aff9257fa05007ee01ca"
+    },
+    {
+      "path": "assets/examples/43_luckin-product-form.jsonl",
+      "size": 4266,
+      "sha256": "26c5ed53564360e40e6a0efddbabe01eca9c2bd4d6f27caba408243b698bbea9"
+    },
+    {
+      "path": "assets/examples/52_style-layout.jsonl",
+      "size": 4423,
+      "sha256": "65589b865ca5ce07dd66350383bb14b2def844282e11784998c83799aee5454a"
+    },
+    {
+      "path": "assets/examples/53_local-logic.jsonl",
+      "size": 12207,
+      "sha256": "5201b60db3a80879263bec79873bee2fcedce3ced7f7fa622ad01277372d0756"
+    },
+    {
+      "path": "assets/examples/54_sequence-feedback.jsonl",
+      "size": 4432,
+      "sha256": "080ce5742b5d07fc60f277e270fd0a45112ef55e73eae8f9bb9d598df3ca1a6d"
+    },
+    {
+      "path": "assets/examples/55_switch-and-condition.jsonl",
+      "size": 6210,
+      "sha256": "a0d5286927c39cbf7fe4e3d8c6dba7efa6e01fb778c00c4ef1bc3280d8676148"
+    },
+    {
+      "path": "assets/examples/56_combined-actions.jsonl",
+      "size": 5245,
+      "sha256": "c5fa409f6e65f3f0523def3d89511753736c8ef188c5c31134f8ef9fe6d2d7ef"
+    },
+    {
+      "path": "assets/examples/57_host-roundtrip.jsonl",
+      "size": 3908,
+      "sha256": "8f9cc9c72f979d6374744785dcbe812f28bd122bd14e03a68f6a8b349fea093f"
+    },
+    {
+      "path": "assets/examples/59_url-encode.jsonl",
+      "size": 5041,
+      "sha256": "e75ef81a12a87595effaf7bb19fa70ad0650f9a32e6213f7a4907fb4aa16062b"
+    },
+    {
+      "path": "assets/examples/62_update-date.jsonl",
+      "size": 2743,
+      "sha256": "aea8265c72d1e5a22869964e0c5f836ac7cfe3b10f4bcb33b09bbf9efa5b2534"
+    },
+    {
+      "path": "assets/examples/63_choice-group.jsonl",
+      "size": 8284,
+      "sha256": "45e90a47a4b0f0e6b1c9a2ad0beddf88aca3fc88afa64735f40bb90b282ae11d"
+    },
+    {
+      "path": "assets/examples/67_horizontal-grid.jsonl",
+      "size": 25353,
+      "sha256": "755da09d82d341c6178aef745bb501ef764ce58465702ff96734cc31f6a40528"
+    },
+    {
+      "path": "assets/examples/68_svg-view.jsonl",
+      "size": 5906,
+      "sha256": "de3f6f86b8b4bbea7db29195c7eea2fd42494ea9b66f5b4a495ce287244dbb48"
+    },
+    {
+      "path": "assets/examples/70_pager.jsonl",
+      "size": 6442,
+      "sha256": "88ab0da4587e2645c88ebdec96e0c6f01699231c6d908b3a506a065c44c06390"
+    },
+    {
+      "path": "assets/examples/71_label.jsonl",
+      "size": 6667,
+      "sha256": "005ad8d44a0a533b7c8db072ee357a2cfde78ca1589d1f32d5f25c722d73183a"
+    },
+    {
+      "path": "assets/examples/72_clarify-card.jsonl",
+      "size": 13202,
+      "sha256": "f2211085ca447b25f3f811989db0d8fba9e9d44fcf222b248bf65f60f5980c48"
+    },
+    {
+      "path": "assets/examples/76_disabled-cascade.jsonl",
+      "size": 5658,
+      "sha256": "a6031c11c498d17a9a1aef390355d8922689db08080c47f151a16cfdd03c42a5"
+    },
+    {
+      "path": "assets/template-packages/LuckinProductForm/meta.json",
+      "size": 151,
+      "sha256": "fbb0a6567283409f1f63aede9f7fb2d1bfae825c07b19cd34ecc227e31cc6df3"
+    },
+    {
+      "path": "assets/template-packages/LuckinProductForm/template.json",
+      "size": 4994,
+      "sha256": "4e058c35db0eb9b3c158f72186f52dbf2632325decd51c04977c87c1219af303"
+    },
+    {
+      "path": "assets/templates/nearby-store-list/1.0.0.json",
+      "size": 15137,
+      "sha256": "023e614395a749cd88546e0bad51538305d9be0da4cbb98d2da8319a877f7e06"
+    },
+    {
+      "path": "assets/templates/nearby-store-list/2.0.0.json",
+      "size": 4257,
+      "sha256": "bb1b8d5e17219b092bdd2fa957a059ca63c958c3119b9e822eca9c1aa330309b"
+    },
+    {
+      "path": "assets/templates/product-configuration-form/1.0.0.json",
+      "size": 4454,
+      "sha256": "430edf8ad0230c8c6bcc31f144bfb0ee84250481e86a44482d6bac6a5397a8b1"
+    },
+    {
+      "path": "assets/templates/store-shelf/1.0.0.json",
+      "size": 4746,
+      "sha256": "5e504ee031e7085018c5fe02a76fe5f76333156ee6c190ac4b284b24d3f04e1f"
+    },
+    {
+      "path": "assets/templates/store-shelf/1.0.0.tokens.json",
+      "size": 436,
+      "sha256": "7ca43175a6ed35b898d3b9974a6ec65c7e2e98c909c1260259694b209a9f1afe"
+    },
+    {
+      "path": "assets/yuanbao/icons/arrow-down-left.svg",
+      "size": 451,
+      "sha256": "28853da16a4df9590cc91b188f2cbd39d134b4c488f96774b6f14b363776b33f"
+    },
+    {
+      "path": "assets/yuanbao/icons/arrow-down-right.svg",
+      "size": 517,
+      "sha256": "8bf8c08b8a42baa51df789be39c30110877931d726840cd500c15fbd94195f79"
+    },
+    {
+      "path": "assets/yuanbao/icons/arrow-up-left.svg",
+      "size": 397,
+      "sha256": "4b9a2799fbc0c9631a9d738f0115c8b9a684aabc043275a657a7e9df70218e71"
+    },
+    {
+      "path": "assets/yuanbao/icons/arrow-up-right.svg",
+      "size": 483,
+      "sha256": "f794de4a7e567733a127d9a6205dfa79d101a3b060bcf4e2048d35caa3940c8d"
+    },
+    {
+      "path": "assets/yuanbao/icons/arrows.svg",
+      "size": 825,
+      "sha256": "0ba90bddd4cad6258bd4137c1a6d1863ea6d554b57e3ac04fd761586ea1fe42c"
+    },
+    {
+      "path": "assets/yuanbao/icons/auto-flash.svg",
+      "size": 1227,
+      "sha256": "f9dd5b6ab4114dfd6eca175ddf0e0aaebe89ceb2b0d669fe609a8ad94f5e9053"
+    },
+    {
+      "path": "assets/yuanbao/icons/avatar.svg",
+      "size": 2340,
+      "sha256": "2d079101ae6fc4bfd82eda2a07aba5ae3b497f3990bd3b8c1c3543da7c8cb28e"
+    },
+    {
+      "path": "assets/yuanbao/icons/call-animation.svg",
+      "size": 4707,
+      "sha256": "e8478522d312a943478e98dcbf619bb725616b59e7023181b0ffcfe64b7a8c14"
+    },
+    {
+      "path": "assets/yuanbao/icons/call.svg",
+      "size": 4175,
+      "sha256": "b8804b4515f69bce7e2c3d978b7085d940856bb73b785c5ab5308b2128bf55a3"
+    },
+    {
+      "path": "assets/yuanbao/icons/camera.svg",
+      "size": 3202,
+      "sha256": "1b938d0b3fd1a3c0f445935ed9b5a8bae482f0cb4052f7a83b49b98099720890"
+    },
+    {
+      "path": "assets/yuanbao/icons/chevron-down.svg",
+      "size": 485,
+      "sha256": "445b734af9344d557dac09fc7cf6a37c90a606dc555eaaf478163e1045941b57"
+    },
+    {
+      "path": "assets/yuanbao/icons/chevron-left.svg",
+      "size": 438,
+      "sha256": "b13fc83b93584f36fbb0a17b5fd1f5956e523465bc9038f81add4d6107475a95"
+    },
+    {
+      "path": "assets/yuanbao/icons/chevron-right.svg",
+      "size": 438,
+      "sha256": "934c2c2ce046740632c0d779568572f72d911932b65dcdc9cb4688180a422acf"
+    },
+    {
+      "path": "assets/yuanbao/icons/chevron-up.svg",
+      "size": 460,
+      "sha256": "5ac0144298725636b85fc4bf6ba6f35c0e849b40c811750fcd4e5d14da7fb569"
+    },
+    {
+      "path": "assets/yuanbao/icons/clock.svg",
+      "size": 631,
+      "sha256": "9c22df3485dba76d2308f0e23afab803ef56a571aab3324c1559afd8b8676fb2"
+    },
+    {
+      "path": "assets/yuanbao/icons/close-sm.svg",
+      "size": 648,
+      "sha256": "93d6b0f471b88d9739fd2cdb392815786908c3ad222197c6bae2d43a70823d02"
+    },
+    {
+      "path": "assets/yuanbao/icons/collapse.svg",
+      "size": 1290,
+      "sha256": "436f215e0116f410087480ea7c2b7e648fb70193b9616e02c8b040108cde4a35"
+    },
+    {
+      "path": "assets/yuanbao/icons/contrast.svg",
+      "size": 2846,
+      "sha256": "fc92b7c58b3505e3f74ee53388c3edd811b9aba91a70ed951a39f3670ffe04f8"
+    },
+    {
+      "path": "assets/yuanbao/icons/correct.svg",
+      "size": 3207,
+      "sha256": "4804be6e2f516070aadc15c3a93b08b1b950ad8472e538229da5f1e98159f2a7"
+    },
+    {
+      "path": "assets/yuanbao/icons/create-pic.svg",
+      "size": 4116,
+      "sha256": "2debb41d8946d75cd1eeea57933e3f2d3dbe2e316d38da9ec4407fd9217c86d8"
+    },
+    {
+      "path": "assets/yuanbao/icons/cross-topic.svg",
+      "size": 1330,
+      "sha256": "0f44643dfae51d4483ead276ded4daf86544af66e2786a52b0da2c567ee0c461"
+    },
+    {
+      "path": "assets/yuanbao/icons/done.svg",
+      "size": 492,
+      "sha256": "f462913fe6d982312cc6c3a33cecba84d38524fc718f55124bb3092f821f1c9f"
+    },
+    {
+      "path": "assets/yuanbao/icons/download.svg",
+      "size": 1688,
+      "sha256": "9e3b0061af384c987bc9eb4785c67a9747ae2c221ee0e84ac5be1882539a1c00"
+    },
+    {
+      "path": "assets/yuanbao/icons/expand.svg",
+      "size": 1399,
+      "sha256": "39916f021641178ae33a760424b78034093d3b9a248bb552f999405a0f46a3e5"
+    },
+    {
+      "path": "assets/yuanbao/icons/filming.svg",
+      "size": 1343,
+      "sha256": "9a976db2023a5082731ce59e16958b55a555fe34efe0ff7a7bae0deb5e749c3e"
+    },
+    {
+      "path": "assets/yuanbao/icons/filter.svg",
+      "size": 534,
+      "sha256": "df668f595935a64329b554831e81244e891b7e4a6d753e6fb861f4f4dcbc296a"
+    },
+    {
+      "path": "assets/yuanbao/icons/flash.svg",
+      "size": 735,
+      "sha256": "528be900b765c6cbb374ad57363b98e8897fb843051658f1ddbbae13c0b4ba2e"
+    },
+    {
+      "path": "assets/yuanbao/icons/flashlight.svg",
+      "size": 3613,
+      "sha256": "4f24779b2cd1936eb76978f48fd5b3490527f0b85b478898b45bbb7ed82f9d2f"
+    },
+    {
+      "path": "assets/yuanbao/icons/flip.svg",
+      "size": 1544,
+      "sha256": "721097aa665bfc43f07a53ef4fe1ac0649d94a84d75177af923946599ce29abf"
+    },
+    {
+      "path": "assets/yuanbao/icons/full-page.svg",
+      "size": 2340,
+      "sha256": "b20257c978524f1e0d72b24acce6b91c78969d11d2073b096b22a9ca4bb20b38"
+    },
+    {
+      "path": "assets/yuanbao/icons/link.svg",
+      "size": 1961,
+      "sha256": "d43a56d9506c58ba00545e41d99aae54247fee7bf639715ce34dc13333175302"
+    },
+    {
+      "path": "assets/yuanbao/icons/live.svg",
+      "size": 6305,
+      "sha256": "cc61977e3c5cbb0d8f03f0035e324402010ea79ffb08913a714c3d892b997d7e"
+    },
+    {
+      "path": "assets/yuanbao/icons/more.svg",
+      "size": 586,
+      "sha256": "40626f1494bbbd48bc91dcbf8513c410752a755ba5e88471db45c655cbeb3805"
+    },
+    {
+      "path": "assets/yuanbao/icons/networking.svg",
+      "size": 942,
+      "sha256": "e5e4be4d6105799ab463f6481cb1a95ac816ec8c244ee3c29152289185038ea7"
+    },
+    {
+      "path": "assets/yuanbao/icons/new-chat.svg",
+      "size": 1825,
+      "sha256": "30d70a66f71d9673a57c916b87f62df12879b9177c75a7ef1150f4a5ec324de3"
+    },
+    {
+      "path": "assets/yuanbao/icons/next.svg",
+      "size": 755,
+      "sha256": "7471fdb36bfb18546356f99f2b458d5f8f6973f87f622606aecaec33c66f6536"
+    },
+    {
+      "path": "assets/yuanbao/icons/off-flash.svg",
+      "size": 1258,
+      "sha256": "c5fc5edbcb6dd0a870b00dcabd27bb84e83b16c7fabce9ab88ab3a0ac5ddc810"
+    },
+    {
+      "path": "assets/yuanbao/icons/picture-plus.svg",
+      "size": 2775,
+      "sha256": "a67a9b16fb0991186231d267ae1d78839768c4bf70fa23a6dce7396cee7c591f"
+    },
+    {
+      "path": "assets/yuanbao/icons/plus.svg",
+      "size": 375,
+      "sha256": "d0199e82687c4b7e7245de437b31b0930ff50427c898784a78cb4f2ef692773d"
+    },
+    {
+      "path": "assets/yuanbao/icons/previous.svg",
+      "size": 767,
+      "sha256": "14be5c02628707f73fda22c862b3a0acaa9571bfce11e9d6150e3a522f261154"
+    },
+    {
+      "path": "assets/yuanbao/icons/proportion.svg",
+      "size": 1006,
+      "sha256": "744c5d4bca6f6d2bc92ac0de38f13b3b9388a598549844e727cac21418bdda31"
+    },
+    {
+      "path": "assets/yuanbao/icons/rotate.svg",
+      "size": 882,
+      "sha256": "0d815cba0d29a7bb6a7151a5f7c1b73ba5d21bcbc01f07193e7b373016b20a29"
+    },
+    {
+      "path": "assets/yuanbao/icons/save.svg",
+      "size": 978,
+      "sha256": "b753f43e5aec48d158de469a417b3ad182c9b313d348a58d9373696a5c73610e"
+    },
+    {
+      "path": "assets/yuanbao/icons/search.svg",
+      "size": 591,
+      "sha256": "f83e6a332f93edb827cecdf2e915909a5f1986f580f43186a67ebe41382efc16"
+    },
+    {
+      "path": "assets/yuanbao/icons/sent-to-pai.svg",
+      "size": 2384,
+      "sha256": "ead1f0fff5b88d75f607af6ab0aeaf93c66d3490731b2b131930a96dad1742bf"
+    },
+    {
+      "path": "assets/yuanbao/icons/setting.svg",
+      "size": 3304,
+      "sha256": "da1f2e1ff743a974a3fecbe0b42f0eed936f5f4c3be57dd4e1b0f7eb8bcb6346"
+    },
+    {
+      "path": "assets/yuanbao/icons/share.svg",
+      "size": 2531,
+      "sha256": "d197b053b4e3c537a50f3ec260ad06eb24d515e9455a391f6f7bbf50478e09ea"
+    },
+    {
+      "path": "assets/yuanbao/icons/shopping.svg",
+      "size": 2878,
+      "sha256": "2e76ab5ce42feca47840cfe2164b1d7b900390c1db4ae5e36d24909b9d510c30"
+    },
+    {
+      "path": "assets/yuanbao/icons/sidebar-menu.svg",
+      "size": 362,
+      "sha256": "15d399b9f56d127471930718dfeba84a91b7915e2481add034e1a30d04e22717"
+    },
+    {
+      "path": "assets/yuanbao/icons/single-mention.svg",
+      "size": 2269,
+      "sha256": "5a8c849c163c2d74b4fa7410314c4f2f96829af0985234681e0f58f85e704006"
+    },
+    {
+      "path": "assets/yuanbao/icons/smart-pictures.svg",
+      "size": 3620,
+      "sha256": "998aa6a7f0d92f56d0288b4c9d2ec51d2b24561981674f097ae0b86bdd8d45ec"
+    },
+    {
+      "path": "assets/yuanbao/icons/style.svg",
+      "size": 593,
+      "sha256": "97eb5af9ce0d49979b9f3bc3371b41b6e539e358cc582860634c0ad3190fcb1b"
+    },
+    {
+      "path": "assets/yuanbao/icons/temporary-chat-on.svg",
+      "size": 2930,
+      "sha256": "8b61e0fc8afb1636016d04782b3881284c5149d77896bda245f807eec973c101"
+    },
+    {
+      "path": "assets/yuanbao/icons/temporary-chat.svg",
+      "size": 2652,
+      "sha256": "23a0143ff60169159c208d621f1e103e34fcb5bd89dd668df08ef0d19db2ead2"
+    },
+    {
+      "path": "assets/yuanbao/icons/thumbs-down.svg",
+      "size": 1002,
+      "sha256": "ac741de18622160b61f79eb2fabf8c2d0de927e12fd2b52478285b25d8e86726"
+    },
+    {
+      "path": "assets/yuanbao/icons/thumbs.svg",
+      "size": 1006,
+      "sha256": "b55bd3c4d752ea5bb2b3a1a36159786fccca86290deca93cb5bd2b9ea1258683"
+    },
+    {
+      "path": "assets/yuanbao/icons/trash.svg",
+      "size": 2823,
+      "sha256": "c50b70f950b5493d5d66dd9f6e75e19531596ba60c748d0551f2aa896cc8de94"
+    },
+    {
+      "path": "assets/yuanbao/icons/video-ai.svg",
+      "size": 2495,
+      "sha256": "5f87a935676f6bd5d00cc2a6b29f70e5fd4897f2c8ca9bbe6e2a3079e3425b62"
+    },
+    {
+      "path": "assets/yuanbao/icons/voice.svg",
+      "size": 1130,
+      "sha256": "9dd5455f9b6a6224801670fbf43301cc722c6f065acd3c55b63c79b136a1caa1"
+    },
+    {
+      "path": "assets/yuanbao/icons/volume-off.svg",
+      "size": 1892,
+      "sha256": "5e6d52b8e1055fc6a63343695a634859416af6d52f70986aa29531e3894c7669"
+    },
+    {
+      "path": "assets/yuanbao/icons/volume.svg",
+      "size": 2011,
+      "sha256": "cfd8b0d9661e9fd8a3863c41a64c85da5ea7b261a76d548cbbb06387149aa468"
+    },
+    {
+      "path": "assets/yuanbao/tokens.json",
+      "size": 8388,
+      "sha256": "df2ae9a64fc01d416a92a199e61b43229cc85c4bbdf680805a842757cb604ca2"
+    },
+    {
+      "path": "references/artifact-contract.md",
+      "size": 10358,
+      "sha256": "158e60e4d3f482476c74ab1971470ccb20ed5ce8ba00b7721ce7f5a615634482"
+    },
+    {
+      "path": "references/authoring-rules.md",
+      "size": 33730,
+      "sha256": "aeb5d0089039f9e6cc02f96c7e43941320809d06c206a75b9fbd79371965d05c"
+    },
+    {
+      "path": "references/catalog-maintenance.md",
+      "size": 1484,
+      "sha256": "2b82d2c15adf8989d211418fc74bf765cecbccc791c9ed72b8fe6939edaed4b4"
+    },
+    {
+      "path": "references/data-source-workflow.md",
+      "size": 2055,
+      "sha256": "e8886db61b45b704fb2ea620b2255283ae68168dbb6125603a575e005abd327e"
+    },
+    {
+      "path": "references/design-workflow.md",
+      "size": 10725,
+      "sha256": "c1e3d3cc469df96cfcaa49752a0ea7afc7115929dfb114b37d26e6bc172b9310"
+    },
+    {
+      "path": "references/online-access.md",
+      "size": 2000,
+      "sha256": "e8fcf67f055a40a8c11107a752ef9a041b75ff70f700518c4e562779819329b9"
+    },
+    {
+      "path": "references/preview-automation.md",
+      "size": 4896,
+      "sha256": "aa3172f68af699d9ef4a3592e3c65b5a4dda3526292f9754bddcf89c606a2e4f"
+    },
+    {
+      "path": "references/resource-index.md",
+      "size": 9725,
+      "sha256": "cd20f40bd5fd2b8bf032ff7b9e2da8d77661bd59880ba77eb211496a3ad1e625"
+    },
+    {
+      "path": "references/specification/v1_0/README.md",
+      "size": 1330,
+      "sha256": "4720292baa1ffb365ad9217cfedac9dbe06d05c2af860060b5c591014e89a7ad"
+    },
+    {
+      "path": "references/specification/v1_0/catalogs/basic/catalog.json",
+      "size": 52885,
+      "sha256": "5052cbcdab54f24d6a34515a6278149c3369876e6d5fb7f558354907a5255446"
+    },
+    {
+      "path": "references/specification/v1_0/catalogs/xcard/catalog.json",
+      "size": 152329,
+      "sha256": "52e9fa240dbe7fafcc7c5f033b63086e3166464616ccfc9ecba0d23a76878f5c"
+    },
+    {
+      "path": "references/specification/v1_0/json/agent_to_renderer.json",
+      "size": 8615,
+      "sha256": "468c8e544dbe0b02d5d5586ebcdca399ecfa6d07a7b875d887089ce3bd2df160"
+    },
+    {
+      "path": "references/specification/v1_0/json/catalog_definition.json",
+      "size": 8973,
+      "sha256": "a41e8b4dfa9a88377e6563f578222eee16642d22bbbc7e47d117dba8e9143be2"
+    },
+    {
+      "path": "references/specification/v1_0/json/common_types.json",
+      "size": 23563,
+      "sha256": "cb61e0c89a94b6293f48d060783726c4529e1de90b94b7eb6133dbf976db4a17"
+    },
+    {
+      "path": "references/specification/v1_0/json/renderer_capabilities.json",
+      "size": 408,
+      "sha256": "a16bcb15cf1e268c702548a45f96d4a8c0674fd1c8b2ca08663044475505f763"
+    },
+    {
+      "path": "references/specification/v1_0/json/renderer_data_model.json",
+      "size": 365,
+      "sha256": "c49cfdcd7173de68724ffd3fd3b087be5f05cca4a38fcf1a694878c80a7a7d0c"
+    },
+    {
+      "path": "references/specification/v1_0/json/renderer_to_agent.json",
+      "size": 6434,
+      "sha256": "b5781d9f0d91aa0bf159a68148830053eea1f1354b12ef9d8f4775840004af9e"
+    },
+    {
+      "path": "scripts/audit_xcard_visuals.py",
+      "size": 8019,
+      "sha256": "4a375d97d40027a5d63e333cf86d9a6a2a47c9179b69af82007477317500ed33"
+    },
+    {
+      "path": "scripts/compare_xcard_screenshots.py",
+      "size": 5550,
+      "sha256": "435b928c9f3a40e7fe107df8fbf967614ba147f528af8f418299562ba7cde6dd"
+    },
+    {
+      "path": "scripts/fetch_skill.py",
+      "size": 5140,
+      "sha256": "e06874707a620187903f73c7a0f4139bd1c66272bf10b6dafc2ffe17c2ec9cac"
+    },
+    {
+      "path": "scripts/inspect_xcard_resources.py",
+      "size": 10430,
+      "sha256": "19fd78615151071f70a458f0b6089173231663ac19ce1e3c071e83c1e580863e"
+    },
+    {
+      "path": "scripts/preview_xcard_runtime.py",
+      "size": 25156,
+      "sha256": "148f772122164c4fbf4ad45d1552902bd0a19c1aa36ee99e042b1aab7881434b"
+    },
+    {
+      "path": "scripts/validate_xcard_bundle.py",
+      "size": 111614,
+      "sha256": "b69cc12286259198bb8cd3a75c1e909f2f6170ba72425dcb3f7db890ae741e8d"
+    },
+    {
+      "path": "scripts/xcard_resources.py",
+      "size": 15240,
+      "sha256": "8abc236b379da24f9c2cdb4fa2d3de9ef10ffee85ee1e813f5185b29caf23b07"
+    }
+  ]
+}

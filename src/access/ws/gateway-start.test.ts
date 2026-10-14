@@ -39,6 +39,9 @@ beforeEach(async () => {
   mock.module("../../business/inbound/index.js", {
     namedExports: { handleInboundMessage: async (p: unknown) => { inboundCalls.push(p); } },
   });
+  mock.module("../../business/xcard/events.js", {
+    namedExports: { handleXCardUpEvent: async () => {} },
+  });
   ({ startYuanbaoWsGateway } = await import("./gateway.js"));
 });
 

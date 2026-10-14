@@ -96,6 +96,13 @@ export const yuanbaoConfigSchema = {
         description: "开启后在系统提示词中自动注入指令，防止模型用代码块包裹整个 Markdown 回复",
         default: true,
       },
+      /** Default false; xCard protocol is still a draft, so the tool is gated until the backend/client ship */
+      xcardEnabled: {
+        type: "boolean",
+        title: "启用 xCard 交互卡片（实验）",
+        description: "开启后向模型暴露 yuanbao_xcard_send（AI 自由创作）工具，并接收用户操作回调。内置模板工具当前暂停注册；协议为草案，需服务端与客户端支持",
+        default: false,
+      },
       debugBotIds: {
         type: "array",
         items: { type: "string" },

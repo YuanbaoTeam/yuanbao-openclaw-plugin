@@ -1,0 +1,207 @@
+{
+  "version": "v1.0",
+  "updateComponents": {
+    "surfaceId": "template",
+    "components": [
+      {
+        "id": "root",
+        "component": "Column",
+        "children": [
+          "page-title",
+          "product-row",
+          "quantity-stepper",
+          "option-group-list",
+          "submit-button"
+        ],
+        "align": "stretch",
+        "style": {
+          "padding": {
+            "horizontal": 16,
+            "top": 12,
+            "bottom": 24
+          },
+          "spacing": 18
+        }
+      },
+      {
+        "id": "page-title",
+        "component": "Text",
+        "text": {
+          "path": "title"
+        },
+        "variant": "h3",
+        "maxLines": 1
+      },
+      {
+        "id": "product-row",
+        "component": "Row",
+        "children": [
+          "product-image",
+          "product-info"
+        ],
+        "align": "center",
+        "style": {
+          "spacing": 14
+        }
+      },
+      {
+        "id": "product-image",
+        "component": "Image",
+        "url": {
+          "path": "product/imageUrl"
+        },
+        "description": {
+          "path": "product/name"
+        },
+        "fit": "cover",
+        "style": {
+          "width": 96,
+          "height": 96,
+          "shape": 16,
+          "border": true
+        }
+      },
+      {
+        "id": "product-info",
+        "component": "Column",
+        "children": [
+          "product-name",
+          "product-summary"
+        ],
+        "weight": 1,
+        "style": {
+          "spacing": 6
+        }
+      },
+      {
+        "id": "product-name",
+        "component": "Text",
+        "text": {
+          "path": "product/name"
+        },
+        "variant": "h3",
+        "maxLines": 2
+      },
+      {
+        "id": "product-summary",
+        "component": "Text",
+        "text": {
+          "path": "product/summary"
+        },
+        "variant": "caption",
+        "maxLines": 2,
+        "style": {
+          "color": "basic_text_quaternary"
+        }
+      },
+      {
+        "id": "quantity-stepper",
+        "component": "Stepper",
+        "label": {
+          "path": "quantity/label"
+        },
+        "value": {
+          "path": "quantity/value"
+        },
+        "min": {
+          "path": "quantity/min"
+        },
+        "max": {
+          "path": "quantity/max"
+        },
+        "step": {
+          "path": "quantity/step"
+        }
+      },
+      {
+        "id": "option-group-list",
+        "component": "List",
+        "children": {
+          "path": "optionGroups",
+          "componentId": "option-group"
+        },
+        "direction": "vertical",
+        "align": "stretch",
+        "style": {
+          "spacing": 18
+        }
+      },
+      {
+        "id": "option-group",
+        "component": "Column",
+        "children": [
+          "option-group-label",
+          "option-group-picker"
+        ],
+        "align": "stretch",
+        "style": {
+          "spacing": 8
+        }
+      },
+      {
+        "id": "option-group-label",
+        "component": "Text",
+        "text": {
+          "path": "label"
+        },
+        "variant": "h4",
+        "maxLines": 1
+      },
+      {
+        "id": "option-group-picker",
+        "component": "ItemPicker",
+        "options": {
+          "path": "options"
+        },
+        "items": {
+          "path": "items"
+        },
+        "value": {
+          "path": "selected"
+        },
+        "keyField": "key",
+        "labelField": "label"
+      },
+      {
+        "id": "submit-button",
+        "component": "Button",
+        "child": "submit-label",
+        "variant": "primary",
+        "style": {
+          "size": "medium",
+          "shape": "buttonCornerRadius"
+        },
+        "action": {
+          "event": {
+            "name": "submit_product_configuration",
+            "userMessage": {
+              "path": "submit/userMessage"
+            },
+            "context": {
+              "selectionKey": {
+                "path": "selectionKey"
+              },
+              "productKey": {
+                "path": "product/key"
+              },
+              "quantity": {
+                "path": "quantity/value"
+              },
+              "optionGroups": {
+                "path": "optionGroups"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "submit-label",
+        "component": "Text",
+        "text": {
+          "path": "submit/label"
+        },
+        "maxLines": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "components": [
+  {
+    "id": "root",
+    "component": "Column",
+    "children": [
+      "page-title",
+      "product-row",
+      "quantity-stepper",
+      "cup-picker",
+      "temperature-picker",
+      "beans-picker",
+      "concentration-picker",
+      "sweetness-picker",
+      "milk-picker",
+      "confirm-button"
+    ],
+    "align": "stretch",
+    "style": {
+      "padding": {
+        "horizontal": 16,
+        "top": 12,
+        "bottom": 24
+      },
+      "spacing": 18
+    }
+  },
+  {
+    "id": "page-title",
+    "component": "Text",
+    "text": "商品详情",
+    "variant": "h3"
+  },
+  {
+    "id": "product-row",
+    "component": "Row",
+    "children": ["product-image", "product-info"],
+    "align": "center",
+    "style": {
+      "spacing": 14
+    }
+  },
+  {
+    "id": "product-image",
+    "component": "Image",
+    "url": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=240&h=240&fit=crop",
+    "description": "生椰拿铁",
+    "fit": "cover",
+    "style": {
+      "width": 96,
+      "height": 96,
+      "shape": 16,
+      "border": true
+    }
+  },
+  {
+    "id": "product-info",
+    "component": "Column",
+    "children": ["product-name", "product-summary"],
+    "weight": 1,
+    "style": {
+      "spacing": 6
+    }
+  },
+  {
+    "id": "product-name",
+    "component": "Text",
+    "text": "生椰拿铁",
+    "variant": "h3"
+  },
+  {
+    "id": "product-summary",
+    "component": "Text",
+    "text": {
+      "call": "formatString",
+      "args": {
+        "value": "${cup/0}+${temperature/0}+${beans/0}+${concentration/0}+${sweetness/0}+${milk/0}"
+      }
+    },
+    "variant": "caption",
+    "maxLines": 2,
+    "style": {
+      "color": "basic_text_quaternary"
+    }
+  },
+  {
+    "id": "quantity-stepper",
+    "component": "Stepper",
+    "label": "数量",
+    "min": 1,
+    "max": 5,
+    "step": 1,
+    "value": {
+      "path": "quantity"
+    }
+  },
+  {
+    "id": "cup-picker",
+    "component": "ChoicePicker",
+    "label": "杯型",
+    "options": [
+      { "label": "大杯", "value": "大杯" },
+      { "label": "中杯", "value": "中杯" }
+    ],
+    "value": {
+      "path": "cup"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "temperature-picker",
+    "component": "ChoicePicker",
+    "label": "温度",
+    "options": [
+      { "label": "冰", "value": "冰" },
+      { "label": "热", "value": "热" }
+    ],
+    "value": {
+      "path": "temperature"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "beans-picker",
+    "component": "ChoicePicker",
+    "label": "咖啡豆",
+    "options": [
+      { "label": "意式拼配", "value": "意式拼配" },
+      { "label": "深烘拼配", "value": "深烘拼配" }
+    ],
+    "value": {
+      "path": "beans"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "concentration-picker",
+    "component": "ChoicePicker",
+    "label": "咖啡浓度",
+    "options": [
+      { "label": "默认浓度", "value": "默认浓度" },
+      { "label": "加单份浓缩 + ¥3", "value": "加单份浓缩" }
+    ],
+    "value": {
+      "path": "concentration"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "sweetness-picker",
+    "component": "ChoicePicker",
+    "label": "糖度",
+    "options": [
+      { "label": "标准甜", "value": "标准甜" },
+      { "label": "少甜", "value": "少甜" },
+      { "label": "少少甜", "value": "少少甜" }
+    ],
+    "value": {
+      "path": "sweetness"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "milk-picker",
+    "component": "ChoicePicker",
+    "label": "奶基",
+    "options": [
+      { "label": "牛奶", "value": "牛奶" },
+      { "label": "燕麦奶 + ¥3", "value": "燕麦奶" }
+    ],
+    "value": {
+      "path": "milk"
+    },
+    "variant": "mutuallyExclusive",
+    "displayStyle": "chips"
+  },
+  {
+    "id": "confirm-button",
+    "component": "Button",
+    "child": "confirm-label",
+    "variant": "primary",
+    "style": {
+      "width": 328,
+      "size": "medium"
+    },
+    "weight": 1,
+    "action": {
+      "event": {
+        "name": "confirm_product_options",
+        "userMessage": {
+          "call": "formatString",
+          "args": {
+            "value": "选好了：${quantity} 杯生椰拿铁，${cup/0}、${temperature/0}、${beans/0}、${concentration/0}、${sweetness/0}、${milk/0}"
+          }
+        },
+        "context": {
+          "productId": "coconut-latte",
+          "quantity": { "path": "quantity" },
+          "cup": { "path": "cup/0" },
+          "temperature": { "path": "temperature/0" },
+          "beans": { "path": "beans/0" },
+          "concentration": { "path": "concentration/0" },
+          "sweetness": { "path": "sweetness/0" },
+          "milk": { "path": "milk/0" }
+        }
+      }
+    }
+  },
+  {
+    "id": "confirm-label",
+    "component": "Text",
+    "text": "选好了"
+  }
+  ]
+}

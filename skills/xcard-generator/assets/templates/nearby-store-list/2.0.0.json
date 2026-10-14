@@ -1,0 +1,196 @@
+{
+  "version": "v1.0",
+  "updateComponents": {
+    "surfaceId": "template",
+    "components": [
+      {
+        "id": "root",
+        "component": "Column",
+        "children": [
+          "store-card"
+        ],
+        "align": "stretch",
+        "style": {
+          "padding": {
+            "horizontal": 16
+          }
+        }
+      },
+      {
+        "id": "store-card",
+        "component": "Card",
+        "child": "store-selection-content",
+        "style": {
+          "padding": 0,
+          "containerColor": "basic_container_primary",
+          "shape": "cardCornerRadius"
+        }
+      },
+      {
+        "id": "store-selection-content",
+        "component": "Column",
+        "children": [
+          "store-header",
+          "store-header-divider",
+          "store-list"
+        ],
+        "align": "stretch",
+        "style": {
+          "spacing": 0
+        }
+      },
+      {
+        "id": "store-header",
+        "component": "Row",
+        "children": [
+          "store-header-icon",
+          "store-header-title"
+        ],
+        "align": "center",
+        "style": {
+          "height": 60,
+          "padding": {
+            "horizontal": 16,
+            "vertical": 13
+          },
+          "spacing": 12
+        }
+      },
+      {
+        "id": "store-header-icon",
+        "component": "Image",
+        "url": {
+          "path": "header/iconUrl"
+        },
+        "description": {
+          "path": "header/iconDescription"
+        },
+        "fit": "cover",
+        "style": {
+          "width": 34,
+          "height": 34,
+          "shape": 17
+        }
+      },
+      {
+        "id": "store-header-title",
+        "component": "Text",
+        "text": {
+          "path": "header/title"
+        },
+        "variant": "h4",
+        "maxLines": 1
+      },
+      {
+        "id": "store-header-divider",
+        "component": "Divider",
+        "axis": "horizontal"
+      },
+      {
+        "id": "store-list",
+        "component": "List",
+        "children": {
+          "path": "shops",
+          "componentId": "store-item"
+        },
+        "direction": "vertical",
+        "align": "stretch",
+        "style": {
+          "height": 315,
+          "spacing": 0
+        }
+      },
+      {
+        "id": "store-item",
+        "component": "Row",
+        "children": [
+          "store-info",
+          "select-store-button"
+        ],
+        "align": "center",
+        "style": {
+          "height": 70,
+          "padding": {
+            "horizontal": 16,
+            "vertical": 10
+          },
+          "spacing": 12
+        }
+      },
+      {
+        "id": "store-info",
+        "component": "Column",
+        "children": [
+          "store-name",
+          "store-address"
+        ],
+        "align": "stretch",
+        "weight": 1,
+        "style": {
+          "spacing": 2
+        }
+      },
+      {
+        "id": "store-name",
+        "component": "Text",
+        "text": {
+          "call": "formatString",
+          "args": {
+            "value": "${deptName}${number}"
+          }
+        },
+        "variant": "h4",
+        "maxLines": 1,
+        "style": {
+          "fontWeight": 500
+        }
+      },
+      {
+        "id": "store-address",
+        "component": "Text",
+        "text": {
+          "path": "address"
+        },
+        "variant": "caption",
+        "maxLines": 1,
+        "style": {
+          "color": "basic_text_quaternary"
+        }
+      },
+      {
+        "id": "select-store-button",
+        "component": "Button",
+        "child": "select-store-label",
+        "variant": "default",
+        "style": {
+          "width": 64,
+          "height": 40,
+          "size": "extraSmall",
+          "containerColor": "components_button_gray",
+          "shape": "buttonCornerRadius"
+        },
+        "action": {
+          "event": {
+            "name": "select_store",
+            "context": {
+              "storeKey": {
+                "path": "storeKey"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "select-store-label",
+        "component": "Text",
+        "text": "选择",
+        "variant": "h5",
+        "maxLines": 1,
+        "style": {
+          "color": "basic_text_primary",
+          "fontWeight": 500
+        }
+      }
+    ]
+  }
+}

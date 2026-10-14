@@ -89,6 +89,34 @@ export type WsSendGroupMessageData = {
   trace_id?: string;
 };
 
+/**
+ * xCard receipt statuses. accepted / rejected / unknown answer a fresh submit; completed / failed
+ * only appear when a duplicate submit replays an already-settled request.
+ */
+export type WsXCardReceiptStatus = "accepted" | "rejected" | "completed" | "failed" | "unknown";
+
+/** Receipt content carried by an extend_type=103 downevent. */
+export type WsXCardReceipt = {
+  requestId: string;
+  surfaceId: string;
+  pluginEpoch: string;
+  /** The revision the request was bound to (not the plugin's latest) */
+  revision?: number;
+  /** The plugin's latest revision, when known */
+  currentRevision?: number;
+  status: WsXCardReceiptStatus;
+  reason: string;
+};
+
+/** Trusted identities derived from the authenticated group message carrying the upevent. */
+export type WsXCardTrusted = {
+  operatorUserId: string;
+  botId: string;
+  groupCode: string;
+  pluginEpoch: string;
+  replyToken: string;
+};
+
 /** Union type for outbound message requests */
 export type WsOutboundMessageData = WsSendC2CMessageData | WsSendGroupMessageData;
 
@@ -107,6 +135,7 @@ export const WS_HEARTBEAT_GROUP_DISSOLVED_CODE = 1652513;
 
 /** Server response for a business request */
 export type WsSendMessageResponse = {
+  /** WS request id (head.msgId) — NOT the IM message id */
   msgId: string;
   code: number;
   message: string;

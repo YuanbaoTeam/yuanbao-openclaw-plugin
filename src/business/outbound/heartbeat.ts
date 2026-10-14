@@ -8,6 +8,31 @@ const HEARTBEAT_TIMEOUT_MS = 800;
 const DEFAULT_RUNNING_HEARTBEAT_INTERVAL_MS = 2000;
 const MAX_RUNNING_HEARTBEAT_IDLE_MS = 30000;
 
+/**
+ * Groups whose RUNNING heartbeat is paused (key `${accountId}:${groupCode}` → pause count).
+ * Used while a tool call blocks waiting for a user operation (xCard waitForAction): the bot is
+ * not generating, and a 2s heartbeat loop for up to minutes trips the server's rate limit.
+ */
+const pausedGroups = new Map<string, number>();
+
+/** Pause RUNNING heartbeats for a group; returns an idempotent release function. */
+export function pauseGroupReplyHeartbeat(accountId: string, groupCode: string): () => void {
+  const key = `${accountId}:${groupCode}`;
+  pausedGroups.set(key, (pausedGroups.get(key) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const n = (pausedGroups.get(key) ?? 1) - 1;
+    if (n > 0) pausedGroups.set(key, n);
+    else pausedGroups.delete(key);
+  };
+}
+
+function isGroupHeartbeatPaused(meta: ReplyHeartbeatMeta): boolean {
+  return Boolean(meta.groupCode) && pausedGroups.has(`${meta.account.accountId}:${meta.groupCode}`);
+}
+
 export interface ReplyHeartbeatMeta {
   ctx: MessageHandlerContext;
   account: ResolvedYuanbaoAccount;
@@ -167,6 +192,13 @@ export function createReplyHeartbeatController(params: {
     }
     if (Date.now() - lastRunningEmitAt > MAX_RUNNING_HEARTBEAT_IDLE_MS) {
       stop();
+      return;
+    }
+    if (isGroupHeartbeatPaused(meta)) {
+      // Skip this tick but keep the loop; idle check above still ends it after a long pause
+      runningHeartbeatTimer = setTimeout(() => {
+        void sendRunningHeartbeatAndSchedule();
+      }, runningIntervalMs);
       return;
     }
     const outcome = await emitReplyHeartbeat({

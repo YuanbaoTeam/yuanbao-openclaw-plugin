@@ -9,6 +9,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { registerGroupTools } from "./group.js";
 import { registerMemberTools } from "./member.js";
 import { registerRemindTools } from "./remind.js";
+import { registerXCardSendTool } from "./xcard-send.js";
 
 /**
  * Register all tools.
@@ -26,6 +27,9 @@ export function registerTools(api: OpenClawPluginApi): void {
 
   // -- Scheduled reminder --
   registerRemindTools(api);
+
+  // -- AI-authored interactive cards (built-in template tool is temporarily not registered) --
+  registerXCardSendTool(api);
 
   // -- Append new categories here --
   // registerXxxTools(api);

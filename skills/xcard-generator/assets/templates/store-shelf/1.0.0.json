@@ -1,0 +1,216 @@
+{
+  "version": "v1.0",
+  "updateComponents": {
+    "surfaceId": "template",
+    "components": [
+      {
+        "id": "root",
+        "component": "Card",
+        "child": "shelf-content"
+      },
+      {
+        "id": "shelf-content",
+        "component": "Column",
+        "children": [
+          "store-header",
+          "product-list"
+        ],
+        "align": "stretch"
+      },
+      {
+        "id": "store-header",
+        "component": "Row",
+        "children": [
+          "store-icon",
+          "store-info"
+        ],
+        "align": "center"
+      },
+      {
+        "id": "store-icon",
+        "component": "Image",
+        "url": {
+          "path": "store/logoUrl"
+        },
+        "description": {
+          "path": "store/logoDescription"
+        },
+        "fit": "cover",
+        "style": {
+          "width": 32,
+          "height": 32,
+          "shape": 16
+        }
+      },
+      {
+        "id": "store-info",
+        "component": "Column",
+        "children": [
+          "store-name",
+          "store-meta"
+        ],
+        "align": "stretch",
+        "weight": 1,
+        "style": {
+          "spacing": 0
+        }
+      },
+      {
+        "id": "store-name",
+        "component": "Text",
+        "text": {
+          "call": "formatString",
+          "args": {
+            "value": "${store/name} ${store/number}"
+          }
+        },
+        "variant": "h5",
+        "maxLines": 1,
+        "style": {
+          "fontWeight": 400
+        }
+      },
+      {
+        "id": "store-meta",
+        "component": "Text",
+        "text": {
+          "call": "formatString",
+          "args": {
+            "value": "${store/businessHours} · ${store/distanceLabel}"
+          }
+        },
+        "variant": "caption",
+        "maxLines": 1
+      },
+      {
+        "id": "product-list",
+        "component": "List",
+        "direction": "horizontal",
+        "align": "start",
+        "children": {
+          "path": "store/items",
+          "componentId": "product"
+        }
+      },
+      {
+        "id": "product",
+        "component": "Column",
+        "children": [
+          "product-image",
+          "product-name",
+          "product-price-row"
+        ],
+        "align": "stretch"
+      },
+      {
+        "id": "product-image",
+        "component": "Image",
+        "url": {
+          "path": "imageUrl"
+        },
+        "variant": "smallFeature",
+        "fit": "cover",
+        "description": {
+          "path": "name"
+        }
+      },
+      {
+        "id": "product-name",
+        "component": "Text",
+        "text": {
+          "path": "name"
+        },
+        "variant": "h5",
+        "maxLines": 1,
+        "style": {
+          "fontWeight": 400
+        }
+      },
+      {
+        "id": "product-price-row",
+        "component": "Row",
+        "children": [
+          "product-price-group",
+          "select-btn"
+        ],
+        "justify": "spaceBetween",
+        "align": "center"
+      },
+      {
+        "id": "product-price-group",
+        "component": "Row",
+        "children": [
+          "product-price",
+          "product-original-price-visibility"
+        ],
+        "align": "center",
+        "style": {
+          "spacing": 4
+        }
+      },
+      {
+        "id": "product-price",
+        "component": "Text",
+        "text": {
+          "path": "priceText"
+        },
+        "variant": "h4",
+        "maxLines": 1,
+        "style": {
+          "fontWeight": 600,
+          "color": "basic_function_orange"
+        }
+      },
+      {
+        "id": "product-original-price-visibility",
+        "component": "Visibility",
+        "child": "product-original-price",
+        "value": {
+          "path": "showOriginalPrice"
+        }
+      },
+      {
+        "id": "product-original-price",
+        "component": "Text",
+        "text": {
+          "path": "originalPriceText"
+        },
+        "variant": "caption",
+        "maxLines": 1,
+        "style": {
+          "fontWeight": 400,
+          "textDecoration": "lineThrough",
+          "color": "basic_text_disabled"
+        }
+      },
+      {
+        "id": "select-btn",
+        "component": "Button",
+        "child": "select-btn-label",
+        "variant": "default",
+        "style": {
+          "size": "extraSmall"
+        },
+        "action": {
+          "event": {
+            "name": "selectProduct",
+            "context": {
+              "storeSelectionKey": {
+                "path": "store/selectionKey"
+              },
+              "productSelectionKey": {
+                "path": "selectionKey"
+              },
+              "amount": 1
+            }
+          }
+        }
+      },
+      {
+        "id": "select-btn-label",
+        "component": "Text",
+        "text": "选它"
+      }
+    ]
+  }
+}
