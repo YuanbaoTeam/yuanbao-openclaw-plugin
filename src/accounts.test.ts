@@ -24,7 +24,7 @@ void test("resolveYuanbaoAccount applies defaults when no yuanbao config", () =>
   assert.equal(acc.requireMention, true);
   assert.equal(acc.disableBlockStreaming, false);
   assert.equal(acc.markdownHintEnabled, true);
-  assert.equal(acc.xcardEnabled, true);
+  assert.equal(acc.xcardEnabled, false);
   assert.equal(acc.fallbackReply, "暂时无法解答，你可以换个问题问问我哦");
 });
 

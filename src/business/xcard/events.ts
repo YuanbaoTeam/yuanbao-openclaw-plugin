@@ -427,6 +427,16 @@ async function handleXCardSubmit(payload: XCardEventPayload, trusted: WsXCardTru
     return;
   }
   if (rendererError) {
+    // Renderer errors can cancel a surface and trigger a fallback, so bind them to the same
+    // authenticated conversation as normal actions before mutating any card state.
+    if (trusted.isGroup !== known.isGroup || trusted.groupCode !== known.groupCode) {
+      await sendReceipt(deps, ref, {
+        status: "rejected",
+        reason: "permission_denied",
+        currentRevision: known.revision,
+      });
+      return;
+    }
     if (known.audience === "requester" && trusted.operatorUserId !== known.ownerUserId) {
       await sendReceipt(deps, ref, { status: "rejected", reason: "permission_denied", currentRevision: known.revision });
       return;
@@ -458,7 +468,7 @@ async function handleXCardSubmit(payload: XCardEventPayload, trusted: WsXCardTru
     if (!keepOpen) rec.acceptedRevisions.add(rec.revision);
     recordAcceptedAction(rec, result);
     if (result.userMessage) {
-      rememberUserMessageEcho(rec.accountId, rec.groupCode, result.operatorUserId, result.userMessage);
+    rememberUserMessageEcho(rec.accountId, rec.isGroup, rec.groupCode, result.operatorUserId, result.userMessage);
     }
     rememberRequest(rec, key, "accepted");
     await sendReceipt(deps, ref, { status: "accepted", currentRevision: rec.revision });

@@ -66,7 +66,7 @@ const VALID_MESSAGES = JSON.stringify([
   },
 ]);
 
-void test("xcard-send is exposed by default in Yuanbao group and direct sessions", () => {
+void test("xcard-send is exposed when enabled in Yuanbao group and direct sessions", () => {
   const factory = captureFactory();
   assert.equal(factory(context({ messageChannel: "slack" })), null);
   assert.ok(factory(context({ sessionKey: "agent:main:yuanbao:direct:u1" })));
@@ -74,9 +74,9 @@ void test("xcard-send is exposed by default in Yuanbao group and direct sessions
   assert.equal(factory(context({
     config: { channels: { yuanbao: { xcardEnabled: false } } },
   })), null);
-  assert.ok(factory(context({
+  assert.equal(factory(context({
     config: { channels: { yuanbao: {} } },
-  })));
+  })), null);
   const tool = factory(context({ workspaceDir: "/workspace-without-skills" }));
   assert.ok(tool);
   assert.ok(tool.parameters?.required?.includes("mode"));

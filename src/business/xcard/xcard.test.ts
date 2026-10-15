@@ -513,8 +513,24 @@ describe("card lifecycle + events", () => {
     assert.equal(mod.registry.hasGroupWaiter("acct", GROUP), false);
 
     const q = mod.registry.waitForSurfaceAction(rec, 5000);
+    const directPrepared = prepare("choice", DINNER);
+    const direct = await mod.service.createTemplateCard({
+      account,
+      wsClient: client as any,
+      groupCode: GROUP,
+      isGroup: false,
+      sessionKey: `agent:main:yuanbao:direct:${GROUP}`,
+      ownerUserId: OWNER,
+      audience: "requester",
+      template: directPrepared.tpl,
+      data: directPrepared.data,
+    });
+    const directWait = mod.registry.waitForSurfaceAction(direct, 5000);
     abortListener?.("acct", GROUP);
     assert.deepEqual(await q, { status: "cancelled", reason: "stopped" });
+    assert.equal(mod.registry.hasSessionWaiter("acct", direct.sessionKey), true);
+    mod.registry.cancelWaiter(direct, "test_cleanup");
+    assert.deepEqual(await directWait, { status: "cancelled", reason: "test_cleanup" });
   });
 
   it("updateTemplateCard re-renders with new data; failure rolls back", async () => {
@@ -1045,6 +1061,35 @@ describe("A2UI validation", () => {
 });
 
 describe("renderer errors", () => {
+  it("rejects a renderer error submitted from a different conversation", async () => {
+    const client = fakeClient();
+    const rec = await createCard(client, "anyone");
+    const outer = JSON.parse(new TextDecoder().decode(pushBytes({
+      requestId: "cross-conversation-error",
+      surfaceId: rec.surfaceId,
+      event: {
+        version: "v1.0",
+        error: {
+          code: "MIN_RENDERER_VERSION_NOT_SATISFIED",
+          surfaceId: rec.surfaceId,
+          message: "need 2.0",
+        },
+      },
+    })));
+
+    await mod.events.handleXCardUpEvent(
+      { from_account: OWNER } as any,
+      JSON.parse(outer.payload),
+      deps(client),
+      false,
+    );
+
+    assert.deepEqual(receipts(client), ["rejected:permission_denied"]);
+    assert.equal(rec.state, "active");
+    assert.equal(rec.lastError, undefined);
+    assert.equal(client.calls.some((c) => c.method === "update"), false);
+  });
+
   it("MIN_RENDERER_VERSION_NOT_SATISFIED closes the card, sends fallback, ends the waiter", async () => {
     const client = fakeClient();
     const rec = await createCard(client);

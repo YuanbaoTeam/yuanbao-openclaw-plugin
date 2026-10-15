@@ -16,7 +16,7 @@ function groupCtx(rawBody: string, fromAccount = "u1") {
 void test("skip-xcard-echo: echoed userMessage is skipped once", async () => {
   __resetXCardRegistryForTest();
   const ctx0 = groupCtx("我选了：A");
-  rememberUserMessageEcho(ctx0.account.accountId, "g1", "u1", "我选了：A");
+  rememberUserMessageEcho(ctx0.account.accountId, true, "g1", "u1", "我选了：A");
 
   const first = createMockNext();
   await skipXCardEcho.handler(groupCtx(" 我选了：A "), first.next);
@@ -30,7 +30,7 @@ void test("skip-xcard-echo: echoed userMessage is skipped once", async () => {
 void test("skip-xcard-echo: other operator / other text passes", async () => {
   __resetXCardRegistryForTest();
   const ctx0 = groupCtx("x");
-  rememberUserMessageEcho(ctx0.account.accountId, "g1", "u1", "我选了：A");
+  rememberUserMessageEcho(ctx0.account.accountId, true, "g1", "u1", "我选了：A");
 
   const other = createMockNext();
   await skipXCardEcho.handler(groupCtx("我选了：A", "u2"), other.next);
@@ -44,9 +44,25 @@ void test("skip-xcard-echo: other operator / other text passes", async () => {
 void test("skip-xcard-echo: direct-message echo uses the peer id as conversation", async () => {
   __resetXCardRegistryForTest();
   const ctx = createMockCtx({ rawBody: "落子 E5", isGroup: false, fromAccount: "u1" });
-  rememberUserMessageEcho(ctx.account.accountId, "u1", "u1", "落子 E5");
+  rememberUserMessageEcho(ctx.account.accountId, false, "u1", "u1", "落子 E5");
 
   const next = createMockNext();
   await skipXCardEcho.handler(ctx, next.next);
   assert.equal(next.wasCalled(), false);
+});
+
+void test("skip-xcard-echo: identical group and peer ids do not share dedupe state", async () => {
+  __resetXCardRegistryForTest();
+  const direct = createMockCtx({ rawBody: "确认", isGroup: false, fromAccount: "same-id" });
+  rememberUserMessageEcho(direct.account.accountId, false, "same-id", "same-id", "确认");
+
+  const group = createMockCtx({
+    rawBody: "确认",
+    isGroup: true,
+    groupCode: "same-id",
+    fromAccount: "same-id",
+  });
+  const next = createMockNext();
+  await skipXCardEcho.handler(group, next.next);
+  assert.equal(next.wasCalled(), true);
 });

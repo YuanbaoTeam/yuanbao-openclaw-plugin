@@ -113,7 +113,7 @@ const MAX_HISTORY = 10;
 
 const surfaces = new Map<string, SurfaceRecord>();
 const locks = new Map<string, Promise<unknown>>();
-/** `${accountId}\n${groupCode}\n${operator}\n${text}` → expiresAt */
+/** `${accountId}\n${conversationKind}\n${targetId}\n${operator}\n${text}` → expiresAt */
 const userMessageEchoes = new Map<string, number>();
 
 export function recordAcceptedAction(rec: SurfaceRecord, result: XCardActionResult): void {
@@ -121,24 +121,36 @@ export function recordAcceptedAction(rec: SurfaceRecord, result: XCardActionResu
   rec.history = [...(rec.history ?? []), result].slice(-MAX_HISTORY);
 }
 
-function echoKey(accountId: string, groupCode: string, operator: string, text: string): string {
-  return [accountId, groupCode, operator, text.trim()].join("\n");
+function echoKey(accountId: string, isGroup: boolean, targetId: string, operator: string, text: string): string {
+  return [accountId, isGroup ? "group" : "direct", targetId, operator, text.trim()].join("\n");
 }
 
 /**
- * Remember a clicked button's userMessage. The client may also post it to the group as the
+ * Remember a clicked button's userMessage. The client may also post it to the conversation as the
  * user's chat message; that echo must not trigger a second turn on top of the card event.
  */
-export function rememberUserMessageEcho(accountId: string, groupCode: string, operator: string, text: string): void {
+export function rememberUserMessageEcho(
+  accountId: string,
+  isGroup: boolean,
+  targetId: string,
+  operator: string,
+  text: string,
+): void {
   if (!text.trim()) return;
   const now = Date.now();
   for (const [k, exp] of userMessageEchoes) if (exp < now) userMessageEchoes.delete(k);
-  userMessageEchoes.set(echoKey(accountId, groupCode, operator, text), now + USER_MESSAGE_ECHO_TTL_MS);
+  userMessageEchoes.set(echoKey(accountId, isGroup, targetId, operator, text), now + USER_MESSAGE_ECHO_TTL_MS);
 }
 
-/** True (and forgets it) when an inbound group message is the echo of a recent card click. */
-export function consumeUserMessageEcho(accountId: string, groupCode: string, operator: string, text: string): boolean {
-  const key = echoKey(accountId, groupCode, operator, text);
+/** True (and forgets it) when an inbound message is the echo of a recent card click. */
+export function consumeUserMessageEcho(
+  accountId: string,
+  isGroup: boolean,
+  targetId: string,
+  operator: string,
+  text: string,
+): boolean {
+  const key = echoKey(accountId, isGroup, targetId, operator, text);
   const exp = userMessageEchoes.get(key);
   if (exp === undefined) return false;
   userMessageEchoes.delete(key);
@@ -203,7 +215,7 @@ export function rememberRequest(rec: SurfaceRecord, key: string, status: string,
 
 export function hasGroupWaiter(accountId: string, groupCode: string): boolean {
   return [...surfaces.values()].some(
-    (s) => s.waiter && s.accountId === accountId && s.groupCode === groupCode,
+    (s) => s.waiter && s.isGroup && s.accountId === accountId && s.groupCode === groupCode,
   );
 }
 
@@ -264,7 +276,7 @@ export function cancelWaiter(rec: SurfaceRecord, reason: string): void {
 export function cancelGroupWaiters(accountId: string, groupCode: string, reason: string): number {
   let n = 0;
   for (const s of surfaces.values()) {
-    if (s.waiter && s.accountId === accountId && s.groupCode === groupCode) {
+    if (s.waiter && s.isGroup && s.accountId === accountId && s.groupCode === groupCode) {
       cancelWaiter(s, reason);
       n++;
     }

@@ -16,7 +16,13 @@ export const skipXCardEcho: MiddlewareDescriptor = {
   handler: async (ctx, next) => {
     const conversationId = ctx.isGroup ? ctx.groupCode : ctx.fromAccount;
     if (conversationId && ctx.rawBody.trim()
-      && consumeUserMessageEcho(ctx.account.accountId, conversationId, ctx.fromAccount, ctx.rawBody)) {
+      && consumeUserMessageEcho(
+        ctx.account.accountId,
+        ctx.isGroup,
+        conversationId,
+        ctx.fromAccount,
+        ctx.rawBody,
+      )) {
       ctx.log.info("[skip-xcard-echo] userMessage echo of a card click, skipping", {
         fromAccount: ctx.fromAccount,
         groupCode: ctx.groupCode,
