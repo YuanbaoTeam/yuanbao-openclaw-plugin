@@ -72,6 +72,8 @@ interface Waiter {
 
 export interface SurfaceRecord {
   surfaceId: string;
+  /** Server-assigned IM id learned from the first 102 event; required by the client for 103 updates. */
+  cardMessageId?: string;
   accountId: string;
   groupCode: string;
   sessionKey: string;

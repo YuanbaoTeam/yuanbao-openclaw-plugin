@@ -100,7 +100,7 @@ export const yuanbaoConfigSchema = {
       xcardEnabled: {
         type: "boolean",
         title: "启用 xCard 交互卡片（实验）",
-        description: "开启后向模型暴露 yuanbao_xcard_send（AI 自由创作）工具，并接收用户操作回调。内置模板工具当前暂停注册；协议为草案，需服务端与客户端支持",
+        description: "开启后向模型暴露 yuanbao_xcard_send / yuanbao_xcard_update（AI 自由创作与原卡更新）工具，并接收用户操作回调。内置模板工具当前暂停注册；协议为草案，需服务端与客户端支持",
         default: false,
       },
       debugBotIds: {

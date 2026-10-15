@@ -10,15 +10,16 @@
  *   101 card       bot → group  : the A2UI v1.0 message array of a new card
  *   102 upevent    App → group  : posted as the operator; content is the submit payload
  *                                 (protocol / requestId / surfaceId / binding / event)
- *   103 downevent  bot → group  : `{kind:"receipt", ...WsXCardReceipt}` answering one upevent, or
- *                                 `{kind:"update", surfaceId, revision, messages}` — a full new
- *                                 snapshot the client swaps in by surfaceId
+ *   103 downevent  bot → group  : the client host envelope. `action_ack` answers one upevent;
+ *                                 `state_update` carries incremental A2UI messages for the
+ *                                 existing card identity.
  *
  * Isolation from the original 1013 (markdown) logic: a 1013 whose `text` is not a JSON envelope
  * with one of the extend_types above is never touched here, and upevents are intercepted before the normal inbound pipeline (gateway.ts)
  * only when xCard is enabled.
  */
 
+import { randomUUID } from "node:crypto";
 import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import type { WsXCardReceipt } from "../../access/ws/types.js";
 import type { ResolvedYuanbaoAccount, YuanbaoInboundMessage, YuanbaoMsgBodyElement } from "../../types.js";
@@ -35,6 +36,8 @@ export const IM1007_EXTEND_TYPE = {
   upEvent: 102,
   downEvent: 103,
 } as const;
+
+const DOWN_EVENT_PROTOCOL_VERSION = "1.0";
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -134,13 +137,39 @@ function sendToGroup(account: ResolvedYuanbaoAccount, wsClient: YuanbaoWsClient,
 export const im1007Transport: XCardTransport = {
   kind: "im1007",
   cardBody: (_title, messages) => elem1007(IM1007_EXTEND_TYPE.card, messages),
-  // Updates are new downevent messages keyed by surfaceId, so no server IM id is needed
-  canUpdate: () => true,
+  // The real client keys state by both the original card message and Surface. The IM id becomes
+  // available when the client echoes it in its first 102 event.
+  canUpdate: (rec) => Boolean(rec.cardMessageId),
   updateBody: (rec: SurfaceRecord, messages: A2uiMessage[]) =>
-    elem1007(IM1007_EXTEND_TYPE.downEvent, { kind: "update", surfaceId: rec.surfaceId, revision: rec.revision, messages }),
+    elem1007(IM1007_EXTEND_TYPE.downEvent, {
+      protocol_version: DOWN_EVENT_PROTOCOL_VERSION,
+      delivery_id: randomUUID(),
+      card_message_id: rec.cardMessageId ?? "",
+      surface_id: rec.surfaceId,
+      state_update: {
+        state_seq: rec.revision,
+        operation: "snapshot",
+        content: messages,
+      },
+    }),
   sendUpdate: ({ account, wsClient }, rec, body) => sendToGroup(account, wsClient, rec.groupCode, body),
   sendReceipt: ({ account, wsClient }, target, receipt: WsXCardReceipt) =>
-    sendToGroup(account, wsClient, target.groupCode, elem1007(IM1007_EXTEND_TYPE.downEvent, { kind: "receipt", ...receipt })),
+    sendToGroup(account, wsClient, target.groupCode, elem1007(IM1007_EXTEND_TYPE.downEvent, {
+      protocol_version: DOWN_EVENT_PROTOCOL_VERSION,
+      delivery_id: randomUUID(),
+      card_message_id: target.cardMessageId ?? "",
+      surface_id: receipt.surfaceId,
+      action_ack: {
+        event_id: receipt.requestId,
+        success: receipt.status === "accepted" || receipt.status === "completed",
+        error_code: receipt.status === "accepted" || receipt.status === "completed"
+          ? ""
+          : receipt.reason || receipt.status,
+        error_message: receipt.status === "accepted" || receipt.status === "completed"
+          ? ""
+          : receipt.reason || receipt.status,
+      },
+    })),
 };
 
 /**

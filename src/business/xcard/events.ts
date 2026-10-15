@@ -132,6 +132,7 @@ function isObj(v: unknown): v is Record<string, unknown> {
 interface SubmitRef {
   requestId: string;
   surfaceId: string;
+  cardMessageId?: string;
   /** Revision the App bound the request to */
   revision?: number;
   trusted: WsXCardTrusted;
@@ -145,7 +146,11 @@ async function sendReceipt(
   const revision = ref.revision ?? p.currentRevision;
   try {
     const transport = getXCardTransport(deps.account);
-    const target = { replyToken: ref.trusted.replyToken, groupCode: ref.trusted.groupCode };
+    const target = {
+      replyToken: ref.trusted.replyToken,
+      groupCode: ref.trusted.groupCode,
+      ...(ref.cardMessageId ? { cardMessageId: ref.cardMessageId } : {}),
+    };
     const rsp = await transport.sendReceipt({ account: deps.account, wsClient: deps.wsClient }, target, {
       requestId: ref.requestId,
       surfaceId: ref.surfaceId,
@@ -242,7 +247,7 @@ export function buildXCardActionBody(rec: SurfaceRecord, result: XCardActionResu
   const tail = rec.state === "active"
     ? rec.kind === "template"
       ? "卡片仍可操作，如需反馈可用 yuanbao_xcard_template action=update 更新它。"
-      : "卡片仍可操作；这是自由创作卡片，没有模型侧增量更新接口。"
+      : `卡片仍可操作；如需改变棋盘、选项、进度或其他业务内容，必须调用 yuanbao_xcard_update 更新原 surfaceId=${rec.surfaceId}，不要再次调用 yuanbao_xcard_send 创建新卡。`
     : "卡片已关闭。";
   return [
     `[xCard 操作回调] 用户在你之前发送的卡片「${rec.title}」上${result.summary ?? `触发了事件「${result.action}」`}。`,
@@ -377,6 +382,9 @@ async function handleXCardSubmit(payload: XCardEventPayload, trusted: WsXCardTru
   const ref: SubmitRef = {
     requestId: typeof payload.requestId === "string" ? payload.requestId : "",
     surfaceId: typeof surfaceId === "string" ? surfaceId : "",
+    ...(typeof payload.binding?.messageId === "string" && payload.binding.messageId
+      ? { cardMessageId: payload.binding.messageId }
+      : {}),
     ...(typeof payload.binding?.revision === "number" ? { revision: payload.binding.revision } : {}),
     trusted,
   };
@@ -408,7 +416,16 @@ async function handleXCardSubmit(payload: XCardEventPayload, trusted: WsXCardTru
     await sendReceipt(deps, ref, { status: "unknown", reason: "unknown_surface" });
     return;
   }
+  if (known.cardMessageId && ref.cardMessageId && known.cardMessageId !== ref.cardMessageId) {
+    await sendReceipt(deps, ref, { status: "rejected", reason: "invalid_payload", currentRevision: known.revision });
+    return;
+  }
   if (rendererError) {
+    if (known.audience === "requester" && trusted.operatorUserId !== known.ownerUserId) {
+      await sendReceipt(deps, ref, { status: "rejected", reason: "permission_denied", currentRevision: known.revision });
+      return;
+    }
+    if (!known.cardMessageId && ref.cardMessageId) known.cardMessageId = ref.cardMessageId;
     await handleRendererError(deps, ref, rendererError);
     return;
   }
@@ -428,6 +445,9 @@ async function handleXCardSubmit(payload: XCardEventPayload, trusted: WsXCardTru
     }
 
     const { rec, result, keepOpen } = d;
+    // The send-group response does not expose the server IM id. Bind it only after the event has
+    // passed permission/revision/action validation; rejected events must not poison the Surface.
+    if (!rec.cardMessageId && ref.cardMessageId) rec.cardMessageId = ref.cardMessageId;
     // A kept-open once-mode card must stay answerable at the same revision
     if (!keepOpen) rec.acceptedRevisions.add(rec.revision);
     recordAcceptedAction(rec, result);

@@ -94,7 +94,10 @@ function fakeClient(cardRsp?: () => CardRsp) {
       let method = "send";
       try {
         const envelope = JSON.parse(JSON.parse(data.msg_body[0].msg_content.data).text);
-        if (envelope.extend_type === 103) method = envelope.content.kind;
+        if (envelope.extend_type === 103) {
+          if (envelope.content.action_ack) method = "receipt";
+          if (envelope.content.state_update) method = "update";
+        }
       } catch {}
       calls.push({ method, data });
       if (isCard(data) && cardRsp) return { msgId: "ws", ...cardRsp() };
@@ -154,13 +157,18 @@ function pushBytes(p: {
   protocol?: string;
   action?: string;
   context?: Record<string, unknown>;
+  messageId?: string;
   /** Replaces the whole renderer message (v1.0 action / error) */
   event?: Record<string, unknown>;
 }): Uint8Array {
   const payload = {
     protocol: p.protocol ?? "yuanbao.openclaw.xcard/1",
     requestId: p.requestId,
-    binding: { pluginEpoch: p.epoch ?? mod.registry.PLUGIN_EPOCH, revision: p.revision ?? 1 },
+    binding: {
+      pluginEpoch: p.epoch ?? mod.registry.PLUGIN_EPOCH,
+      revision: p.revision ?? 1,
+      messageId: p.messageId ?? "card-message",
+    },
     event: p.event ?? {
       version: "v1.0",
       action: {
@@ -180,15 +188,15 @@ function receipts(client: ReturnType<typeof fakeClient>) {
   return client.calls
     .filter((c) => c.method === "receipt")
     .map((c) => {
-      const receipt = envelopeOf(c).content;
-      return `${receipt.status}${receipt.reason ? `:${receipt.reason}` : ""}`;
+      const ack = envelopeOf(c).content.action_ack;
+      return ack.success ? "accepted" : `rejected:${ack.error_code}`;
     });
 }
 
 const envelopeOf = (call: Call) => JSON.parse(JSON.parse(call.data.msg_body[0].msg_content.data).text);
 const contentOf = (call: Call) => {
   const content = envelopeOf(call).content;
-  return (content.kind === "update" ? content.messages : content) as any[];
+  return (content.state_update ? content.state_update.content : content) as any[];
 };
 const modelOf = (msgs: any[]) => msgs.find((m) => m.updateDataModel)!.updateDataModel.value;
 
@@ -384,10 +392,11 @@ describe("card lifecycle + events", () => {
     assert.equal(enqueued.length, 0);
     assert.deepEqual(receipts(client), ["accepted"]);
     const receipt = envelopeOf(client.calls.find((c) => c.method === "receipt")!).content;
-    assert.deepEqual(receipt, {
-      kind: "receipt",
-      requestId: "r1", surfaceId: rec.surfaceId, pluginEpoch: mod.registry.PLUGIN_EPOCH,
-      revision: 1, currentRevision: 1, status: "accepted", reason: "",
+    assert.equal(receipt.protocol_version, "1.0");
+    assert.equal(receipt.card_message_id, "card-message");
+    assert.equal(receipt.surface_id, rec.surfaceId);
+    assert.deepEqual(receipt.action_ack, {
+      event_id: "r1", success: true, error_code: "", error_message: "",
     });
     const upd = client.calls.find((c) => c.method === "update")!;
     assert.equal(modelOf(contentOf(upd)).ui.resultText, "已选择：烧烤");
@@ -431,7 +440,7 @@ describe("card lifecycle + events", () => {
       "rejected:invalid_action",
       "rejected:epoch_expired",
       "rejected:invalid_payload",
-      "unknown:unknown_surface",
+      "rejected:unknown_surface",
     ]);
     assert.equal(enqueued.length, 0);
 
@@ -439,7 +448,7 @@ describe("card lifecycle + events", () => {
     await h({ requestId: "ok", surfaceId: rec.surfaceId });
     await h({ requestId: "ok", surfaceId: rec.surfaceId }); // duplicate → replay settled status
     await h({ requestId: "late", surfaceId: rec.surfaceId, revision: 2 }); // after once-close
-    assert.deepEqual(receipts(client), ["accepted", "completed", "rejected:surface_closed"]);
+    assert.deepEqual(receipts(client), ["accepted", "accepted", "rejected:surface_closed"]);
     assert.equal(executed.length, 1);
   });
 
@@ -449,6 +458,28 @@ describe("card lifecycle + events", () => {
     await handleEventPush(pushBytes({ requestId: "r", surfaceId: rec.surfaceId, operator: OTHER }), client);
     assert.deepEqual(receipts(client), ["accepted"]);
     assert.equal(executed[0]?.fromAccount, OTHER);
+  });
+
+  it("does not bind cardMessageId from a rejected event", async () => {
+    const client = fakeClient();
+    const rec = await createCard(client);
+    await handleEventPush(pushBytes({
+      requestId: "rejected",
+      surfaceId: rec.surfaceId,
+      operator: OTHER,
+      messageId: "attacker-card",
+    }), client);
+    assert.equal(rec.cardMessageId, undefined);
+
+    await handleEventPush(pushBytes({
+      requestId: "accepted",
+      surfaceId: rec.surfaceId,
+      messageId: "real-card",
+    }), client);
+    assert.equal(rec.cardMessageId, "real-card");
+    assert.deepEqual(receipts(client), ["rejected:permission_denied", "accepted"]);
+    const update = envelopeOf(client.calls.filter((call) => call.method === "update")[0]!);
+    assert.equal(update.content.card_message_id, "real-card");
   });
 
   it("waiter times out, aborts, and is cancelled by group /stop", async () => {
@@ -471,6 +502,7 @@ describe("card lifecycle + events", () => {
   it("updateTemplateCard re-renders with new data; failure rolls back", async () => {
     const client = fakeClient();
     const rec = await createCard(client);
+    rec.cardMessageId = "card-message";
     const { tpl, data } = prepare("choice", { ...DINNER, question: "改成午饭？" });
     await mod.service.updateTemplateCard(rec, tpl, data, account, client as any);
     assert.equal(rec.revision, 2);
@@ -550,7 +582,8 @@ describe("template events", () => {
     await handleEventPush(ev(rec, "r1", "click", { buttonId: "btn1" }), client);
     assert.equal(rec.revision, 2);
     const upd = contentOf(client.calls.filter((c) => c.method === "update").at(-1)!);
-    assert.equal(upd[0].createSurface.metadata.extensions.com_tencent_yuanbao_openclaw.revision, 2);
+    assert.equal(upd.some((message) => message.createSurface), false);
+    assert.equal(envelopeOf(client.calls.filter((c) => c.method === "update").at(-1)!).content.state_update.state_seq, 2);
     await handleEventPush(ev(rec, "r2", "click", { buttonId: "btn1" }), client); // still revision 1
     await handleEventPush(ev(rec, "r3", "click", { buttonId: "btn1" }, 2), client);
     assert.deepEqual(receipts(client), ["accepted", "rejected:stale_revision", "accepted"]);
@@ -661,7 +694,7 @@ describe("AI-authored generated surfaces", () => {
     assert.match(executed[0]!.rewrittenBody, /"source":"generated"/);
     assert.match(executed[0]!.rewrittenBody, /"choice":"a"/);
     const updated = contentOf(client.calls.filter((call) => call.method === "update").at(-1)!);
-    assert.equal(updated[1].updateComponents.components[0].enabled, false);
+    assert.equal(updated[0].updateComponents.components[0].enabled, false);
     assert.deepEqual(updated.at(-1).updateDataModel, {
       surfaceId: rec.surfaceId,
       path: "/__openclaw",
@@ -675,6 +708,46 @@ describe("AI-authored generated surfaces", () => {
       },
     });
     assert.equal(generatedMessages()[1].updateComponents.components[0].enabled, undefined);
+  });
+
+  it("updates a generated card in place without another createSurface", async () => {
+    const client = fakeClient();
+    const rec = await mod.service.createGeneratedCard({
+      account,
+      wsClient: client as any,
+      groupCode: GROUP,
+      sessionKey: `agent:main:yuanbao:group:${GROUP}`,
+      ownerUserId: OWNER,
+      audience: "requester",
+      mode: "perRevision",
+      title: "五子棋",
+      fallbackText: "初始棋盘",
+      messages: generatedMessages(),
+    });
+    rec.cardMessageId = "server-card-id";
+    const replacement = generatedMessages();
+    replacement[1].updateComponents.components[2].action.event.name = "gomoku_move";
+    replacement[2].updateDataModel.value.title = "五子棋 · 第 2 回合";
+
+    await mod.service.updateGeneratedCard(
+      rec,
+      replacement,
+      "五子棋 · 第 2 回合",
+      "棋盘已更新",
+      account,
+      client as any,
+    );
+
+    assert.equal(rec.revision, 2);
+    assert.equal(rec.title, "五子棋 · 第 2 回合");
+    assert.equal(rec.fallbackText, "棋盘已更新");
+    assert.deepEqual(rec.actions, ["gomoku_move"]);
+    assert.equal(client.calls.filter((call) => call.method === "send").length, 1);
+    assert.equal(client.calls.filter((call) => call.method === "update").length, 1);
+    const updated = contentOf(client.calls.filter((call) => call.method === "update")[0]!);
+    assert.equal(updated.some((message) => message.createSurface), false);
+    assert.equal(updated[0].updateComponents.surfaceId, rec.surfaceId);
+    assert.equal(updated[1].updateDataModel.value.title, "五子棋 · 第 2 回合");
   });
 
   it("rejects an event not declared by the generated component tree", async () => {
@@ -714,6 +787,8 @@ describe("AI-authored generated surfaces", () => {
       fallbackText: "请选择 A",
       messages: generatedMessages(),
     });
+    const previousExpiry = Date.now() + 1_000;
+    rec.expiresAt = previousExpiry;
     const submit = (requestId: string, revision: number) => handleEventPush(
       pushBytes({ requestId, surfaceId: rec.surfaceId, action: "pick", context: { choice: "a" }, revision, operator: OTHER }),
       client,
@@ -724,9 +799,10 @@ describe("AI-authored generated surfaces", () => {
     assert.deepEqual(receipts(client), ["accepted", "rejected:stale_revision", "accepted"]);
     assert.equal(rec.state, "active");
     assert.equal(rec.revision, 3);
+    assert.ok(rec.expiresAt > previousExpiry);
     assert.equal(executed.length, 2);
     const updated = contentOf(client.calls.filter((call) => call.method === "update").at(-1)!);
-    assert.equal(updated[1].updateComponents.components[0].enabled, undefined);
+    assert.equal(updated[0].updateComponents.components[0].enabled, undefined);
     assert.deepEqual(updated.at(-1).updateDataModel.value, {
       state: "active",
       completed: false,
@@ -756,7 +832,7 @@ describe("im1007 transport", () => {
     protocol: "yuanbao.openclaw.xcard/1",
     requestId,
     surfaceId: rec.surfaceId,
-    binding: { pluginEpoch: mod.registry.PLUGIN_EPOCH, revision },
+    binding: { pluginEpoch: mod.registry.PLUGIN_EPOCH, revision, messageId: "im-card" },
     event: { version: "v1.0", action: { name: "select", surfaceId: rec.surfaceId, context: { optionId: "bbq" } } },
   });
 
@@ -784,6 +860,8 @@ describe("im1007 transport", () => {
     assert.equal(env.extend_type, 101);
     assert.ok(Array.isArray(env.content), "content is embedded, not serialized again");
     assert.equal(env.content[0].createSurface.surfaceId, rec.surfaceId);
+    assert.equal(mod.im1007.im1007Transport.canUpdate(rec), false);
+    rec.cardMessageId = "im-card";
     assert.equal(mod.im1007.im1007Transport.canUpdate(rec), true);
   });
 
@@ -846,10 +924,12 @@ describe("im1007 transport", () => {
     assert.ok(payload);
     await mod.events.handleXCardUpEvent(msg, payload, { ...deps(client), account: acct1007 });
     const evs = downEvents(client);
-    assert.equal(evs[0].kind, "receipt");
-    assert.equal(evs[0].requestId, "client-event");
-    assert.equal(evs[0].status, "accepted");
-    assert.equal(evs[1].kind, "update");
+    assert.equal(evs[0].card_message_id, "server-card-id");
+    assert.equal(evs[0].action_ack.event_id, "client-event");
+    assert.equal(evs[0].action_ack.success, true);
+    assert.equal(evs[1].state_update.operation, "snapshot");
+    assert.equal(evs[1].state_update.state_seq, 2);
+    assert.equal(evs[1].state_update.content.some((message: any) => message.createSurface), false);
     assert.equal(rec.state, "completed");
   });
 
@@ -860,11 +940,16 @@ describe("im1007 transport", () => {
     await mod.events.handleXCardUpEvent(upEventMsg(payloadOf(rec, "r0"), OTHER), payloadOf(rec, "r0"), d);
     await mod.events.handleXCardUpEvent(upEventMsg(payloadOf(rec, "r1")), payloadOf(rec, "r1"), d);
     const evs = downEvents(client);
-    assert.deepEqual(evs.map((e) => `${e.kind}:${e.status ?? e.revision}${e.reason ? `:${e.reason}` : ""}`),
-      ["receipt:rejected:permission_denied", "receipt:accepted", "update:2"]);
-    assert.equal(evs[1].requestId, "r1");
-    assert.equal(evs[2].surfaceId, rec.surfaceId);
-    assert.equal(evs[2].messages[0].createSurface.metadata.extensions.com_tencent_yuanbao_openclaw.state, "completed");
+    assert.deepEqual(
+      evs.map((e) => e.action_ack
+        ? `ack:${e.action_ack.success ? "accepted" : `rejected:${e.action_ack.error_code}`}`
+        : `state:${e.state_update.state_seq}`),
+      ["ack:rejected:permission_denied", "ack:accepted", "state:2"],
+    );
+    assert.equal(evs[1].action_ack.event_id, "r1");
+    assert.equal(evs[2].surface_id, rec.surfaceId);
+    assert.equal(evs[2].card_message_id, "im-card");
+    assert.equal(evs[2].state_update.content.some((message: any) => message.createSurface), false);
     assert.equal(rec.state, "completed");
     assert.equal(executed.length, 1);
   });

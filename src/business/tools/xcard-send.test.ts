@@ -10,6 +10,9 @@ import { registerXCardSendTool } from "./xcard-send.js";
 
 type ToolResult = { details?: Record<string, unknown> };
 type Tool = {
+  parameters?: {
+    required?: readonly string[];
+  };
   execute: (
     id: string,
     params: Record<string, unknown>,
@@ -71,29 +74,43 @@ void test("xcard-send factory is exposed by channel/config, not workspace skill 
   assert.equal(factory(context({
     config: { channels: { yuanbao: { xcardEnabled: false } } },
   })), null);
-  assert.ok(factory(context({ workspaceDir: "/workspace-without-skills" })));
+  const tool = factory(context({ workspaceDir: "/workspace-without-skills" }));
+  assert.ok(tool);
+  assert.ok(tool.parameters?.required?.includes("mode"));
 });
 
 void test("xcard-send rejects invalid inputs before transport", async () => {
   const tool = captureFactory()(context());
   assert.ok(tool);
 
-  assert.match(String((await tool.execute("t1", { title: "", messages: "[]" })).details?.error), /title/);
+  assert.match(String((await tool.execute("t0", {
+    title: "card",
+    messages: VALID_MESSAGES,
+  })).details?.error), /mode 必须显式指定/);
+  assert.match(String((await tool.execute("t1", {
+    title: "",
+    messages: "[]",
+    mode: "once",
+  })).details?.error), /title/);
   assert.match(String((await tool.execute("t2", {
     title: "card",
     fallbackText: "x".repeat(2001),
     messages: "[]",
+    mode: "once",
   })).details?.error), /fallbackText/);
   assert.match(String((await tool.execute("t3", {
     title: "card",
     messages: "{bad",
+    mode: "once",
   })).details?.error), /JSON/);
   assert.equal((await tool.execute("t4", {
     title: "card",
     messages: JSON.stringify([{ version: "v1.0" }]),
+    mode: "once",
   })).details?.error, "xCard A2UI 校验失败");
   assert.match(String((await tool.execute("t5", {
     title: "card",
     messages: VALID_MESSAGES,
+    mode: "perRevision",
   })).details?.error), /连接不可用/);
 });

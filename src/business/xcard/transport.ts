@@ -24,6 +24,8 @@ export interface XCardTransportCtx {
 export interface XCardReceiptTarget {
   replyToken: string;
   groupCode: string;
+  /** Original card IM id echoed by the client's 102 event. */
+  cardMessageId?: string;
 }
 
 export interface XCardTransport {
@@ -32,7 +34,7 @@ export interface XCardTransport {
   cardBody(title: string, messages: A2uiMessage[]): YuanbaoMsgBodyElement[];
   /** Whether an already-sent card can still be replaced. */
   canUpdate(rec: SurfaceRecord): boolean;
-  /** msg_body carrying a full new snapshot of `rec` (size-checked by the caller) */
+  /** msg_body carrying incremental messages for the existing Surface (size-checked by the caller) */
   updateBody(rec: SurfaceRecord, messages: A2uiMessage[]): YuanbaoMsgBodyElement[];
   sendUpdate(ctx: XCardTransportCtx, rec: SurfaceRecord, body: YuanbaoMsgBodyElement[]): Promise<WsSendMessageResponse>;
   sendReceipt(ctx: XCardTransportCtx, target: XCardReceiptTarget, receipt: WsXCardReceipt): Promise<WsSendMessageResponse>;

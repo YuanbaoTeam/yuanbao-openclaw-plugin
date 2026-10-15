@@ -1,12 +1,13 @@
 /**
- * xCard card lifecycle: create (TIMCustomElem card message, text fallback on failure), whole-snapshot
- * update of the original message, and close.
+ * xCard card lifecycle: create (TIMCustomElem card message, text fallback on failure), incremental
+ * updates of the existing Surface, and close.
  *
  * Wire contract:
  * - create: a normal send_group_message whose msg_body is a single TIMCustomElem; the IM
  *   protocol itself is not extended.
- * - update/close: the whole card is re-rendered with revision+1 (no seq-based patching) and
- *   sent as a downevent keyed by surfaceId. Both card and update bodies are held to
+ * - update/close: the card is re-rendered with revision+1, then its createSurface message is
+ *   removed and the remaining updateComponents/updateDataModel messages are sent as a
+ *   client-addressed downevent. Both card and update bodies are held to
  *   MAX_CARD_CONTENT_BYTES.
  * - The card is sent first. Only when the server refuses it (e.g. 10002 "消息体为空" while the
  *   backend whitelist is not enabled) is the plain-text version sent instead, at most once per
@@ -23,7 +24,7 @@ import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import type { WsSendMessageResponse } from "../../access/ws/types.js";
 import { createLog } from "../../logger.js";
 import type { ResolvedYuanbaoAccount, YuanbaoMsgBodyElement } from "../../types.js";
-import { MAX_CARD_CONTENT_BYTES } from "./constants.js";
+import { MAX_CARD_CONTENT_BYTES, SURFACE_TTL_MS } from "./constants.js";
 import {
   PLUGIN_EPOCH,
   registerSurface,
@@ -110,6 +111,11 @@ export function renderSurfaceMessages(rec: SurfaceRecord): A2uiMessage[] {
   if (!tpl) throw new Error(`unknown xcard template: ${rec.template}`);
   const ext = buildExtension(rec, tpl);
   return buildTemplateMessages(tpl, rec.data, { closed: rec.state !== "active", last: rec.lastResult }, rec.surfaceId, ext);
+}
+
+/** Existing Surfaces accept updates, not a second createSurface for the same id. */
+export function renderSurfaceUpdateMessages(rec: SurfaceRecord): A2uiMessage[] {
+  return renderSurfaceMessages(rec).filter((message) => !message.createSurface);
 }
 
 /** Throws too_large when the custom elem payload would not fit in one IM packet. */
@@ -258,6 +264,37 @@ export async function createGeneratedCard(p: CreateGeneratedCardParams): Promise
 }
 
 /**
+ * Replace an AI-authored card's complete source bundle and update the existing client Surface.
+ * The createSurface message remains in the stored bundle for validation/rendering, but is omitted
+ * from the 103 state update by pushSurfaceUpdate.
+ */
+export async function updateGeneratedCard(
+  rec: SurfaceRecord,
+  messages: A2uiMessage[],
+  title: string,
+  fallbackText: string,
+  account: ResolvedYuanbaoAccount,
+  wsClient: YuanbaoWsClient,
+): Promise<void> {
+  const prev = {
+    messages: rec.messages,
+    actions: rec.actions,
+    title: rec.title,
+    fallbackText: rec.fallbackText,
+  };
+  rec.messages = structuredClone(messages);
+  rec.actions = extractGeneratedActions(messages);
+  rec.title = title;
+  rec.fallbackText = fallbackText;
+  try {
+    await pushSurfaceUpdate(rec, account, wsClient);
+  } catch (err) {
+    Object.assign(rec, prev);
+    throw err;
+  }
+}
+
+/**
  * Replace a template card's data (already validated) and push; data/title/fallback are restored
  * on failure. Caller holds the surface lock.
  */
@@ -281,7 +318,7 @@ export async function updateTemplateCard(
 }
 
 /**
- * Re-render the card with revision+1 and replace it on the client. Caller holds the
+ * Re-render the card with revision+1 and update its existing client Surface. Caller holds the
  * surface lock and has already applied the state change (data / state / last result) to `rec`;
  * on failure the revision bump is rolled back (state rollback is the
  * caller's job).
@@ -295,10 +332,12 @@ export async function pushSurfaceUpdate(
   if (!transport.canUpdate(rec)) throw new XCardSendError("该卡片缺少服务端 msg_id，无法更新");
   rec.revision += 1;
   try {
-    const body = checkCardSize(transport.updateBody(rec, renderSurfaceMessages(rec)));
+    const body = checkCardSize(transport.updateBody(rec, renderSurfaceUpdateMessages(rec)));
     const rsp = await transport.sendUpdate({ account, wsClient }, rec, body);
     const res = classifySendRsp(rsp);
     if (!res.ok) throw new XCardSendError(`卡片更新失败: ${res.message}`, res.kind);
+    // Active multi-interaction cards get a fresh validity window after every successful update.
+    if (rec.state === "active") rec.expiresAt = Date.now() + SURFACE_TTL_MS;
     log.info("card updated", { surfaceId: rec.surfaceId, revision: rec.revision, state: rec.state });
   } catch (err) {
     rec.revision -= 1;

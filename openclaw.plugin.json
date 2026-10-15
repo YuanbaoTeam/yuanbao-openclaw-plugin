@@ -14,7 +14,8 @@
       "query_group_info",
       "query_session_members",
       "yuanbao_remind",
-      "yuanbao_xcard_send"
+      "yuanbao_xcard_send",
+      "yuanbao_xcard_update"
     ]
   },
   "channelEnvVars": {

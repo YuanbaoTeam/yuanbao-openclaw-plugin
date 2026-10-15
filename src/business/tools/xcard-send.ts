@@ -21,7 +21,6 @@ import {
   type XCardActionResult,
 } from "../xcard/registry.js";
 import { createGeneratedCard, XCardSendError } from "../xcard/service.js";
-import { getXCardTransport } from "../xcard/transport.js";
 import { pauseGroupReplyHeartbeat } from "../outbound/heartbeat.js";
 import { extractGroupCode, json, type OpenClawPluginToolContext } from "../utils/utils.js";
 
@@ -39,7 +38,10 @@ const DESCRIPTION = [
   "每个 action.event.context 必须携带明确业务值和人类可读的 resultText（如 {date:\"10/16\",weekday:\"周五\",resultText:\"已选择：10/16 周五\"}），不要只把业务值编码进 event.name。",
   "需要点击后立即反馈时，按 xcard-generator 规则使用 sequence，先 updateData 更新本地结果，再发送 event；服务端 103 update 也会覆盖 /__openclaw 为可信最终状态。",
   "卡片中的 action.event 会成为允许的交互事件；用户操作后，context 会原样返回给模型。",
-  "mode=once（默认）在首次操作后把 completed 置为 true 并禁用整卡；mode=perRevision 每个 revision 接受一次操作、写入最新 resultText 后继续可用。",
+  "必须根据业务语义显式选择 mode，不能省略：单人单次授权、最终确认、一次性提交、首个选择即结束时用 once；需要修改选择、反复筛选/翻页/切换、多步骤交互时用 perRevision。",
+  "群内需要多人分别确认、投票或选择时，使用 audience=anyone 且 mode=perRevision；只有明确采用“首位响应者决定结果”时才可在群内使用 once。",
+  "mode=once 在首次接受操作后把 completed 置为 true 并禁用整卡；mode=perRevision 每次接受操作后递增 revision、写入最新 resultText，并保持卡片可继续操作。",
+  "同一业务后续需要改变卡片内容时，使用 yuanbao_xcard_update 更新返回的 surfaceId；不要再次调用本工具创建替代卡片。",
   "如果当前任务必须等待用户操作，设置 waitForAction=true；否则用户之后操作会唤醒新一轮。",
   "工具返回 ok=true 表示卡片已直接展示给用户；后续只需简短确认已发送，不要再用文字复述卡片中的标题、列表、详情、选项或操作说明。",
   "当前只开放自由创作发送能力；请直接按 xcard-generator 规则生成卡片。",
@@ -68,7 +70,7 @@ const PARAMETERS = {
     mode: {
       type: "string",
       enum: ["once", "perRevision"],
-      description: "once=首次接受操作后关闭（默认）；perRevision=每个版本接受一次操作并刷新。",
+      description: "必须显式判断：once=单人单次授权/最终确认/一次性提交；perRevision=多次或多步骤交互，以及群内多人分别操作。",
     },
     waitForAction: {
       type: "boolean",
@@ -79,7 +81,7 @@ const PARAMETERS = {
       description: `等待超时秒数，默认 ${DEFAULT_WAIT_TIMEOUT_SEC}，最大 ${MAX_WAIT_TIMEOUT_SEC}。`,
     },
   },
-  required: ["messages", "title"],
+  required: ["messages", "title", "mode"],
 } as const;
 
 interface SendParams {
@@ -150,6 +152,14 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
         ? p.fallbackText.trim()
         : title;
       if (fallbackText.length > 2000) return json({ ok: false, error: "fallbackText 最长 2000 字符" });
+      if (p.mode !== "once" && p.mode !== "perRevision") {
+        return json({
+          ok: false,
+          error: "mode 必须显式指定为 once 或 perRevision；请根据单次最终操作与多次/多人交互语义判断。",
+          retryable: true,
+        });
+      }
+      const mode: SurfaceMode = p.mode;
 
       const parsed = parseGeneratedMessages(p.messages);
       if ("error" in parsed) return json({ ok: false, error: parsed.error, retryable: true });
@@ -170,7 +180,6 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
       if (audience === "requester" && !requesterId) {
         return json({ ok: false, error: "无法确定发起用户，请使用 audience=anyone" });
       }
-      const mode: SurfaceMode = p.mode === "perRevision" ? "perRevision" : "once";
 
       try {
         const rec = await createGeneratedCard({
@@ -199,9 +208,6 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
           assistantInstruction: "卡片已直接展示给用户。只需简短确认已发送，不要复述卡片内容。",
         };
         if (!p.waitForAction) return json(result);
-        if (!getXCardTransport(account).canUpdate(rec)) {
-          return json({ ...result, waitDowngraded: true, note: "卡片不可寻址，本次不等待。" });
-        }
         if (hasGroupWaiter(account.accountId, groupCode)) {
           return json({ ...result, waitDowngraded: true, note: "本群已有卡片在等待，本次不等待。" });
         }
