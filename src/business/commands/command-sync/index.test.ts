@@ -89,6 +89,8 @@ void test("resolveListChatCommands returns an empty list when both command SDKs 
     },
   );
   const empty = await resolveListChatCommands(async () => ({}), async () => ({}));
+  const invalid = await resolveListChatCommands(async () => null, async () => "not-a-module");
   assert.deepEqual(thrown(cfg), []);
   assert.deepEqual(empty(cfg), []);
+  assert.deepEqual(invalid(cfg), []);
 });

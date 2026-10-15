@@ -15,19 +15,25 @@ type CommandListModule = {
   listChatCommands?: () => ChatCommandDefinition[];
 };
 
-type CommandImporter = () => Promise<CommandListModule>;
+type CommandImporter = () => Promise<unknown>;
+
+function asCommandListModule(value: unknown): CommandListModule {
+  if (!value || typeof value !== "object") return {};
+  return value as CommandListModule;
+}
 
 /**
  * 2026.10 removed `plugin-sdk/command-auth`. Newer hosts list commands from
  * `command-auth-native`; older hosts still expose `listChatCommandsForConfig`
- * on the retired subpath.
+ * on the retired subpath. Importers stay `Promise<unknown>` because 2026.5.7's
+ * `command-auth-native` types do not declare these list helpers.
  */
 export async function resolveListChatCommands(
   importNative: CommandImporter = () => import("openclaw/plugin-sdk/command-auth-native"),
   importLegacy: CommandImporter = () => import("openclaw/plugin-sdk/command-auth"),
 ): Promise<(cfg: OpenClawConfig) => ChatCommandDefinition[]> {
   try {
-    const native = await importNative();
+    const native = asCommandListModule(await importNative());
     if (typeof native.listChatCommandsForConfig === "function") {
       const list = native.listChatCommandsForConfig;
       return (cfg) => list(cfg);
@@ -41,7 +47,7 @@ export async function resolveListChatCommands(
   }
 
   try {
-    const legacy = await importLegacy();
+    const legacy = asCommandListModule(await importLegacy());
     if (typeof legacy.listChatCommandsForConfig === "function") {
       const list = legacy.listChatCommandsForConfig;
       return (cfg) => list(cfg);
