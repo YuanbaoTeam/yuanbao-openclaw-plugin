@@ -38,7 +38,19 @@ before(async () => {
         enqueued.push({ accountId, groupCode });
         await task();
       },
-      buildPipelineContext: (item: { msg: unknown }) => ({ raw: item.msg }),
+      enqueueSessionTask: async (
+        accountId: string,
+        _isGroup: boolean,
+        targetId: string,
+        task: () => Promise<void>,
+      ) => {
+        enqueued.push({ accountId, groupCode: targetId });
+        await task();
+      },
+      buildPipelineContext: (item: { msg: unknown; isGroup: boolean }) => ({
+        raw: item.msg,
+        isGroup: item.isGroup,
+      }),
       onGroupAbort: (l: (a: string, g: string) => void) => {
         abortListener = l;
         return () => {};
@@ -88,20 +100,26 @@ function isCard(data: Record<string, any>): boolean {
 
 function fakeClient(cardRsp?: () => CardRsp) {
   const calls: Call[] = [];
+  const send = async (data: Record<string, any>, initialMethod: string) => {
+    let method = initialMethod;
+    try {
+      const envelope = JSON.parse(JSON.parse(data.msg_body[0].msg_content.data).text);
+      if (envelope.extend_type === 103) {
+        if (envelope.content.action_ack) method = "receipt";
+        if (envelope.content.state_update) method = "update";
+      }
+    } catch {}
+    calls.push({ method, data });
+    if (isCard(data) && cardRsp) return { msgId: "ws", ...cardRsp() };
+    return { msgId: "ws", code: 0, message: "" };
+  };
   const client = {
     calls,
     async sendGroupMessage(data: Record<string, any>) {
-      let method = "send";
-      try {
-        const envelope = JSON.parse(JSON.parse(data.msg_body[0].msg_content.data).text);
-        if (envelope.extend_type === 103) {
-          if (envelope.content.action_ack) method = "receipt";
-          if (envelope.content.state_update) method = "update";
-        }
-      } catch {}
-      calls.push({ method, data });
-      if (isCard(data) && cardRsp) return { msgId: "ws", ...cardRsp() };
-      return { msgId: "ws", code: 0, message: "" };
+      return send(data, "send");
+    },
+    async sendC2CMessage(data: Record<string, any>) {
+      return send(data, "c2c");
     },
   };
   return client;
@@ -748,6 +766,49 @@ describe("AI-authored generated surfaces", () => {
     assert.equal(updated.some((message) => message.createSurface), false);
     assert.equal(updated[0].updateComponents.surfaceId, rec.surfaceId);
     assert.equal(updated[1].updateDataModel.value.title, "五子棋 · 第 2 回合");
+  });
+
+  it("creates, operates, and updates a generated card in a direct conversation", async () => {
+    const client = fakeClient();
+    const sessionKey = `agent:main:yuanbao:direct:${OWNER}`;
+    const rec = await mod.service.createGeneratedCard({
+      account,
+      wsClient: client as any,
+      groupCode: OWNER,
+      isGroup: false,
+      sessionKey,
+      ownerUserId: OWNER,
+      audience: "requester",
+      mode: "perRevision",
+      title: "私聊卡片",
+      fallbackText: "请选择 A",
+      messages: generatedMessages(),
+    });
+    assert.equal(rec.isGroup, false);
+    assert.equal(client.calls[0]?.method, "c2c");
+    assert.equal(client.calls[0]?.data.to_account, OWNER);
+
+    const outer = JSON.parse(new TextDecoder().decode(pushBytes({
+      requestId: "direct-r1",
+      surfaceId: rec.surfaceId,
+      messageId: "direct-card-id",
+      action: "pick",
+      context: { choice: "a" },
+    })));
+    await mod.events.handleXCardUpEvent(
+      { from_account: OWNER } as any,
+      JSON.parse(outer.payload),
+      deps(client),
+      false,
+    );
+
+    assert.deepEqual(receipts(client), ["accepted"]);
+    assert.equal(rec.revision, 2);
+    assert.equal(executed[0]?.isGroup, false);
+    for (const call of client.calls.filter((item) => item.method === "receipt" || item.method === "update")) {
+      assert.equal(call.data.to_account, OWNER);
+      assert.equal(call.data.group_code, undefined);
+    }
   });
 
   it("rejects an event not declared by the generated component tree", async () => {

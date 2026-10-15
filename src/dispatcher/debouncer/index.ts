@@ -145,6 +145,17 @@ export function enqueueGroupTask(accountId: string, groupCode: string, task: () 
   return sessionQueue.enqueue(`group:${accountId}:${groupCode || "unknown"}`, task);
 }
 
+/** Serialize a non-message event behind the originating group or direct session. */
+export function enqueueSessionTask(
+  accountId: string,
+  isGroup: boolean,
+  targetId: string,
+  task: () => Promise<void>,
+): Promise<void> {
+  const kind = isGroup ? "group" : "direct";
+  return sessionQueue.enqueue(`${kind}:${accountId}:${targetId || "unknown"}`, task);
+}
+
 export function buildPipelineContext(primary: DebouncerItem, items: DebouncerItem[]): PipelineContext {
   return {
     // Immutable input

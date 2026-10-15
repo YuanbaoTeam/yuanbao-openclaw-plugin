@@ -7,10 +7,10 @@
  * The xCard envelope therefore travels as the JSON string in `text`:
  *   TIMCustomElem.data = {"elem_type":1013,"text":"{\"extend_type\":10x,\"content\":{...}}"}
  * `content` is a JSON value inside that envelope (not serialized again). extend_type:
- *   101 card       bot → group  : the A2UI v1.0 message array of a new card
- *   102 upevent    App → group  : posted as the operator; content is the submit payload
+ *   101 card       bot → IM     : the A2UI v1.0 message array of a new card
+ *   102 upevent    App → IM     : posted as the operator; content is the submit payload
  *                                 (protocol / requestId / surfaceId / binding / event)
- *   103 downevent  bot → group  : the client host envelope. `action_ack` answers one upevent;
+ *   103 downevent  bot → IM     : the client host envelope. `action_ack` answers one upevent;
  *                                 `state_update` carries incremental A2UI messages for the
  *                                 existing card identity.
  *
@@ -125,9 +125,23 @@ function elem1007(extendType: number, content: unknown): YuanbaoMsgBodyElement[]
   return [{ msg_type: "TIMCustomElem", msg_content: { data: JSON.stringify({ elem_type: IM1007_ELEM_TYPE, text }) } }];
 }
 
-function sendToGroup(account: ResolvedYuanbaoAccount, wsClient: YuanbaoWsClient, groupCode: string, body: YuanbaoMsgBodyElement[]) {
+function sendToConversation(
+  account: ResolvedYuanbaoAccount,
+  wsClient: YuanbaoWsClient,
+  isGroup: boolean,
+  targetId: string,
+  body: YuanbaoMsgBodyElement[],
+) {
+  if (!isGroup) {
+    return wsClient.sendC2CMessage({
+      to_account: targetId,
+      from_account: account.botId ?? "",
+      msg_random: Math.floor(Math.random() * 4294967295),
+      msg_body: body,
+    });
+  }
   return wsClient.sendGroupMessage({
-    group_code: groupCode,
+    group_code: targetId,
     from_account: account.botId ?? "",
     random: String(Math.floor(Math.random() * 4294967295)),
     msg_body: body,
@@ -152,9 +166,10 @@ export const im1007Transport: XCardTransport = {
         content: messages,
       },
     }),
-  sendUpdate: ({ account, wsClient }, rec, body) => sendToGroup(account, wsClient, rec.groupCode, body),
+  sendUpdate: ({ account, wsClient }, rec, body) =>
+    sendToConversation(account, wsClient, rec.isGroup, rec.groupCode, body),
   sendReceipt: ({ account, wsClient }, target, receipt: WsXCardReceipt) =>
-    sendToGroup(account, wsClient, target.groupCode, elem1007(IM1007_EXTEND_TYPE.downEvent, {
+    sendToConversation(account, wsClient, target.isGroup, target.groupCode, elem1007(IM1007_EXTEND_TYPE.downEvent, {
       protocol_version: DOWN_EVENT_PROTOCOL_VERSION,
       delivery_id: randomUUID(),
       card_message_id: target.cardMessageId ?? "",

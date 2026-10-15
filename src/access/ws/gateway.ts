@@ -394,13 +394,13 @@ function handleWsDispatchEvent(params: {
 
   const isGroup = chatType === "group";
 
-  // Temporary im1007 xCard transport: an upevent is an ordinary group message (carrier elem 1013
+  // Temporary im1007 xCard transport: an upevent is an ordinary IM message (carrier elem 1013
   // with extend_type=102) — divert it before the chat pipeline. Off unless xCard runs on im1007, so
   // the original custom-elem handling is unchanged otherwise.
-  if (isGroup && account.xcardEnabled) {
+  if (account.xcardEnabled) {
     const upEvent = parseIm1007UpEvent(msg);
     if (upEvent) {
-      void handleXCardUpEvent(msg, upEvent, xcardDeps()).catch((err) => {
+      void handleXCardUpEvent(msg, upEvent, xcardDeps(), isGroup).catch((err) => {
         dlog.error(`[${account.accountId}][dispatch] xcard upevent handler failed: ${String(err)}`);
       });
       return;

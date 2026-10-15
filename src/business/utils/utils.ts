@@ -47,6 +47,26 @@ export function extractGroupCode(sessionKey: string): string {
   return sessionKey.slice(idx + prefix.length);
 }
 
+export interface YuanbaoConversationTarget {
+  isGroup: boolean;
+  targetId: string;
+}
+
+/**
+ * Resolve the current Yuanbao conversation. Direct session keys are normalized by OpenClaw,
+ * so the authenticated requester id is preferred over the key suffix.
+ */
+export function resolveYuanbaoConversation(
+  sessionKey: string,
+  requesterSenderId?: string,
+): YuanbaoConversationTarget | null {
+  const groupCode = extractGroupCode(sessionKey);
+  if (groupCode) return { isGroup: true, targetId: groupCode };
+  if (!sessionKey.includes("yuanbao:direct:")) return null;
+  const targetId = requesterSenderId?.trim();
+  return targetId ? { isGroup: false, targetId } : null;
+}
+
 // MCP response builders
 
 /**

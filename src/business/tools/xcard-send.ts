@@ -13,7 +13,7 @@ import { createLog } from "../../logger.js";
 import { DEFAULT_WAIT_TIMEOUT_SEC, MAX_WAIT_TIMEOUT_SEC } from "../xcard/constants.js";
 import { parseGeneratedMessages, validateGeneratedMessages } from "../xcard/generated.js";
 import {
-  hasGroupWaiter,
+  hasSessionWaiter,
   waitForSurfaceAction,
   type SurfaceAudience,
   type SurfaceMode,
@@ -22,16 +22,17 @@ import {
 } from "../xcard/registry.js";
 import { createGeneratedCard, XCardSendError } from "../xcard/service.js";
 import { pauseGroupReplyHeartbeat } from "../outbound/heartbeat.js";
-import { extractGroupCode, json, type OpenClawPluginToolContext } from "../utils/utils.js";
+import { json, resolveYuanbaoConversation, type OpenClawPluginToolContext } from "../utils/utils.js";
 
 const TOOL_NAME = "yuanbao_xcard_send";
 
 const DESCRIPTION = [
-  "发送由 AI 自由创作的元宝 xCard（自包含 A2UI v1.0 Inline Surface）。",
+  "在元宝群聊或私聊中发送由 AI 自由创作的 xCard（自包含 A2UI v1.0 Inline Surface）。",
   "适合主动使用的场景：让用户选择或投票、填写表单、确认操作、浏览结构化列表/详情、展示需要按钮交互的结果。",
   "当用户明确要求卡片，或卡片能明显减少来回追问、降低输入成本、提升结构化信息可读性时，优先使用本工具。",
   "简单问答、纯文本说明、单句通知以及没有结构化展示或交互收益的内容，不要使用 xCard，直接文本回复。",
-  "先使用已安装的 xcard-generator Skill，按其中规则生成并校验 JSONL；再把完整 JSONL 作为 messages 传入本工具。",
+  "自由创作时必须先使用已安装的 xcard-design Skill 做视觉构图与审美复查，再使用 xcard-generator Skill 按元宝 Catalog/token 生成并校验 JSONL；最后把完整 JSONL 作为 messages 传入本工具。",
+  "默认采用 Apple 式克制：内容优先、清晰层级、充足留白、精确对齐、克制配色；不要用不受支持的毛玻璃、渐变或阴影模拟。",
   "本工具会再次校验协议、xcard catalog、组件引用、事件及 10KB 线包上限，并由插件重写 surfaceId、注入可信绑定信息。",
   "只接受自包含卡片：不要使用 WebCard、xCardTemplate、tracking、@hostEnv 或宿主自定义函数。",
   "交互卡必须设计可见的操作后状态，不能只发送 action.event：在 DataModel 中预留 __openclaw，并提供绑定 /__openclaw/resultText 的结果 Text；把可操作区域的 enabled 设为 {call:\"not\",args:{value:{path:\"/__openclaw/completed\"}}}。",
@@ -127,14 +128,14 @@ function clampWaitMs(sec: unknown): number {
 function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
-  const groupCode = extractGroupCode(sessionKey);
-  if (!groupCode) return null;
+  const requesterId = ctx.requesterSenderId ?? "";
+  const conversation = resolveYuanbaoConversation(sessionKey, requesterId);
+  if (!conversation) return null;
   const cfg = ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
   const account = resolveYuanbaoAccount({ cfg, accountId });
   if (!account.xcardEnabled) return null;
-  const requesterId = ctx.requesterSenderId ?? "";
   const log = createLog("tools.xcard-send");
 
   return {
@@ -176,7 +177,7 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
 
       const wsClient = getActiveWsClient(account.accountId);
       if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法发送卡片" });
-      const audience: SurfaceAudience = p.audience === "anyone" ? "anyone" : "requester";
+      const audience: SurfaceAudience = conversation.isGroup && p.audience === "anyone" ? "anyone" : "requester";
       if (audience === "requester" && !requesterId) {
         return json({ ok: false, error: "无法确定发起用户，请使用 audience=anyone" });
       }
@@ -185,7 +186,8 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
         const rec = await createGeneratedCard({
           account,
           wsClient,
-          groupCode,
+          groupCode: conversation.targetId,
+          isGroup: conversation.isGroup,
           sessionKey,
           ownerUserId: requesterId,
           audience,
@@ -205,13 +207,15 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
           audience: rec.audience,
           actions: rec.actions ?? [],
           delivery: "card_already_sent",
-          assistantInstruction: "卡片已直接展示给用户。只需简短确认已发送，不要复述卡片内容。",
+          assistantInstruction: "卡片已直接展示给用户，不要复述卡片内容。",
         };
         if (!p.waitForAction) return json(result);
-        if (hasGroupWaiter(account.accountId, groupCode)) {
-          return json({ ...result, waitDowngraded: true, note: "本群已有卡片在等待，本次不等待。" });
+        if (hasSessionWaiter(account.accountId, sessionKey)) {
+          return json({ ...result, waitDowngraded: true, note: "当前会话已有卡片在等待，本次不等待。" });
         }
-        const releaseHeartbeat = pauseGroupReplyHeartbeat(account.accountId, groupCode);
+        const releaseHeartbeat = conversation.isGroup
+          ? pauseGroupReplyHeartbeat(account.accountId, conversation.targetId)
+          : () => {};
         try {
           return json({ ...result, ...waitResult(await waitForSurfaceAction(rec, clampWaitMs(p.waitTimeoutSec), signal)) });
         } finally {

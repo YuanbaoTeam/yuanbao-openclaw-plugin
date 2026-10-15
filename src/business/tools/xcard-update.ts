@@ -13,13 +13,14 @@ import { createLog } from "../../logger.js";
 import { parseGeneratedMessages, validateGeneratedMessages } from "../xcard/generated.js";
 import { getSurface, withSurfaceLock } from "../xcard/registry.js";
 import { updateGeneratedCard, XCardSendError } from "../xcard/service.js";
-import { extractGroupCode, json, type OpenClawPluginToolContext } from "../utils/utils.js";
+import { json, resolveYuanbaoConversation, type OpenClawPluginToolContext } from "../utils/utils.js";
 
 const TOOL_NAME = "yuanbao_xcard_update";
 
 const DESCRIPTION = [
-  "更新之前由 yuanbao_xcard_send 创建的 AI 自由创作 xCard；通过 103 修改原卡片，不会发送 101 新卡片。",
-  "五子棋、投票进度、分页、筛选、多步骤表单等同一业务需要持续交互时，收到操作回调后必须优先用本工具更新原 surfaceId，不要再次调用 yuanbao_xcard_send。",
+  "在元宝群聊或私聊中更新之前由 yuanbao_xcard_send 创建的 AI 自由创作 xCard；通过 103 修改原卡片，不会发送 101 新卡片。",
+  "同一业务需要持续交互或展示最新状态时，收到操作回调后必须优先用本工具更新原 surfaceId，不要再次调用 yuanbao_xcard_send。",
+  "更新前使用 xcard-design 保持 Apple 式克制的视觉层级和原卡构图稳定，再使用 xcard-generator 生成并校验完整新快照；不要只改业务数据却重新套一套布局。",
   "messages 必须是更新后的完整自包含 A2UI v1.0 JSONL/消息数组快照，仍需包含 createSurface、updateComponents 和所需 updateDataModel；工具会保留原 surfaceId，并在 103 中自动去掉 createSurface。",
   "先根据操作回调的 context 计算新业务状态，再生成完整新快照。卡片事件名与 context 必须继续携带明确业务值。",
   "只能更新当前会话中仍为 active 的 generated 卡片；mode、audience、owner 和路由绑定不能通过本工具修改。",
@@ -59,8 +60,8 @@ interface UpdateParams {
 function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
-  const groupCode = extractGroupCode(sessionKey);
-  if (!groupCode) return null;
+  const conversation = resolveYuanbaoConversation(sessionKey, ctx.requesterSenderId);
+  if (!conversation) return null;
   const cfg = ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
@@ -110,7 +111,8 @@ function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
           if (!rec) return json({ ok: false, error: "找不到该卡片；卡片可能由插件重启前创建" });
           if (
             rec.accountId !== account.accountId
-            || rec.groupCode !== groupCode
+            || rec.isGroup !== conversation.isGroup
+            || rec.groupCode !== conversation.targetId
             || rec.sessionKey !== sessionKey
           ) {
             return json({ ok: false, error: "该卡片不属于当前会话" });

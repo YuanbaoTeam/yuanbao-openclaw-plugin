@@ -112,6 +112,8 @@ export type WsXCardReceipt = {
 export type WsXCardTrusted = {
   operatorUserId: string;
   botId: string;
+  isGroup: boolean;
+  /** Group code or direct peer id, derived from the authenticated IM envelope. */
   groupCode: string;
   pluginEpoch: string;
   replyToken: string;

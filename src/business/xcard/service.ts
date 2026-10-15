@@ -137,24 +137,43 @@ function textBody(text: string): YuanbaoMsgBodyElement[] {
   return [{ msg_type: "TIMTextElem", msg_content: { text } }];
 }
 
-/** Send plain text into the group (fallbacks); returns whether it was delivered (or already was). */
-export async function sendGroupText(
+function sendConversationMessage(
   account: ResolvedYuanbaoAccount,
   wsClient: YuanbaoWsClient,
-  groupCode: string,
+  isGroup: boolean,
+  targetId: string,
+  body: YuanbaoMsgBodyElement[],
+): Promise<WsSendMessageResponse> {
+  if (!isGroup) {
+    return wsClient.sendC2CMessage({
+      to_account: targetId,
+      from_account: account.botId ?? "",
+      msg_random: Math.floor(Math.random() * 4294967295),
+      msg_body: body,
+    });
+  }
+  return wsClient.sendGroupMessage({
+    group_code: targetId,
+    from_account: account.botId ?? "",
+    random: String(Math.floor(Math.random() * 4294967295)),
+    msg_body: body,
+  });
+}
+
+/** Send plain-text fallback into the card's conversation. */
+export async function sendConversationText(
+  account: ResolvedYuanbaoAccount,
+  wsClient: YuanbaoWsClient,
+  isGroup: boolean,
+  targetId: string,
   text: string,
 ): Promise<boolean> {
-  const key = `${account.accountId}:${groupCode}:${text}`;
+  const key = `${account.accountId}:${isGroup ? "group" : "direct"}:${targetId}:${text}`;
   const now = Date.now();
   for (const [k, at] of recentFallbacks) if (now - at > FALLBACK_DEDUPE_MS) recentFallbacks.delete(k);
   if (recentFallbacks.has(key)) return true;
   try {
-    const rsp = await wsClient.sendGroupMessage({
-      group_code: groupCode,
-      from_account: account.botId ?? "",
-      random: String(Math.floor(Math.random() * 4294967295)),
-      msg_body: textBody(text),
-    });
+    const rsp = await sendConversationMessage(account, wsClient, isGroup, targetId, textBody(text));
     const res = classifySendRsp(rsp);
     if (!res.ok) {
       log.warn("text fallback send failed", { kind: res.kind, message: res.message });
@@ -172,6 +191,7 @@ interface CreateBaseParams {
   account: ResolvedYuanbaoAccount;
   wsClient: YuanbaoWsClient;
   groupCode: string;
+  isGroup?: boolean;
   sessionKey: string;
   ownerUserId: string;
   mode: SurfaceMode;
@@ -198,12 +218,7 @@ async function sendCard(p: CreateBaseParams, draft: CreateDraft): Promise<Surfac
 
   let rsp: WsSendMessageResponse;
   try {
-    rsp = await p.wsClient.sendGroupMessage({
-      group_code: p.groupCode,
-      from_account: p.account.botId ?? "",
-      random: String(Math.floor(Math.random() * 4294967295)),
-      msg_body: body,
-    });
+    rsp = await sendConversationMessage(p.account, p.wsClient, p.isGroup !== false, p.groupCode, body);
   } catch (err) {
     throw new XCardSendError(`卡片发送失败: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -211,7 +226,7 @@ async function sendCard(p: CreateBaseParams, draft: CreateDraft): Promise<Surfac
   if (!res.ok) {
     log.warn("card send failed", { surfaceId: draft.surfaceId, kind: res.kind, code: rsp.code, message: res.message });
     const fallbackSent = res.kind === "rejected"
-      ? await sendGroupText(p.account, p.wsClient, p.groupCode, draft.fallbackText)
+      ? await sendConversationText(p.account, p.wsClient, p.isGroup !== false, p.groupCode, draft.fallbackText)
       : false;
     throw new XCardSendError(`卡片发送失败: ${res.message}`, res.kind, fallbackSent);
   }
@@ -228,6 +243,7 @@ function baseDraft(p: CreateBaseParams) {
   return {
     surfaceId: randomUUID(),
     accountId: p.account.accountId,
+    isGroup: p.isGroup !== false,
     groupCode: p.groupCode,
     sessionKey: p.sessionKey,
     ownerUserId: p.ownerUserId,

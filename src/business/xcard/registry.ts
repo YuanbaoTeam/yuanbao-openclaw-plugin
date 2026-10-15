@@ -75,6 +75,8 @@ export interface SurfaceRecord {
   /** Server-assigned IM id learned from the first 102 event; required by the client for 103 updates. */
   cardMessageId?: string;
   accountId: string;
+  /** false for C2C cards; groupCode then stores the direct peer id as the conversation target. */
+  isGroup: boolean;
   groupCode: string;
   sessionKey: string;
   /** Template surfaces and AI-authored generated surfaces share routing/state, not rendering. */
@@ -202,6 +204,12 @@ export function rememberRequest(rec: SurfaceRecord, key: string, status: string,
 export function hasGroupWaiter(accountId: string, groupCode: string): boolean {
   return [...surfaces.values()].some(
     (s) => s.waiter && s.accountId === accountId && s.groupCode === groupCode,
+  );
+}
+
+export function hasSessionWaiter(accountId: string, sessionKey: string): boolean {
+  return [...surfaces.values()].some(
+    (s) => s.waiter && s.accountId === accountId && s.sessionKey === sessionKey,
   );
 }
 

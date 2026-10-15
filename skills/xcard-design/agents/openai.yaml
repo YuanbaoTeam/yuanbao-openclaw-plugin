@@ -1,0 +1,4 @@
+interface:
+  display_name: "XCard Design"
+  short_description: "用 Apple 式克制提升元宝 XCard 的构图、层级与视觉完成度"
+  default_prompt: "Use $xcard-design with $xcard-generator to design, polish, and visually review an Apple-inspired Yuanbao XCard without inventing unsupported components or styles."

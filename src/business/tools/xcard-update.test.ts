@@ -59,6 +59,10 @@ void test("xcard-update is exposed with an explicit update-only contract", () =>
   assert.equal(factory(context({ messageChannel: "slack" })), null);
   const tool = factory(context());
   assert.ok(tool);
+  assert.ok(factory(context({
+    sessionKey: "agent:main:yuanbao:direct:u1",
+    requesterSenderId: "u1",
+  })));
   assert.deepEqual(tool.parameters?.required, ["surfaceId", "messages"]);
   assert.match(tool.description, /103/);
   assert.match(tool.description, /不要再次调用 yuanbao_xcard_send/);

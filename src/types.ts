@@ -43,7 +43,7 @@ export type YuanbaoAccountConfig = {
   fallbackReply?: string;
   /** Default true; prevents model from wrapping entire reply in ```markdown fences */
   markdownHintEnabled?: boolean;
-  /** Default false; exposes template and AI-authored xCard tools (draft protocol) */
+  /** Default true; exposes AI-authored xCard tools and event handling */
   xcardEnabled?: boolean;
   /** Logs for whitelisted bots are not sanitized */
   debugBotIds?: string[];
@@ -81,7 +81,7 @@ export type ResolvedYuanbaoAccount = {
   /** Automatically sent to the user when the AI model returns no reply content */
   fallbackReply?: string;
   markdownHintEnabled: boolean;
-  /** Default false */
+  /** Default true */
   xcardEnabled: boolean;
   config: YuanbaoAccountConfig;
 };

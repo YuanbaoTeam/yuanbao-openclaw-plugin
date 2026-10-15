@@ -40,3 +40,13 @@ void test("skip-xcard-echo: other operator / other text passes", async () => {
   await skipXCardEcho.handler(groupCtx("我选了：B"), text.next);
   assert.equal(text.wasCalled(), true);
 });
+
+void test("skip-xcard-echo: direct-message echo uses the peer id as conversation", async () => {
+  __resetXCardRegistryForTest();
+  const ctx = createMockCtx({ rawBody: "落子 E5", isGroup: false, fromAccount: "u1" });
+  rememberUserMessageEcho(ctx.account.accountId, "u1", "u1", "落子 E5");
+
+  const next = createMockNext();
+  await skipXCardEcho.handler(ctx, next.next);
+  assert.equal(next.wasCalled(), false);
+});

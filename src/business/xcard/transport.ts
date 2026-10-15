@@ -20,9 +20,11 @@ export interface XCardTransportCtx {
   wsClient: YuanbaoWsClient;
 }
 
-/** A receipt is posted back to the group as an extend_type=103 downevent. */
+/** A receipt is posted back to the source conversation as an extend_type=103 downevent. */
 export interface XCardReceiptTarget {
   replyToken: string;
+  isGroup: boolean;
+  /** Group code or direct peer user id. */
   groupCode: string;
   /** Original card IM id echoed by the client's 102 event. */
   cardMessageId?: string;

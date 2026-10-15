@@ -1,7 +1,7 @@
 /**
  * Handling of xCard event submits (a user operated an xCard, or its renderer failed).
  *
- * Entry point: extend_type=102 upevent group messages are normalized by transport-im1007.ts,
+ * Entry point: extend_type=102 upevent group/direct messages are normalized by transport-im1007.ts,
  * then validated and handled here. Receipts go back as extend_type=103 downevents.
  *
  * Flow:
@@ -16,10 +16,10 @@
  * - a tool call is blocked waiting on this surface (`waitForAction`): resolve it directly,
  *   WITHOUT the session queue — that tool call is running inside the queued turn, so queueing
  *   would deadlock until the wait times out;
- * - otherwise wake the originating group session as a new turn via the group session queue
+ * - otherwise wake the originating IM session as a new turn via its serial session queue
  *   (serialized behind any in-flight reply), using the reduced xCard pipeline.
  *
- * Trust: operator / bot / group / replyToken come from the push's `trusted` block (derived by
+ * Trust: operator / bot / conversation / replyToken come from the push's trusted envelope (derived by
  * the proxy from the authenticated connection), or for im1007 from the IM sender / group of the
  * upevent message. The payload is App-supplied and only used for
  * requestId / surfaceId / binding / action, all of which are checked against the registry.
@@ -45,7 +45,7 @@ import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import type { WsXCardReceiptStatus, WsXCardTrusted } from "../../access/ws/types.js";
 import {
   buildPipelineContext,
-  enqueueGroupTask,
+  enqueueSessionTask,
   onGroupAbort,
 } from "../../dispatcher/debouncer/index.js";
 import { createLog } from "../../logger.js";
@@ -67,7 +67,7 @@ import {
   type SurfaceRecord,
   type XCardActionResult,
 } from "./registry.js";
-import { pushSurfaceUpdate, sendGroupText } from "./service.js";
+import { pushSurfaceUpdate, sendConversationText } from "./service.js";
 import { getTemplate } from "./templates/index.js";
 import { getXCardTransport } from "./transport.js";
 
@@ -148,6 +148,7 @@ async function sendReceipt(
     const transport = getXCardTransport(deps.account);
     const target = {
       replyToken: ref.trusted.replyToken,
+      isGroup: ref.trusted.isGroup,
       groupCode: ref.trusted.groupCode,
       ...(ref.cardMessageId ? { cardMessageId: ref.cardMessageId } : {}),
     };
@@ -176,7 +177,9 @@ function decide(rec: SurfaceRecord | undefined, ref: SubmitRef, payload: XCardEv
   const reject = (reason: string, status: WsXCardReceiptStatus = "rejected"): Decision => ({
     kind: "reject", status, reason, rec,
   });
-  if (ref.trusted.groupCode && ref.trusted.groupCode !== rec.groupCode) return reject("permission_denied");
+  if (ref.trusted.isGroup !== rec.isGroup || ref.trusted.groupCode !== rec.groupCode) {
+    return reject("permission_denied");
+  }
   if (rec.state === "expired") return reject("surface_expired");
   if (rec.state !== "active") return reject("surface_closed");
   if (rec.audience === "requester" && ref.trusted.operatorUserId !== rec.ownerUserId) return reject("permission_denied");
@@ -272,8 +275,8 @@ async function runWakeTurn(
   if (!core) throw new Error("PluginRuntime not provided");
   const body = buildXCardActionBody(rec, result);
   const msg: YuanbaoInboundMessage = {
-    group_code: rec.groupCode,
     from_account: result.operatorUserId,
+    ...(rec.isGroup ? { group_code: rec.groupCode } : {}),
     // The host dedupes inbound turns by MessageSid (msg_id ?? msg_seq), so every card event gets
     // a unique synthetic sequence.
     msg_seq: nextWakeSeq(result.at),
@@ -282,7 +285,7 @@ async function runWakeTurn(
   };
   const item: DebouncerItem = {
     msg,
-    isGroup: true,
+    isGroup: rec.isGroup,
     account: deps.account,
     config: deps.config,
     core,
@@ -296,12 +299,12 @@ async function runWakeTurn(
   // so outcome is tracked here to pick the right final receipt.
   let ran = false;
   let failure: unknown;
-  await enqueueGroupTask(deps.account.accountId, rec.groupCode, async () => {
+  await enqueueSessionTask(deps.account.accountId, rec.isGroup, rec.groupCode, async () => {
     ran = true;
     try {
       const ctx = buildPipelineContext(item, [item]);
       ctx.fromAccount = result.operatorUserId;
-      ctx.groupCode = rec.groupCode;
+      ctx.groupCode = rec.isGroup ? rec.groupCode : undefined;
       ctx.rawBody = body;
       ctx.rewrittenBody = body;
       ctx.isAtBot = true;
@@ -345,31 +348,34 @@ async function handleRendererError(
       } catch (err) {
         log.warn("close-on-renderer-error update failed", { surfaceId: ref.surfaceId, error: String(err) });
       }
-      await sendGroupText(deps.account, deps.wsClient, rec.groupCode, rec.fallbackText);
+      await sendConversationText(deps.account, deps.wsClient, rec.isGroup, rec.groupCode, rec.fallbackText);
     }
     rememberRequest(rec, key, "completed");
   });
 }
 
 /**
- * Entry from the WS gateway for an upevent group message. The operator
- * is the IM sender; there is no reply token — the receipt is a downevent into the same group.
+ * Entry from the WS gateway for an upevent IM message. The operator
+ * is the IM sender; there is no reply token — the receipt is a downevent into the same conversation.
  * Never throws.
  */
 export async function handleXCardUpEvent(
   msg: YuanbaoInboundMessage,
   payload: Record<string, unknown>,
   deps: XCardEventDeps,
+  isGroup = Boolean(msg.group_code),
 ): Promise<void> {
+  const conversationId = isGroup ? msg.group_code : msg.from_account;
   const trusted: WsXCardTrusted = {
     operatorUserId: msg.from_account ?? "",
     botId: deps.account.botId ?? "",
-    groupCode: msg.group_code ?? "",
+    isGroup,
+    groupCode: conversationId ?? "",
     pluginEpoch: "",
     replyToken: "",
   };
   if (!trusted.operatorUserId || !trusted.groupCode) {
-    log.warn("xcard upevent without sender/group, dropped");
+    log.warn("xcard upevent without sender/conversation, dropped");
     return;
   }
   await handleXCardSubmit(payload as XCardEventPayload, trusted, deps);
