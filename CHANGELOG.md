@@ -1,8 +1,9 @@
 # Changelog
 
-## 2.18.4 (2026-10-14)
+## 2.18.4 (2026-10-15)
 
 - **fix:** yuanbao_remind 直接创建定时任务，不再引导模型调用 cron，避免偶现配置限制拒绝
+- **fix:** 适配 OpenClaw 2026.10 移除的 plugin-sdk/command-auth，命令鉴权改走 command-auth-native
 
 ## 2.18.3 (2026-09-01)
 

@@ -3,7 +3,7 @@
  * Checks for control commands and applies DM allowFrom + useAccessGroups policies.
  */
 
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth-native";
 import type { MiddlewareDescriptor, PipelineContext } from "../types.js";
 
 /** Read commands.useAccessGroups without depending on CommandsConfig (removed in openclaw 2026.8.1). */

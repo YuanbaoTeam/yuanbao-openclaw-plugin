@@ -446,7 +446,7 @@ async function queryAndCacheBotOwner(
 /**
  * Sync the command list to the backend after connection is established.
  *
- * - bot_commands: dynamically obtained from the OpenClaw framework via listChatCommandsForConfig
+ * - bot_commands: dynamically obtained from the OpenClaw command SDK
  * - plugin_commands: commands collected during plugin registration
  * Sync failure does not affect normal operation — only a warning is logged.
  */
@@ -456,7 +456,7 @@ async function syncCommandsToServer(
   config?: OpenClawConfig,
 ): Promise<void> {
   const slog = createLog("ws");
-  const payload = buildSyncCommandsPayload(config);
+  const payload = await buildSyncCommandsPayload(config);
   slog.info(`[${accountId}] syncing command list, request payload:`, {
     sync_type: payload.syncType,
     bot_version: payload.botVersion,

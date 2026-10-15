@@ -1,12 +1,59 @@
 /** Command sync — collects bot/plugin commands and builds the sync payload for the backend. */
 
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import {
-  listChatCommandsForConfig,
-  type ChatCommandDefinition,
-} from "openclaw/plugin-sdk/command-auth";
 import { getPluginVersion, getOpenclawVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
+
+type ChatCommandDefinition = {
+  key: string;
+  description: string;
+  textAliases?: string[];
+};
+
+type CommandListModule = {
+  listChatCommandsForConfig?: (cfg: OpenClawConfig) => ChatCommandDefinition[];
+  listChatCommands?: () => ChatCommandDefinition[];
+};
+
+type CommandImporter = () => Promise<CommandListModule>;
+
+/**
+ * 2026.10 removed `plugin-sdk/command-auth`. Newer hosts list commands from
+ * `command-auth-native`; older hosts still expose `listChatCommandsForConfig`
+ * on the retired subpath.
+ */
+export async function resolveListChatCommands(
+  importNative: CommandImporter = () => import("openclaw/plugin-sdk/command-auth-native"),
+  importLegacy: CommandImporter = () => import("openclaw/plugin-sdk/command-auth"),
+): Promise<(cfg: OpenClawConfig) => ChatCommandDefinition[]> {
+  try {
+    const native = await importNative();
+    if (typeof native.listChatCommandsForConfig === "function") {
+      const list = native.listChatCommandsForConfig;
+      return (cfg) => list(cfg);
+    }
+    if (typeof native.listChatCommands === "function") {
+      const list = native.listChatCommands;
+      return () => list();
+    }
+  } catch {
+    // Hosts that predate the native command list.
+  }
+
+  try {
+    const legacy = await importLegacy();
+    if (typeof legacy.listChatCommandsForConfig === "function") {
+      const list = legacy.listChatCommandsForConfig;
+      return (cfg) => list(cfg);
+    }
+  } catch {
+    // 2026.10 removed this subpath.
+  }
+
+  return () => [];
+}
+
+const listChatCommands = resolveListChatCommands();
 
 export type CommandItem = {
   name: string;
@@ -18,11 +65,12 @@ export const SYNC_INFORMATION_TYPE = {
   COMMANDS: 1,
 } as const;
 
-function getBotCommands(config?: OpenClawConfig): ChatCommandDefinition[] | null {
+async function getBotCommands(config?: OpenClawConfig): Promise<ChatCommandDefinition[] | null> {
   const log = createLog("command-sync");
 
   try {
-    const commands = listChatCommandsForConfig(config ?? ({} as OpenClawConfig));
+    const list = await listChatCommands;
+    const commands = list(config ?? ({} as OpenClawConfig));
     log.debug(`获取命令列表: ${commands.length} 个命令`);
     if (commands.length > 0) {
       log.debug("命令原始结构示例:", {
@@ -47,7 +95,7 @@ function resolveBotCommandItems(commands: ChatCommandDefinition[]): CommandItem[
 
   for (const cmd of commands) {
     // Prefer first entry in textAliases (usually the primary command name, with /)
-    const aliases = cmd.textAliases;
+    const aliases = cmd.textAliases ?? [];
     let name = "";
     if (aliases.length > 0) {
       [name] = aliases;
@@ -99,11 +147,11 @@ export type SyncInformationPayload = {
   };
 };
 
-export function buildSyncCommandsPayload(config?: OpenClawConfig): SyncInformationPayload {
+export async function buildSyncCommandsPayload(config?: OpenClawConfig): Promise<SyncInformationPayload> {
   const botVersion = getOpenclawVersion() || "0.0.0";
   const pluginVersion = getPluginVersion() || "0.0.0";
 
-  const rawBotCommands = getBotCommands(config);
+  const rawBotCommands = await getBotCommands(config);
   const botCommands = rawBotCommands ? resolveBotCommandItems(rawBotCommands) : [];
 
   return {
