@@ -3,11 +3,11 @@
  * deliver handles media and text fallback when partial never fires.
  */
 
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
 import {
   resolveOutboundMediaUrls,
   normalizeOutboundReplyPayload,
 } from "openclaw/plugin-sdk/reply-payload";
+import { resolveCreateChannelReplyPipeline } from "../reply-pipeline.js";
 import { WS_HEARTBEAT } from "../../../access/ws/types.js";
 import { getPluginVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
@@ -123,6 +123,7 @@ export const dispatchReply: MiddlewareDescriptor = {
         },
       });
 
+      const createChannelReplyPipeline = await resolveCreateChannelReplyPipeline();
       const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
         cfg: config,
         agentId: route.agentId,

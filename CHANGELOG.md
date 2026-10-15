@@ -4,6 +4,7 @@
 
 - **fix:** yuanbao_remind 直接创建定时任务，不再引导模型调用 cron，避免偶现配置限制拒绝
 - **fix:** 适配 OpenClaw 2026.10 移除的 plugin-sdk/command-auth，命令鉴权改走 command-auth-native
+- **fix:** 适配 OpenClaw 2026.10 移除的 plugin-sdk/channel-reply-pipeline，回复管线改走 channel-outbound
 
 ## 2.18.3 (2026-09-01)
 
