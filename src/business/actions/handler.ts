@@ -22,13 +22,57 @@ import type { ActionParams } from "./resolve-target.js";
 import { resolveActionTarget } from "./resolve-target.js";
 import { searchSticker } from "./sticker/send.js";
 
-/** handleAction return type */
+type ActionToolContent = { type: "text"; text: string };
+
+/**
+ * OpenClaw 2026.10 validates the message-tool result at `details.result.content`.
+ * A send that already reached the user is reported as a tool failure when this
+ * array is missing, and the model retries the same send.
+ */
 export interface ActionHandlerResult {
   channel: "yuanbao";
   ok: boolean;
   messageId: string;
   error?: Error;
   data?: unknown;
+  content: ActionToolContent[];
+  details: {
+    channel: "yuanbao";
+    ok: boolean;
+    messageId: string;
+    error?: string;
+    data?: unknown;
+  };
+}
+
+function actionResult(input: {
+  ok: boolean;
+  messageId?: string;
+  error?: Error;
+  data?: unknown;
+  text?: string;
+}): ActionHandlerResult {
+  const messageId = input.messageId ?? "";
+  const text = input.text
+    ?? (input.ok
+      ? (input.data !== undefined ? JSON.stringify(input.data) : "已发送")
+      : (input.error?.message ?? "发送失败"));
+  const details = {
+    channel: "yuanbao" as const,
+    ok: input.ok,
+    messageId,
+    ...(input.error ? { error: input.error.message } : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+  };
+  return {
+    channel: "yuanbao",
+    ok: input.ok,
+    messageId,
+    ...(input.error ? { error: input.error } : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+    content: [{ type: "text", text }],
+    details,
+  };
 }
 
 /**
@@ -105,23 +149,20 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
     // sticker-search is a pure query, no need to create sender
     if (action === "sticker-search") {
       const result = searchSticker((params ?? {}) as Record<string, unknown>);
-      return {
-        channel: "yuanbao",
+      return actionResult({
         ok: result.ok,
-        messageId: "",
         data: "data" in result ? result.data : undefined,
-      };
+        error: result.ok ? undefined : new Error("error" in result ? result.error : "sticker search failed"),
+      });
     }
 
     const items = resolveOutboundItems(input);
 
     if (items.length === 0) {
-      return {
-        channel: "yuanbao",
+      return actionResult({
         ok: false,
-        messageId: "",
         error: new Error("no sendable items resolved from params"),
-      };
+      });
     }
 
     const account = resolveYuanbaoAccount({ cfg, accountId });
@@ -156,12 +197,11 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
       if (!result.ok) {
         // Text send failure returns directly, media failure continues to send subsequent items
         if (item.type === "text") {
-          return {
-            channel: "yuanbao",
+          return actionResult({
             ok: false,
             messageId: result.messageId ?? "",
             error: new Error(result.error ?? "text send failed"),
-          };
+          });
         }
         log.error(`${item.type} send failed: ${result.error}`);
       } else {
@@ -175,14 +215,12 @@ export async function handleAction(input: ActionParams): Promise<ActionHandlerRe
       }
     }
 
-    return { channel: "yuanbao", ok: true, messageId: lastMessageId };
+    return actionResult({ ok: true, messageId: lastMessageId });
   } catch (err) {
     log.error("handle action error", { error: err instanceof Error ? err.message : String(err) });
-    return {
-      channel: "yuanbao",
+    return actionResult({
       ok: false,
-      messageId: "",
       error: err instanceof Error ? err : new Error(String(err)),
-    };
+    });
   }
 }

@@ -51,6 +51,8 @@ void test("send action dispatches a text item and returns ok", async () => {
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", message: "hello" } });
   assert.equal(res.ok, true);
   assert.equal(res.messageId, "m-1");
+  assert.deepEqual(res.content, [{ type: "text", text: "已发送" }]);
+  assert.equal(res.details.ok, true);
   assert.equal(sentItems.length, 1);
   assert.equal(sentItems[0].type, "text");
 });
@@ -71,6 +73,8 @@ void test("empty resolvable items returns ok:false", async () => {
   const res = await handleAction({ cfg, to: "user:u-1", params: { action: "send", message: "   " } });
   assert.equal(res.ok, false);
   assert.match(res.error!.message, /no sendable items/);
+  assert.equal(res.content[0]?.type, "text");
+  assert.match(res.content[0]?.text ?? "", /no sendable items/);
 });
 
 void test("text send failure returns ok:false with the error", async () => {

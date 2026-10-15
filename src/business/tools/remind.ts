@@ -133,7 +133,7 @@ const TASK_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个任务执�
   + '- 不要回复 HEARTBEAT_OK\n'
   + '- 不要解释你是谁\n'
   + '- 直接执行任务并输出可直接给用户的结果\n'
-  + '- **禁止**调用 yuanbao_remind、cron 或 automations，**禁止**新建任何定时任务\n';
+  + '- **禁止**调用 message、yuanbao_remind、cron 或 automations。最终正文由系统自动发给用户，不要自己发送\n';
 
 /** remind mode: warm reminder, keep reply brief */
 const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个暖心的提醒助手。请用温暖、有趣的方式提醒用户：${content}。\n\n`
@@ -143,7 +143,7 @@ const REMIND_AGENT_PROMPT_TEMPLATE = (content: string) => `你是一个暖心的
   + '- 直接输出一条暖心的提醒消息，不要携带其他和该提醒无关的内容\n'
   + '- 可以加一句简短的关怀话语\n'
   + '- 控制在 2-3 句话以内\n'
-  + '- **禁止**调用 yuanbao_remind、cron 或 automations，**禁止**新建任何定时任务\n';
+  + '- **禁止**调用 message、yuanbao_remind、cron 或 automations。最终正文由系统自动发给用户，不要自己发送\n';
 
 const TOOL_DESCRIPTION = [
   '创建/查询/删除元宝定时任务。当用户提出提醒、闹钟、定时、X分钟/小时后、每天/每周/每月/每年X点等需求时，必须调用本工具，且只调用本工具。',
@@ -298,8 +298,17 @@ function buildOnceJob(params: RemindParams, time: TimeSpec, to: string, accountI
     sessionTarget: 'isolated' as const,
     wakeMode: 'now' as const,
     deleteAfterRun: true,
-    payload: { kind: 'agentTurn' as const, message },
+    payload: agentTurnPayload(message, intent),
     delivery: { mode: 'announce' as const, channel: 'yuanbao' as const, to, accountId },
+  };
+}
+
+/** Remind turns only need to write text. An empty allowlist keeps message unavailable so announce is the only delivery. */
+function agentTurnPayload(message: string, intent: 'remind' | 'task') {
+  return {
+    kind: 'agentTurn' as const,
+    message,
+    ...(intent === 'remind' ? { toolsAllow: [] as string[] } : {}),
   };
 }
 
@@ -311,7 +320,7 @@ function buildCronJob(params: RemindParams, to: string, accountId: string, inten
     schedule: { kind: 'cron' as const, expr, tz },
     sessionTarget: 'isolated' as const,
     wakeMode: 'now' as const,
-    payload: { kind: 'agentTurn' as const, message },
+    payload: agentTurnPayload(message, intent),
     delivery: { mode: 'announce' as const, channel: 'yuanbao' as const, to, accountId },
   };
 }
