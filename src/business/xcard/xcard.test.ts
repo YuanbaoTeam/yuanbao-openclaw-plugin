@@ -533,6 +533,33 @@ describe("card lifecycle + events", () => {
     assert.deepEqual(await directWait, { status: "cancelled", reason: "test_cleanup" });
   });
 
+  it("hasConversationWaiter separates direct peers sharing the main session key", async () => {
+    const mk = (peer: string) => mod.registry.registerSurface({
+      surfaceId: `surface-${peer}`,
+      accountId: "acct",
+      isGroup: false,
+      groupCode: peer,
+      sessionKey: "agent:main:main",
+      kind: "generated",
+      title: "t",
+      data: {},
+      ownerUserId: peer,
+      audience: "requester",
+      mode: "once",
+      fallbackText: "t",
+      revision: 1,
+    });
+    const a = mk("peer-a");
+    mk("peer-b");
+    const waitA = mod.registry.waitForSurfaceAction(a, 5000);
+    // Both peers share sessionKey agent:main:main, yet only peer-a has a waiter.
+    assert.equal(mod.registry.hasConversationWaiter("acct", false, "peer-a"), true);
+    assert.equal(mod.registry.hasConversationWaiter("acct", false, "peer-b"), false);
+    mod.registry.cancelWaiter(a, "test_cleanup");
+    assert.deepEqual(await waitA, { status: "cancelled", reason: "test_cleanup" });
+    assert.equal(mod.registry.hasConversationWaiter("acct", false, "peer-a"), false);
+  });
+
   it("updateTemplateCard re-renders with new data; failure rolls back", async () => {
     const client = fakeClient();
     const rec = await createCard(client);

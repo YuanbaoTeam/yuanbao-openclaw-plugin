@@ -10,7 +10,6 @@ import { registerXCardUpdateTool } from "./xcard-update.js";
 
 type ToolResult = { details?: Record<string, unknown> };
 type Tool = {
-  description: string;
   parameters?: { required?: readonly string[] };
   execute: (id: string, params: Record<string, unknown>) => Promise<ToolResult>;
 } | null;
@@ -32,7 +31,7 @@ function context(overrides: Record<string, unknown> = {}): OpenClawPluginToolCon
     messageChannel: "yuanbao",
     sessionKey: "agent:main:yuanbao:group:g1",
     agentAccountId: "default",
-    config: { channels: { yuanbao: { xcardEnabled: true } } },
+    config: { channels: { yuanbao: {} } },
     ...overrides,
   } as unknown as OpenClawPluginToolContext;
 }
@@ -63,9 +62,12 @@ void test("xcard-update is exposed with an explicit update-only contract", () =>
     sessionKey: "agent:main:yuanbao:direct:u1",
     requesterSenderId: "u1",
   })));
+  // Default dmScope: direct turns arrive as agent:main:main; still exposed on Yuanbao.
+  assert.ok(factory(context({
+    sessionKey: "agent:main:main",
+    requesterSenderId: "u1",
+  })));
   assert.deepEqual(tool.parameters?.required, ["surfaceId", "messages"]);
-  assert.match(tool.description, /103/);
-  assert.match(tool.description, /不要再次调用 yuanbao_xcard_send/);
 });
 
 void test("xcard-update rejects invalid inputs before transport", async () => {

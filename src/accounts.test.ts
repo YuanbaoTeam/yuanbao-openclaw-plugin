@@ -24,7 +24,6 @@ void test("resolveYuanbaoAccount applies defaults when no yuanbao config", () =>
   assert.equal(acc.requireMention, true);
   assert.equal(acc.disableBlockStreaming, false);
   assert.equal(acc.markdownHintEnabled, true);
-  assert.equal(acc.xcardEnabled, false);
   assert.equal(acc.fallbackReply, "暂时无法解答，你可以换个问题问问我哦");
 });
 
@@ -58,14 +57,13 @@ void test("overflowPolicy and replyToMode normalize unknown values", () => {
 
 void test("custom numeric/boolean fields are respected", () => {
   const acc = resolveYuanbaoAccount({
-    cfg: cfg({ appKey: "k", appSecret: "s", mediaMaxMb: 50, historyLimit: 0, requireMention: false, disableBlockStreaming: true, markdownHintEnabled: false, xcardEnabled: false }),
+    cfg: cfg({ appKey: "k", appSecret: "s", mediaMaxMb: 50, historyLimit: 0, requireMention: false, disableBlockStreaming: true, markdownHintEnabled: false }),
   });
   assert.equal(acc.mediaMaxMb, 50);
   assert.equal(acc.historyLimit, 0);
   assert.equal(acc.requireMention, false);
   assert.equal(acc.disableBlockStreaming, true);
   assert.equal(acc.markdownHintEnabled, false);
-  assert.equal(acc.xcardEnabled, false);
 });
 
 void test("mediaMaxMb below 1 falls back to default 20", () => {

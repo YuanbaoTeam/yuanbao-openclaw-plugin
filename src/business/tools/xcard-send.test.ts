@@ -40,9 +40,7 @@ function context(overrides: Record<string, unknown> = {}): OpenClawPluginToolCon
     agentAccountId: "default",
     config: {
       channels: {
-        yuanbao: {
-          xcardEnabled: true,
-        },
+        yuanbao: {},
       },
     },
     ...overrides,
@@ -66,20 +64,23 @@ const VALID_MESSAGES = JSON.stringify([
   },
 ]);
 
-void test("xcard-send is exposed when enabled in Yuanbao group and direct sessions", () => {
+void test("xcard-send is exposed by default in Yuanbao group and direct sessions", () => {
   const factory = captureFactory();
   assert.equal(factory(context({ messageChannel: "slack" })), null);
   assert.ok(factory(context({ sessionKey: "agent:main:yuanbao:direct:u1" })));
   assert.equal(factory(context({ config: undefined })), null);
-  assert.equal(factory(context({
-    config: { channels: { yuanbao: { xcardEnabled: false } } },
-  })), null);
-  assert.equal(factory(context({
-    config: { channels: { yuanbao: {} } },
-  })), null);
   const tool = factory(context({ workspaceDir: "/workspace-without-skills" }));
   assert.ok(tool);
   assert.ok(tool.parameters?.required?.includes("mode"));
+});
+
+void test("xcard-send is exposed in a direct session under the default dmScope", () => {
+  const factory = captureFactory();
+  // Default dmScope collapses direct keys to agent:main:main (shared with other
+  // channels); exposure is decided by messageChannel, so the same key on another
+  // channel must not expose the tool. Key-shape variants live in utils.test.ts.
+  assert.ok(factory(context({ sessionKey: "agent:main:main" })));
+  assert.equal(factory(context({ sessionKey: "agent:main:main", messageChannel: "telegram" })), null);
 });
 
 void test("xcard-send rejects invalid inputs before transport", async () => {

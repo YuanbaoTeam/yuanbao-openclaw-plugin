@@ -52,9 +52,24 @@ export interface YuanbaoConversationTarget {
   targetId: string;
 }
 
+/** Session-key scopes that never represent a user-facing Yuanbao conversation turn. */
+const NON_CONVERSATIONAL_SESSION_SCOPES = [":cron:", ":subagent:", ":internal-"] as const;
+
 /**
- * Resolve the current Yuanbao conversation. Direct session keys are normalized by OpenClaw,
- * so the authenticated requester id is preferred over the key suffix.
+ * Resolve the current Yuanbao conversation.
+ *
+ * The caller must already have verified that this turn arrived on the Yuanbao channel
+ * (ctx.messageChannel): channel identity comes from the host's per-turn context, never
+ * from the session key. Group keys always embed `yuanbao:group:<code>`, so groups are
+ * recognized from the key. Direct keys, however, change shape with the host's
+ * session.dmScope — `yuanbao:direct:<id>` (per-channel-peer), `<account>:direct:<id>`
+ * (per-account-channel-peer), `direct:<id>` (per-peer), or no peer at all in
+ * `agent:<agentId>:main` (the default "main" scope, shared by every channel). Parsing
+ * the key for a `yuanbao:direct:` marker therefore misses most real direct turns, so
+ * a non-group Yuanbao turn is treated as a direct chat whose target is the trusted,
+ * authenticated requester id (the key suffix is lowercased by the host and unreliable).
+ * Derived sessions (cron/subagent/internal) keep returning null so background turns
+ * never gain card-sending tools.
  */
 export function resolveYuanbaoConversation(
   sessionKey: string,
@@ -62,7 +77,7 @@ export function resolveYuanbaoConversation(
 ): YuanbaoConversationTarget | null {
   const groupCode = extractGroupCode(sessionKey);
   if (groupCode) return { isGroup: true, targetId: groupCode };
-  if (!sessionKey.includes("yuanbao:direct:")) return null;
+  if (NON_CONVERSATIONAL_SESSION_SCOPES.some((scope) => sessionKey.includes(scope))) return null;
   const targetId = requesterSenderId?.trim();
   return targetId ? { isGroup: false, targetId } : null;
 }

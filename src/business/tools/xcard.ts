@@ -22,7 +22,7 @@
  * - While blocked, the group's RUNNING reply heartbeat is paused (it would otherwise loop every
  *   2s and trip the server rate limit).
  *
- * Gated by account config `xcardEnabled` (default off) and only exposed in group sessions.
+ * Only exposed in Yuanbao group sessions.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
@@ -231,7 +231,7 @@ function parseFailure(error: string, input: unknown) {
   return { ok: false, error, retryable: true };
 }
 
-/** Returns null outside Yuanbao group sessions or when xcardEnabled is off. */
+/** Returns null outside Yuanbao group sessions. */
 function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
@@ -241,7 +241,6 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
   const account = resolveYuanbaoAccount({ cfg, accountId });
-  if (!account.xcardEnabled) return null;
 
   const log = createLog("tools.xcard");
   const requesterId = ctx.requesterSenderId ?? "";

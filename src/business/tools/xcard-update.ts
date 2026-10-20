@@ -58,6 +58,8 @@ interface UpdateParams {
 }
 
 function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
+  // Same exposure rule as yuanbao_xcard_send: channel from per-turn messageChannel,
+  // conversation resolved without parsing direct session-key shapes (see utils).
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
   const conversation = resolveYuanbaoConversation(sessionKey, ctx.requesterSenderId);
@@ -66,7 +68,6 @@ function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
   const account = resolveYuanbaoAccount({ cfg, accountId });
-  if (!account.xcardEnabled) return null;
   const log = createLog("tools.xcard-update");
 
   return {

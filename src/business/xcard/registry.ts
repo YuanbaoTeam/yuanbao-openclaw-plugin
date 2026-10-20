@@ -226,6 +226,18 @@ export function hasSessionWaiter(accountId: string, sessionKey: string): boolean
 }
 
 /**
+ * Conversation-scoped waiter check. Under the host's default dmScope every direct
+ * chat shares sessionKey `agent:<agentId>:main`, so hasSessionWaiter alone would let
+ * one peer's waiting card downgrade another peer's wait; (isGroup, groupCode) is the
+ * real conversation identity — groupCode stores the direct peer id for C2C cards.
+ */
+export function hasConversationWaiter(accountId: string, isGroup: boolean, targetId: string): boolean {
+  return [...surfaces.values()].some(
+    (s) => s.waiter && s.accountId === accountId && s.isGroup === isGroup && s.groupCode === targetId,
+  );
+}
+
+/**
  * Block until the surface receives an accepted operation, the timeout fires, or `signal` aborts.
  * The caller must ensure no waiter is already attached.
  */

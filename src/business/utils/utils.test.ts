@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractGroupCode, isYbGroupChat, json, msgBodyDesensitization, text, textDesensitization } from "./utils.js";
+import { extractGroupCode, isYbGroupChat, json, msgBodyDesensitization, resolveYuanbaoConversation, text, textDesensitization } from "./utils.js";
 import type { OpenClawPluginToolContext } from "./utils.js";
 
 void test("isYbGroupChat true only for yuanbao group sessionKey", () => {
@@ -15,6 +15,25 @@ void test("isYbGroupChat true only for yuanbao group sessionKey", () => {
   assert.equal(isYbGroupChat(ctx({ messageChannel: "yuanbao", sessionKey: "agent:a:yuanbao:user:u1" })), false);
   assert.equal(isYbGroupChat(ctx({ messageChannel: "telegram", sessionKey: "yuanbao:group:g1" })), false);
   assert.equal(isYbGroupChat(ctx({ messageChannel: "yuanbao" })), false);
+});
+
+void test("resolveYuanbaoConversation resolves groups and every direct session-key shape", () => {
+  assert.deepEqual(
+    resolveYuanbaoConversation("agent:main:yuanbao:group:g1", "u1"),
+    { isGroup: true, targetId: "g1" },
+  );
+  // Direct keys vary with the host dmScope; the trusted requester id is the target in
+  // every shape, including the default main scope where the key carries no peer at all.
+  for (const sessionKey of ["agent:main:yuanbao:direct:u1", "agent:main:main"]) {
+    assert.deepEqual(
+      resolveYuanbaoConversation(sessionKey, "U1"),
+      { isGroup: false, targetId: "U1" },
+      sessionKey,
+    );
+  }
+  // No authenticated requester → no direct target; derived sessions never resolve.
+  assert.equal(resolveYuanbaoConversation("agent:main:main", undefined), null);
+  assert.equal(resolveYuanbaoConversation("agent:main:cron:job-1:run:r1", "u1"), null);
 });
 
 void test("extractGroupCode pulls the trailing group code", () => {

@@ -13,7 +13,7 @@ import { createLog } from "../../logger.js";
 import { DEFAULT_WAIT_TIMEOUT_SEC, MAX_WAIT_TIMEOUT_SEC } from "../xcard/constants.js";
 import { parseGeneratedMessages, validateGeneratedMessages } from "../xcard/generated.js";
 import {
-  hasSessionWaiter,
+  hasConversationWaiter,
   waitForSurfaceAction,
   type SurfaceAudience,
   type SurfaceMode,
@@ -39,9 +39,11 @@ const DESCRIPTION = [
   "每个 action.event.context 必须携带明确业务值和人类可读的 resultText（如 {date:\"10/16\",weekday:\"周五\",resultText:\"已选择：10/16 周五\"}），不要只把业务值编码进 event.name。",
   "需要点击后立即反馈时，按 xcard-generator 规则使用 sequence，先 updateData 更新本地结果，再发送 event；服务端 103 update 也会覆盖 /__openclaw 为可信最终状态。",
   "卡片中的 action.event 会成为允许的交互事件；用户操作后，context 会原样返回给模型。",
-  "必须根据业务语义显式选择 mode，不能省略：单人单次授权、最终确认、一次性提交、首个选择即结束时用 once；需要修改选择、反复筛选/翻页/切换、多步骤交互时用 perRevision。",
+  "必须根据业务语义显式选择 mode，不能省略。默认用 once；只有业务本身明确要求同一张卡被反复操作时才用 perRevision，不要因为“用户可能想改主意”就选 perRevision——改主意可以重新发一张卡或用文字处理。",
+  "一律用 once 的典型场景：从一组选项中选一个（单选 ChoiceGroup、单选列表、投票只选一项、选题/选时间/选方案等）、单人单次授权、最终确认、一次性提交。这类“首个选择即产生最终结果”的卡误用 perRevision 是错误选择，没有例外。",
+  "只在这些场景用 perRevision：反复筛选、翻页/分页浏览、开关或标签反复切换、多步骤表单、需要连续多次落子或调整的面板（如棋盘、计数器），以及群内多人分别确认、投票或选择。判断标准只有一个：第一次点击之后，用户是否还有正当理由对同一张卡做第二次不同的操作；没有，就用 once。",
   "群内需要多人分别确认、投票或选择时，使用 audience=anyone 且 mode=perRevision；只有明确采用“首位响应者决定结果”时才可在群内使用 once。",
-  "mode=once 在首次接受操作后把 completed 置为 true 并禁用整卡；mode=perRevision 每次接受操作后递增 revision、写入最新 resultText，并保持卡片可继续操作。",
+  "mode=once 在首次接受操作后把 completed 置为 true 并禁用整卡；mode=perRevision 每次接受操作后递增 revision、写入最新 resultText，并保持卡片可继续操作。选错的后果很具体：单选卡误用 perRevision 时，点击后卡片不会被禁用、不会显示已完成，用户可以无限重复点击并反复唤醒新一轮，永远等不到终局状态。",
   "同一业务后续需要改变卡片内容时，使用 yuanbao_xcard_update 更新返回的 surfaceId；不要再次调用本工具创建替代卡片。",
   "如果当前任务必须等待用户操作，设置 waitForAction=true；否则用户之后操作会唤醒新一轮。",
   "工具返回 ok=true 表示卡片已直接展示给用户；后续只需简短确认已发送，不要再用文字复述卡片中的标题、列表、详情、选项或操作说明。",
@@ -71,7 +73,7 @@ const PARAMETERS = {
     mode: {
       type: "string",
       enum: ["once", "perRevision"],
-      description: "必须显式判断：once=单人单次授权/最终确认/一次性提交；perRevision=多次或多步骤交互，以及群内多人分别操作。",
+      description: "必须显式判断，默认 once。once=选一个即定/单次授权/最终确认/一次性提交，点击后整卡禁用；perRevision=同一张卡确需反复操作（筛选、翻页、反复切换、多步骤、连续调整）或群内多人分别操作。不要以“方便改选”为由对单选卡使用 perRevision。",
     },
     waitForAction: {
       type: "boolean",
@@ -126,6 +128,10 @@ function clampWaitMs(sec: unknown): number {
 }
 
 function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
+  // Channel comes from the host's per-turn messageChannel, not the session key: under
+  // the default dmScope every channel shares `agent:<agentId>:main`, and only turns
+  // that actually arrived via Yuanbao may send xCards. sessionKey is kept verbatim
+  // below purely as the card record's session binding (update ownership / waiters).
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
   const requesterId = ctx.requesterSenderId ?? "";
@@ -135,7 +141,6 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
   const account = resolveYuanbaoAccount({ cfg, accountId });
-  if (!account.xcardEnabled) return null;
   const log = createLog("tools.xcard-send");
 
   return {
@@ -210,7 +215,9 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
           assistantInstruction: "卡片已直接展示给用户，不要复述卡片内容。",
         };
         if (!p.waitForAction) return json(result);
-        if (hasSessionWaiter(account.accountId, sessionKey)) {
+        // Waiter uniqueness is per conversation, not per sessionKey: direct chats
+        // share `agent:<agentId>:main` under the default dmScope.
+        if (hasConversationWaiter(account.accountId, conversation.isGroup, conversation.targetId)) {
           return json({ ...result, waitDowngraded: true, note: "当前会话已有卡片在等待，本次不等待。" });
         }
         const releaseHeartbeat = conversation.isGroup
