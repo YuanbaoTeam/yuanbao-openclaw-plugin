@@ -89,6 +89,49 @@ function getDiff(args) {
   return execFileSync("git", [...common, `${base}...HEAD`], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
 
+function getSourceLines(file) {
+  const abs = resolve(cwd, file);
+  if (!existsSync(abs)) return [];
+  return readFileSync(abs, "utf8").split("\n");
+}
+
+function buildNonRuntimeLineSet(lines) {
+  const skipped = new Set();
+  let inBlockComment = false;
+  let typeDepth = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1;
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    let skip = false;
+
+    if (!trimmed) skip = true;
+
+    if (inBlockComment) {
+      skip = true;
+      if (trimmed.includes("*/")) inBlockComment = false;
+    } else if (trimmed.startsWith("/*")) {
+      skip = true;
+      if (!trimmed.includes("*/")) inBlockComment = true;
+    }
+
+    if (trimmed.startsWith("//")) skip = true;
+
+    if (typeDepth > 0 || /^(export\s+)?(type|interface)\b/.test(trimmed)) {
+      skip = true;
+      typeDepth += [...raw].filter((ch) => ch === "{").length;
+      typeDepth -= [...raw].filter((ch) => ch === "}").length;
+      if (typeDepth < 0) typeDepth = 0;
+      if (typeDepth === 0 && /^(export\s+)?type\b/.test(trimmed) && !trimmed.includes("{")) {
+        typeDepth = 0;
+      }
+    }
+
+    if (skip) skipped.add(lineNo);
+  }
+  return skipped;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const cov = parseLcov(args.lcov);
@@ -105,10 +148,14 @@ function main() {
   let total = 0;
   let covered = 0;
   const misses = [];
+  const sourceSkips = new Map();
   for (const [file, lines] of changed) {
     const fileCov = cov.get(file);
     if (!fileCov) continue; // not an instrumented/covered file (test, excluded, non-src, type-only)
+    if (!sourceSkips.has(file)) sourceSkips.set(file, buildNonRuntimeLineSet(getSourceLines(file)));
+    const nonRuntimeLines = sourceSkips.get(file);
     for (const ln of lines) {
+      if (nonRuntimeLines.has(ln)) continue;
       if (!fileCov.has(ln)) continue; // non-executable line (comment/blank/type)
       total++;
       if (fileCov.get(ln) > 0) covered++;
