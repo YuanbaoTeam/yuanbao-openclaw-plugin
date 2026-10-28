@@ -3,7 +3,7 @@
  * deliver handles media and text fallback when partial never fires.
  */
 
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createChannelReplyPipeline } from "../../openclaw-sdk-compat.js";
 import {
   resolveOutboundMediaUrls,
   normalizeOutboundReplyPayload,

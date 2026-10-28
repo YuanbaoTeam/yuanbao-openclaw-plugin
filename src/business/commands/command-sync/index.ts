@@ -1,10 +1,10 @@
 /** Command sync — collects bot/plugin commands and builds the sync payload for the backend. */
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import {
   listChatCommandsForConfig,
   type ChatCommandDefinition,
-} from "openclaw/plugin-sdk/command-auth";
+} from "../../openclaw-sdk-compat.js";
 import { getPluginVersion, getOpenclawVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
 
