@@ -3,6 +3,7 @@ import type { ChannelMessageActionAdapter } from "openclaw/plugin-sdk/channel-co
 import { createChatChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-plugin-common";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/channel-plugin-common";
+import type { OutboundDeliveryResult } from "openclaw/plugin-sdk/channel-send-result";
 import { createComputedAccountStatusAdapter } from "openclaw/plugin-sdk/status-helpers";
 import { startYuanbaoWsGateway } from "./access/ws/index.js";
 import { handleAction, yuanbaoMessageActions } from "./business/actions/index.js";
@@ -22,6 +23,26 @@ import {
 import { createLog, setDebugBotIds } from "./logger.js";
 import { getYuanbaoRuntime } from "./runtime.js";
 import type { ResolvedYuanbaoAccount, YuanbaoConfig } from "./types.js";
+
+type OutboundMethod = "sendText" | "sendMedia";
+
+async function sendOutbound(method: OutboundMethod, params: ActionParams): Promise<OutboundDeliveryResult> {
+  const slog = createLog("channel.outbound");
+  const { accountId, to } = params;
+  slog.info(method, { accountId, to });
+
+  try {
+    const result = await handleAction(params);
+    if (!result.ok) {
+      throw result.error ?? new Error(`Yuanbao outbound ${method} failed`);
+    }
+    return { channel: YUANBAO_CHANNEL_ID, messageId: result.messageId };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    slog.error(`outbound.${method} error`, { error: error.message });
+    throw error;
+  }
+}
 
 /**
  * Full Yuanbao channel plugin — used at runtime after the channel starts.
@@ -175,43 +196,7 @@ export const yuanbaoPlugin: ChannelPlugin<ResolvedYuanbaoAccount> = createChatCh
       if (!chunkMarkdownText) return [text];
       return mdAtomic.chunkAware(text, limit, chunkMarkdownText);
     },
-    sendText: async (params) => {
-      const slog = createLog("channel.outbound");
-      const { accountId, to } = params;
-      slog.info("sendText", { accountId, to });
-      try {
-        await handleAction(params as unknown as ActionParams);
-        return { channel: "yuanbao", ok: true, messageId: "" };
-      } catch (err) {
-        slog.error("outbound.sendText error", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return {
-          channel: "yuanbao",
-          ok: false,
-          messageId: "",
-          error: err instanceof Error ? err : new Error(String(err)),
-        };
-      }
-    },
-    sendMedia: async (params) => {
-      const slog = createLog("channel.outbound");
-      const { accountId, to } = params;
-      slog.info("sendMedia", { accountId, to });
-      try {
-        await handleAction(params as unknown as ActionParams);
-        return { channel: "yuanbao", ok: true, messageId: "" };
-      } catch (err) {
-        slog.error("outbound.sendMedia error", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return {
-          channel: "yuanbao",
-          ok: false,
-          messageId: "",
-          error: err instanceof Error ? err : new Error(String(err)),
-        };
-      }
-    },
+    sendText: params => sendOutbound("sendText", params as unknown as ActionParams),
+    sendMedia: params => sendOutbound("sendMedia", params as unknown as ActionParams),
   },
 });
