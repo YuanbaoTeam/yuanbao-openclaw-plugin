@@ -51,7 +51,7 @@ function resolveOutboundItems(input: ActionParams): OutboundItem[] {
       }
 
       // Collect all media URLs
-      const mediaUrl = params?.media ?? params?.mediaUrl ?? undefined;
+      const mediaUrl = params?.media ?? params?.mediaUrl ?? input.mediaUrl;
       const mediaUrls = Array.isArray(params?.mediaUrls) ? params.mediaUrls : undefined;
       for (const url of mediaUrls ?? (mediaUrl ? [mediaUrl] : [])) {
         if (typeof url === "string" && url.trim()) {
