@@ -1,5 +1,5 @@
 /**
- * yuanbao_xcard_template tool: create and manage built-in template xCards in Yuanbao groups.
+ * yuanbao_xcard_template tool: create and manage built-in template xCards in Yuanbao conversations.
  *
  * Template flow (the model never writes A2UI components):
  *   action=list_templates → template keys + one-line descriptions
@@ -7,7 +7,7 @@
  *   action=create         → template key + data; data is validated against the template and
  *                           field-level errors are returned for the model to fix
  * The plugin renders the card from the template (templates/), sends it as a TIMCustomElem
- * group message (envelope per transport.ts), and handles user operations, renderer errors and
+ * Yuanbao message (envelope per transport.ts), and handles user operations, renderer errors and
  * the text fallback as before.
  * `update` replaces top-level data fields (shallow merge) and re-renders the card.
  *
@@ -15,14 +15,12 @@
  * - `waitForAction=true` blocks this tool call until the user operates the card, the wait times
  *   out (default 120s, max 300s), or the run is aborted / owner sends /stop. The answer is then
  *   returned as the tool result and NO extra turn is started.
- * - Otherwise (or after a timeout) the user's later operation wakes this group session as a new
+ * - Otherwise (or after a timeout) the user's later operation wakes this conversation as a new
  *   turn carrying a `yuanbao_xcard_action` event.
- * - Only one waiting card per group: further wait requests are downgraded (`waitDowngraded`);
+ * - Only one waiting card per conversation: further wait requests are downgraded (`waitDowngraded`);
  *   so are cards for which the server returned no IM msg id.
- * - While blocked, the group's RUNNING reply heartbeat is paused (it would otherwise loop every
+ * - While blocked in a group, the RUNNING reply heartbeat is paused (it would otherwise loop every
  *   2s and trip the server rate limit).
- *
- * Only exposed in Yuanbao group sessions.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
@@ -33,7 +31,7 @@ import type { ResolvedYuanbaoAccount } from "../../types.js";
 import { DEFAULT_WAIT_TIMEOUT_SEC, MAX_WAIT_TIMEOUT_SEC } from "../xcard/constants.js";
 import {
   getSurface,
-  hasGroupWaiter,
+  hasConversationWaiter,
   listSurfaces,
   waitForSurfaceAction,
   withSurfaceLock,
@@ -59,12 +57,12 @@ import {
 } from "../xcard/templates/index.js";
 import { parseTemplateData } from "../xcard/templates/schema.js";
 import { getXCardTransport } from "../xcard/transport.js";
-import { extractGroupCode, json, type OpenClawPluginToolContext } from "../utils/utils.js";
+import { json, resolveYuanbaoConversation, type OpenClawPluginToolContext } from "../utils/utils.js";
 
 const TOOL_NAME = "yuanbao_xcard_template";
 
 const DESCRIPTION = [
-  "在元宝群聊中使用插件内置模板发送交互式卡片。仅用于标准选择、表单、列表、确认和信息模板；需要自由设计卡片时使用 yuanbao_xcard_send。",
+  "在元宝群聊或私聊中使用插件内置模板发送交互式卡片。仅用于标准选择、表单、列表、确认和信息模板；需要自由设计卡片时使用 yuanbao_xcard_send。",
   "卡片结构由内置模板固定，你只需提供数据。流程：",
   "1) action=list_templates 查看可用模板（key + 用途）；",
   "2) action=get_template + template=<key> 查看该模板的字段要求（fields）、会回传的事件（events）和示例数据（example）；",
@@ -96,7 +94,7 @@ const PARAMETERS = {
     },
     surfaceId: {
       type: "string",
-      description: "卡片 ID（create 返回）。action=update/close/get 时必填；get 省略时列出本群全部卡片。",
+      description: "卡片 ID（create 返回）。action=update/close/get 时必填；get 省略时列出当前会话全部模板卡片。",
     },
     audience: {
       type: "string",
@@ -189,7 +187,7 @@ function sendFailureResult(e: XCardSendError) {
     return {
       ...base,
       fallbackSent: true,
-      note: `当前环境暂不支持交互卡片，已自动以文字发到群里。不要重试 ${TOOL_NAME}，也不要再重复卡片内容；请用户直接用文字回复，本轮可以结束。`,
+      note: `当前环境暂不支持交互卡片，已自动以文字发到当前会话。不要重试 ${TOOL_NAME}，也不要再重复卡片内容；请用户直接用文字回复，本轮可以结束。`,
     };
   }
   return { ...base, note: "卡片发送失败。不要重复调用 create；改用文字向用户说明。" };
@@ -231,19 +229,19 @@ function parseFailure(error: string, input: unknown) {
   return { ok: false, error, retryable: true };
 }
 
-/** Returns null outside Yuanbao group sessions. */
+/** Returns null outside user-facing Yuanbao conversation turns. */
 function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
   if (ctx.messageChannel !== "yuanbao") return null;
   const sessionKey = ctx.sessionKey ?? "";
-  const groupCode = extractGroupCode(sessionKey);
-  if (!groupCode) return null;
+  const requesterId = ctx.requesterSenderId ?? "";
+  const conversation = resolveYuanbaoConversation(sessionKey, requesterId);
+  if (!conversation) return null;
   const cfg = ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
   if (!cfg) return null;
   const accountId = ctx.deliveryContext?.accountId ?? ctx.agentAccountId ?? undefined;
   const account = resolveYuanbaoAccount({ cfg, accountId });
 
   const log = createLog("tools.xcard");
-  const requesterId = ctx.requesterSenderId ?? "";
 
   return {
     name: TOOL_NAME,
@@ -262,9 +260,6 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
       }
 
       const wsClient = getActiveWsClient(account.accountId);
-      if (!wsClient && (p.action === "create" || p.action === "update" || p.action === "close")) {
-        return json({ ok: false, error: "元宝连接不可用，无法发送卡片" });
-      }
 
       // Shared wait guard for create/update
       const maybeWait = async (rec: SurfaceRecord) => {
@@ -274,10 +269,12 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
           // to come back, so blocking would just burn the timeout.
           return { waitDowngraded: true, note: "服务端未返回卡片消息 ID，本次不等待；如用户之后操作，会以新消息唤醒你。" };
         }
-        if (hasGroupWaiter(account.accountId, groupCode)) {
-          return { waitDowngraded: true, note: "本群已有卡片在等待用户操作，本次不等待；用户操作后会以新消息唤醒你。" };
+        if (hasConversationWaiter(account.accountId, conversation.isGroup, conversation.targetId)) {
+          return { waitDowngraded: true, note: "当前会话已有卡片在等待用户操作，本次不等待；用户操作后会以新消息唤醒你。" };
         }
-        const releaseHeartbeat = pauseGroupReplyHeartbeat(account.accountId, groupCode);
+        const releaseHeartbeat = conversation.isGroup
+          ? pauseGroupReplyHeartbeat(account.accountId, conversation.targetId)
+          : () => {};
         try {
           const outcome = await waitForSurfaceAction(rec, clampWaitMs(p.waitTimeoutSec), signal);
           return waitResult(outcome);
@@ -291,7 +288,8 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
         return rec
           && rec.kind === "template"
           && rec.accountId === account.accountId
-          && rec.groupCode === groupCode
+          && rec.isGroup === conversation.isGroup
+          && rec.groupCode === conversation.targetId
           ? rec
           : undefined;
       };
@@ -308,20 +306,29 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
             if (audience === "requester" && !requesterId) {
               return json({ ok: false, error: "无法确定发起用户，请使用 audience=anyone" });
             }
-            const base = { account, wsClient: wsClient!, groupCode, sessionKey, ownerUserId: requesterId, audience };
             const tpl = p.template ? getTemplate(p.template) : undefined;
             if (!tpl) return json(unknownTemplate(p.template));
             const input = parseTemplateData(p.data);
             if ("error" in input) return json({ ...parseFailure(input.error, p.data), fields: tpl.fields, example: tpl.example });
             const prepared = prepareTemplateData(tpl, input.data);
             if (!prepared.ok) return json(dataFailure(tpl, prepared.errors, prepared.warnings));
+            if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法发送卡片" });
+            const base = {
+              account,
+              wsClient,
+              groupCode: conversation.targetId,
+              isGroup: conversation.isGroup,
+              sessionKey,
+              ownerUserId: requesterId,
+              audience,
+            };
             const rec = await createTemplateCard({ ...base, template: tpl, data: prepared.data });
             return sent(rec, prepared.warnings.length ? { warnings: prepared.warnings } : {});
           }
 
           case "update": {
             const rec = findOwn();
-            if (!rec) return json({ ok: false, error: "卡片不存在或不属于当前群" });
+            if (!rec) return json({ ok: false, error: "卡片不存在或不属于当前会话" });
             const tpl = rec.template ? getTemplate(rec.template) : undefined;
             if (!tpl) return json({ ok: false, error: `卡片模板已不存在: ${rec.template}` });
             const input = parseTemplateData(p.data);
@@ -329,6 +336,7 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
             // Shallow merge: top-level fields in data replace the card's current values
             const prepared = prepareTemplateData(tpl, { ...structuredClone(rec.data), ...input.data });
             if (!prepared.ok) return json(dataFailure(tpl, prepared.errors, prepared.warnings));
+            if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法更新卡片" });
             const err = await withSurfaceLock(rec.surfaceId, async () => {
               if (rec.state !== "active") return `卡片已是 ${rec.state} 状态，不能更新`;
               try {
@@ -344,7 +352,8 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
 
           case "close": {
             const rec = findOwn();
-            if (!rec) return json({ ok: false, error: "卡片不存在或不属于当前群" });
+            if (!rec) return json({ ok: false, error: "卡片不存在或不属于当前会话" });
+            if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法关闭卡片" });
             const err = await withSurfaceLock(rec.surfaceId, async () => {
               if (rec.state !== "active") return null;
               rec.state = rec.lastResult ? "completed" : "cancelled";
@@ -366,8 +375,8 @@ function createYuanbaoXCardTemplateTool(ctx: OpenClawPluginToolContext) {
             }
             return json({
               ok: true,
-              cards: listSurfaces(account.accountId, groupCode)
-                .filter((rec) => rec.kind === "template")
+              cards: listSurfaces(account.accountId, conversation.targetId)
+                .filter((rec) => rec.kind === "template" && rec.isGroup === conversation.isGroup)
                 .map((rec) => describe(rec, account)),
             });
           }

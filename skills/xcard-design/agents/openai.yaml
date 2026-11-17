@@ -1,4 +1,4 @@
 interface:
   display_name: "XCard Design"
   short_description: "用 Apple 式克制提升元宝 XCard 的构图、层级与视觉完成度"
-  default_prompt: "Use $xcard-design with $xcard-generator to design, polish, and visually review an Apple-inspired Yuanbao XCard without inventing unsupported components or styles."
+  default_prompt: "Use $xcard-design to design, polish, and visually review an Apple-inspired Yuanbao XCard. In Yuanbao conversations, freeform business cards should directly embed exactly one raw <a2ui>...</a2ui> A2UI Express block in the final text. Plain prose may appear before or after the block when useful, but never wrap the block in Markdown/code fences; the plugin intercepts it and sends one xCard. Templates and send/update tools are optional advanced paths. Do not call xcard-generator via dispatch_action."

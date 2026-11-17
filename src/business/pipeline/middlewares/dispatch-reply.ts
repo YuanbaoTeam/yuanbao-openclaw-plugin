@@ -3,7 +3,7 @@
  * deliver handles media and text fallback when partial never fires.
  */
 
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { createChannelMessageReplyPipeline as createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-outbound";
 import {
   resolveOutboundMediaUrls,
   normalizeOutboundReplyPayload,
@@ -16,12 +16,15 @@ import { createReplyHeartbeatController } from "../../outbound/heartbeat.js";
 import { createStreamingOutputSession } from "../../outbound/streaming-output-session.js";
 import { mdAtomic } from "../../utils/markdown.js";
 import { runWithTraceContext } from "../../trace/context.js";
+import { extractA2uiReplyPart, mayBecomeA2uiReply, sendA2uiReplyPart } from "../../xcard/reply-part.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 const DELIVER_TEXT_CHUNK_LIMIT = 1200;
 // Both incomplete-turn fallback variants contain this phrase; the core itself
 // matches on it (result-fallback-classifier.ts), so treat it as contracted.
 const INCOMPLETE_TURN_WARNING_RE = /Agent couldn't generate a response/i;
+const INLINE_A2UI_MARKER_RE = /<a2ui\b/i;
+const PARTIAL_A2UI_MARKER_RE = /<a2ui?$/i;
 
 // Core emits the incomplete-turn warning after an empty post-tool stop even when
 // a channel action (sticker/react) already delivered user-visible content, since
@@ -36,6 +39,10 @@ function isSuppressedIncompleteTurnWarning(
     INCOMPLETE_TURN_WARNING_RE.test(typeof payload.text === "string" ? payload.text : "") &&
     (traceContext?.hasActionDelivered() ?? false)
   );
+}
+
+function containsInlineA2uiCandidate(text: string): boolean {
+  return INLINE_A2UI_MARKER_RE.test(text) || PARTIAL_A2UI_MARKER_RE.test(text.trimEnd());
 }
 
 async function resolveStatusVersionSuffix(): Promise<string> {
@@ -112,6 +119,8 @@ export const dispatchReply: MiddlewareDescriptor = {
 
     let hasSentContent = false;
     let statusVersionSuffixAppended = false;
+    let a2uiHeld = false;
+    let currentSegmentReceivedPartial = false;
 
     try {
       await core.channel.session.recordInboundSession({
@@ -145,6 +154,46 @@ export const dispatchReply: MiddlewareDescriptor = {
               return;
             }
 
+            const a2uiPart = extractA2uiReplyPart(payload);
+            if (a2uiPart) {
+              a2uiHeld = false;
+              let part = a2uiPart;
+              if (currentSegmentReceivedPartial) {
+                if (account.disableBlockStreaming) {
+                  session.abort();
+                } else {
+                  await session.flushNow();
+                  session.abort();
+                  if (a2uiPart.textBefore) {
+                    const { textBefore: _textBefore, ...withoutTextBefore } = a2uiPart;
+                    part = withoutTextBefore;
+                  }
+                }
+              }
+              if (account.disableBlockStreaming) session.beginNewSegment();
+              const targetId = isGroup ? groupCode : fromAccount;
+              const result = targetId
+                ? await sendA2uiReplyPart({
+                  part,
+                  account,
+                  wsClient: ctx.wsClient,
+                  isGroup,
+                  targetId,
+                  sessionKey,
+                  ownerUserId: fromAccount,
+                })
+                : { ok: false as const, error: "missing conversation target" };
+              if (!result.ok) {
+                ctx.log.warn("[dispatch-reply] a2ui reply part 发送失败", { error: result.error });
+                const rawA2ui = `<a2ui>\n${part.content}\n</a2ui>`;
+                const fallback = [part.textBefore, result.error, "INVALID DEBUG PAYLOAD - DO NOT COPY:", rawA2ui, part.textAfter]
+                  .filter(text => text?.trim()).join("\n");
+                await sender.sendText(fallback);
+              }
+              hasSentContent = true;
+              return;
+            }
+
             const normalized = normalizeOutboundReplyPayload(payload);
 
             const mediaUrls = resolveOutboundMediaUrls(normalized);
@@ -155,7 +204,9 @@ export const dispatchReply: MiddlewareDescriptor = {
               }
             }
 
-            if (!session.hasReceivedPartial()) {
+            // Held a2ui-like partials never reached the session, so deliver owns this text.
+            if (!session.hasReceivedPartial() || a2uiHeld) {
+              a2uiHeld = false;
               const text = normalized.text ?? "";
               if (text.trim()) {
                 let outText = text;
@@ -190,6 +241,8 @@ export const dispatchReply: MiddlewareDescriptor = {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
           onAssistantMessageStart: () => {
+            a2uiHeld = false;
+            currentSegmentReceivedPartial = false;
             session.beginNewSegment();
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
           },
@@ -197,6 +250,10 @@ export const dispatchReply: MiddlewareDescriptor = {
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
             const text = typeof payload.text === "string" ? payload.text : "";
             if (!text) return;
+            // Cumulative partials: hold while the reply may still be a whole <a2ui> block.
+            a2uiHeld = mayBecomeA2uiReply(text) || containsInlineA2uiCandidate(text);
+            if (a2uiHeld) return;
+            currentSegmentReceivedPartial = true;
             await session.update(text);
           },
           onReasoningEnd: () => {

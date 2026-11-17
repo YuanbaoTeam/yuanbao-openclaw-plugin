@@ -25,7 +25,7 @@ export const MAX_SURFACES_PER_ACCOUNT = 200;
 /** Remembered request ids per surface for receipt idempotency */
 export const MAX_SEEN_REQUEST_IDS = 50;
 /**
- * Upper bound of the custom elem's `msg_content.data` (UTF-8 bytes, content double-encoded inside).
+ * Upper bound of all custom data and surrounding text in one message (UTF-8 bytes).
  * One IM packet is 12 KiB including protobuf framing, the other msg fields and the packet header,
  * so ~2 KiB is left as headroom.
  */

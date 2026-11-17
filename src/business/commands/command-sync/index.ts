@@ -1,10 +1,10 @@
 /** Command sync — collects bot/plugin commands and builds the sync payload for the backend. */
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import {
-  listChatCommandsForConfig,
+  listChatCommands,
   type ChatCommandDefinition,
-} from "openclaw/plugin-sdk/command-auth";
+} from "openclaw/plugin-sdk/command-auth-native";
 import { getPluginVersion, getOpenclawVersion } from "../../../infra/env.js";
 import { createLog } from "../../../logger.js";
 
@@ -18,11 +18,17 @@ export const SYNC_INFORMATION_TYPE = {
   COMMANDS: 1,
 } as const;
 
+// Keep the host's text-command feature flags without filtering by native provider support.
+const CONFIG_GATED_COMMANDS = new Set(["config", "mcp", "plugins", "debug", "bash"]);
+
 function getBotCommands(config?: OpenClawConfig): ChatCommandDefinition[] | null {
   const log = createLog("command-sync");
 
   try {
-    const commands = listChatCommandsForConfig(config ?? ({} as OpenClawConfig));
+    const flags = config?.commands as Record<string, unknown> | undefined;
+    const commands = listChatCommands().filter(command =>
+      !CONFIG_GATED_COMMANDS.has(command.key)
+      || (flags && Object.hasOwn(flags, command.key) && flags[command.key] === true));
     log.debug(`获取命令列表: ${commands.length} 个命令`);
     if (commands.length > 0) {
       log.debug("命令原始结构示例:", {
@@ -46,14 +52,7 @@ function resolveBotCommandItems(commands: ChatCommandDefinition[]): CommandItem[
   const result: CommandItem[] = [];
 
   for (const cmd of commands) {
-    // Prefer first entry in textAliases (usually the primary command name, with /)
-    const aliases = cmd.textAliases;
-    let name = "";
-    if (aliases.length > 0) {
-      [name] = aliases;
-    } else {
-      name = cmd.key;
-    }
+    let name = cmd.textAliases[0] ?? cmd.key;
 
     if (!name) {
       continue;

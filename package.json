@@ -29,6 +29,8 @@
     "test:coverage": "c8 node --experimental-test-module-mocks --import tsx --test \"src/**/*.test.ts\"",
     "test:eval:inbound": "node --import tsx test/eval/inbound/runner.ts",
     "test:eval:inbound:update": "node --import tsx test/eval/inbound/runner.ts --update-snapshots",
+    "xcard:agent-catalog": "node scripts/generate-a2ui-agent-catalog.mjs",
+    "xcard:agent-catalog:check": "node scripts/generate-a2ui-agent-catalog.mjs --check",
     "coverage:diff": "node scripts/diff-coverage.mjs --base origin/main --min 80",
     "coverage:diff:staged": "node scripts/diff-coverage.mjs --staged --min 80",
     "hooks:install": "node scripts/install-hooks.mjs",
@@ -36,6 +38,8 @@
     "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
+    "@a2ui/agent": "^0.1.0",
+    "@a2ui/web_core": "^0.15.0",
     "@opentelemetry/api": "^1.9.1",
     "protobufjs": "^7.5.4",
     "semver": "^7.7.4",

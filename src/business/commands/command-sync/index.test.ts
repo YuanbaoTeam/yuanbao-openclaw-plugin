@@ -25,3 +25,24 @@ void test("buildSyncCommandsPayload returns COMMANDS type with versions + comman
   assert.ok(Array.isArray(payload.commandData.botCommands));
   assert.ok(payload.commandData.pluginCommands.some(c => c.name === "/synced"));
 });
+
+void test("command sync includes text commands without native Yuanbao support", () => {
+  const names = buildSyncCommandsPayload().commandData.botCommands.map(command => command.name);
+  for (const name of ["/openclaw", "/allowlist", "/login", "/status"]) {
+    assert.ok(names.includes(name), `${name} must be discoverable as a text command`);
+  }
+});
+
+void test("command sync preserves explicit config flags for gated commands", () => {
+  const gated = ["config", "mcp", "plugins", "debug", "bash"] as const;
+  const defaults = buildSyncCommandsPayload().commandData.botCommands.map(command => command.name);
+  for (const key of gated) assert.ok(!defaults.includes(`/${key}`), `${key} defaults off`);
+
+  const enabled = buildSyncCommandsPayload({ commands: Object.fromEntries(gated.map(key => [key, true])) })
+    .commandData.botCommands.map(command => command.name);
+  for (const key of gated) assert.ok(enabled.includes(`/${key}`), `${key} enabled`);
+
+  const disabled = buildSyncCommandsPayload({ commands: Object.fromEntries(gated.map(key => [key, false])) })
+    .commandData.botCommands.map(command => command.name);
+  for (const key of gated) assert.ok(!disabled.includes(`/${key}`), `${key} disabled`);
+});

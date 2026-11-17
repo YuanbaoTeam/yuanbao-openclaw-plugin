@@ -10,7 +10,9 @@ import { registerXCardSendTool } from "./xcard-send.js";
 
 type ToolResult = { details?: Record<string, unknown> };
 type Tool = {
+  description?: string;
   parameters?: {
+    properties?: Record<string, { description?: string }>;
     required?: readonly string[];
   };
   execute: (
@@ -71,7 +73,15 @@ void test("xcard-send is exposed by default in Yuanbao group and direct sessions
   assert.equal(factory(context({ config: undefined })), null);
   const tool = factory(context({ workspaceDir: "/workspace-without-skills" }));
   assert.ok(tool);
+  assert.match(tool.description ?? "", /express 参数/);
+  assert.match(tool.description ?? "", /不要创建、保存或提到 \.json\/\.jsonl/);
+  assert.match(tool.description ?? "", /List\(_template/);
+  assert.match(tool.description ?? "", /ListItem/);
+  assert.match(tool.description ?? "", /style="title"/);
+  assert.match(tool.parameters?.properties?.express?.description ?? "", /首选/);
+  assert.match(tool.parameters?.properties?.messages?.description ?? "", /兼容路径/);
   assert.ok(tool.parameters?.required?.includes("mode"));
+  assert.equal(tool.parameters?.required?.includes("messages"), false);
 });
 
 void test("xcard-send is exposed in a direct session under the default dmScope", () => {
@@ -107,6 +117,26 @@ void test("xcard-send rejects invalid inputs before transport", async () => {
     messages: "{bad",
     mode: "once",
   })).details?.error), /JSON/);
+  assert.match(String((await tool.execute("t3b", {
+    title: "card",
+    mode: "once",
+  })).details?.error), /messages 和 express/);
+  assert.match(String((await tool.execute("t3c", {
+    title: "card",
+    messages: VALID_MESSAGES,
+    express: 'root = Text("hi")',
+    mode: "once",
+  })).details?.error), /messages 和 express/);
+  const badExpress = await tool.execute("t3d", {
+    title: "card",
+    express: "$/items = [{label: \"A\"}]\nroot = List(children=[Text($/items[0].label)])",
+    mode: "once",
+  });
+  assert.equal(badExpress.details?.retryable, true);
+  assert.match(String(badExpress.details?.note), /再次调用本工具/);
+  assert.match(String(badExpress.details?.note), /不要把 Express/);
+  assert.ok(Array.isArray(badExpress.details?.errors));
+  assert.ok((badExpress.details?.errors as string[]).some((hint) => hint.includes("_template") && hint.includes("数组下标")));
   assert.equal((await tool.execute("t4", {
     title: "card",
     messages: JSON.stringify([{ version: "v1.0" }]),

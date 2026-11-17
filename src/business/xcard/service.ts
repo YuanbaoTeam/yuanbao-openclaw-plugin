@@ -3,8 +3,8 @@
  * updates of the existing Surface, and close.
  *
  * Wire contract:
- * - create: a normal send_group_message whose msg_body is a single TIMCustomElem; the IM
- *   protocol itself is not extended.
+ * - create: one group/direct send with a TIMCustomElem and optional surrounding TIMTextElems.
+ *   The IM protocol itself is not extended.
  * - update/close: the card is re-rendered with revision+1, then its createSurface message is
  *   removed and the remaining updateComponents/updateDataModel messages are sent as a
  *   client-addressed downevent. Both card and update bodies are held to
@@ -118,10 +118,11 @@ export function renderSurfaceUpdateMessages(rec: SurfaceRecord): A2uiMessage[] {
   return renderSurfaceMessages(rec).filter((message) => !message.createSurface);
 }
 
-/** Throws too_large when the custom elem payload would not fit in one IM packet. */
+/** Include all text and custom elements in the single-packet budget. */
 function checkCardSize(body: YuanbaoMsgBodyElement[]): YuanbaoMsgBodyElement[] {
-  const data = body[0]?.msg_content.data;
-  const bytes = typeof data === "string" ? Buffer.byteLength(data, "utf8") : 0;
+  const bytes = body.reduce((total, element) => total
+    + Buffer.byteLength(element.msg_content.data ?? "", "utf8")
+    + Buffer.byteLength(element.msg_content.text ?? "", "utf8"), 0);
   if (bytes > MAX_CARD_CONTENT_BYTES) {
     throw new XCardSendError(`卡片内容过大（${bytes} 字节，上限 ${MAX_CARD_CONTENT_BYTES}）`, "too_large");
   }
@@ -135,6 +136,19 @@ export function renderSurface(rec: SurfaceRecord, transport: XCardTransport): Yu
 
 function textBody(text: string): YuanbaoMsgBodyElement[] {
   return [{ msg_type: "TIMTextElem", msg_content: { text } }];
+}
+
+export interface XCardMessageText {
+  textBefore?: string;
+  textAfter?: string;
+}
+
+function withMessageText(body: YuanbaoMsgBodyElement[], text: XCardMessageText): YuanbaoMsgBodyElement[] {
+  return checkCardSize([
+    ...(text.textBefore?.trim() ? textBody(text.textBefore) : []),
+    ...body,
+    ...(text.textAfter?.trim() ? textBody(text.textAfter) : []),
+  ]);
 }
 
 function sendConversationMessage(
@@ -204,7 +218,7 @@ export interface CreateTemplateCardParams extends Omit<CreateBaseParams, "mode">
   data: TemplateData;
 }
 
-export interface CreateGeneratedCardParams extends CreateBaseParams {
+export interface CreateGeneratedCardParams extends CreateBaseParams, XCardMessageText {
   title: string;
   fallbackText: string;
   messages: A2uiMessage[];
@@ -212,9 +226,9 @@ export interface CreateGeneratedCardParams extends CreateBaseParams {
 
 type CreateDraft = Omit<SurfaceRecord, "state" | "createdAt" | "expiresAt" | "acceptedRevisions" | "seenRequests">;
 
-async function sendCard(p: CreateBaseParams, draft: CreateDraft): Promise<SurfaceRecord> {
+async function sendCard(p: CreateBaseParams & XCardMessageText, draft: CreateDraft): Promise<SurfaceRecord> {
   const transport = getXCardTransport(p.account);
-  const body = renderSurface({ ...draft, state: "active" } as SurfaceRecord, transport);
+  const body = withMessageText(renderSurface({ ...draft, state: "active" } as SurfaceRecord, transport), p);
 
   let rsp: WsSendMessageResponse;
   try {
@@ -225,8 +239,10 @@ async function sendCard(p: CreateBaseParams, draft: CreateDraft): Promise<Surfac
   const res = classifySendRsp(rsp);
   if (!res.ok) {
     log.warn("card send failed", { surfaceId: draft.surfaceId, kind: res.kind, code: rsp.code, message: res.message });
+    const fallbackText = [p.textBefore, draft.fallbackText, p.textAfter]
+      .filter(text => text?.trim()).join("\n");
     const fallbackSent = res.kind === "rejected"
-      ? await sendConversationText(p.account, p.wsClient, p.isGroup !== false, p.groupCode, draft.fallbackText)
+      ? await sendConversationText(p.account, p.wsClient, p.isGroup !== false, p.groupCode, fallbackText)
       : false;
     throw new XCardSendError(`卡片发送失败: ${res.message}`, res.kind, fallbackSent);
   }
@@ -291,6 +307,7 @@ export async function updateGeneratedCard(
   fallbackText: string,
   account: ResolvedYuanbaoAccount,
   wsClient: YuanbaoWsClient,
+  text: XCardMessageText = {},
 ): Promise<void> {
   const prev = {
     messages: rec.messages,
@@ -303,7 +320,7 @@ export async function updateGeneratedCard(
   rec.title = title;
   rec.fallbackText = fallbackText;
   try {
-    await pushSurfaceUpdate(rec, account, wsClient);
+    await pushSurfaceUpdate(rec, account, wsClient, text);
   } catch (err) {
     Object.assign(rec, prev);
     throw err;
@@ -343,12 +360,13 @@ export async function pushSurfaceUpdate(
   rec: SurfaceRecord,
   account: ResolvedYuanbaoAccount,
   wsClient: YuanbaoWsClient,
+  text: XCardMessageText = {},
 ): Promise<void> {
   const transport = getXCardTransport(account);
   if (!transport.canUpdate(rec)) throw new XCardSendError("该卡片缺少服务端 msg_id，无法更新");
   rec.revision += 1;
   try {
-    const body = checkCardSize(transport.updateBody(rec, renderSurfaceUpdateMessages(rec)));
+    const body = withMessageText(transport.updateBody(rec, renderSurfaceUpdateMessages(rec)), text);
     const rsp = await transport.sendUpdate({ account, wsClient }, rec, body);
     const res = classifySendRsp(rsp);
     if (!res.ok) throw new XCardSendError(`卡片更新失败: ${res.message}`, res.kind);

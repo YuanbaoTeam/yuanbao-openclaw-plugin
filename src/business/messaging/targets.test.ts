@@ -20,6 +20,13 @@ void test("buildMessageToolHints returns the agent prompt hint lines", () => {
   assert.ok(Array.isArray(hints));
   assert.ok(hints.length >= 1);
   assert.ok(hints.some(h => h.includes("sticker")));
+  assert.ok(hints.some(h => h.includes("embed exactly one raw <a2ui>...</a2ui>") && h.includes("Plain prose may appear before/after") && h.includes("never wrap")));
+  assert.ok(hints.some(h => h.includes("Express quick syntax") && h.includes("not JSON") && h.includes("_template($/items,item)")));
+  assert.ok(hints.some(h => h.includes("root is required") && h.includes("Text.variant only") && h.includes("xcard-generator")));
+  assert.ok(hints.some(h => h.includes("invented type/items schemas") && h.includes("ListItem") && h.includes("Checkbox") && h.includes("body2")));
+  assert.ok(hints.some(h => h.includes("yuanbao_xcard_send/update") && h.includes("yuanbao_xcard_template")));
+  assert.ok(hints.some(h => h.includes(".json/.jsonl")));
+  assert.ok(hints.some(h => h.includes("createSurface") && h.includes("components")));
 });
 
 void test("looksLikeYuanbaoId recognizes valid Base64 format IDs", () => {

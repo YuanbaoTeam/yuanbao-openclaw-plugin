@@ -67,7 +67,7 @@ void test("xcard-update is exposed with an explicit update-only contract", () =>
     sessionKey: "agent:main:main",
     requesterSenderId: "u1",
   })));
-  assert.deepEqual(tool.parameters?.required, ["surfaceId", "messages"]);
+  assert.deepEqual(tool.parameters?.required, ["surfaceId"]);
 });
 
 void test("xcard-update rejects invalid inputs before transport", async () => {
@@ -81,6 +81,23 @@ void test("xcard-update rejects invalid inputs before transport", async () => {
     surfaceId: "surface-1",
     messages: "{bad",
   })).details?.error), /JSON/);
+  assert.match(String((await tool.execute("u2b", {
+    surfaceId: "surface-1",
+  })).details?.error), /messages 和 express/);
+  assert.match(String((await tool.execute("u2c", {
+    surfaceId: "surface-1",
+    messages: VALID_MESSAGES,
+    express: 'root = Text("hi")',
+  })).details?.error), /messages 和 express/);
+  const badExpress = await tool.execute("u2d", {
+    surfaceId: "surface-1",
+    express: "$/items = [{label: \"A\"}]\nroot = List(children=[Text($/items[0].label)])",
+  });
+  assert.equal(badExpress.details?.retryable, true);
+  assert.match(String(badExpress.details?.note), /再次调用本工具/);
+  assert.match(String(badExpress.details?.note), /不要把 Express/);
+  assert.ok(Array.isArray(badExpress.details?.errors));
+  assert.ok((badExpress.details?.errors as string[]).some((hint) => hint.includes("_template") && hint.includes("数组下标")));
   assert.equal((await tool.execute("u3", {
     surfaceId: "surface-1",
     messages: JSON.stringify([{ version: "v1.0" }]),

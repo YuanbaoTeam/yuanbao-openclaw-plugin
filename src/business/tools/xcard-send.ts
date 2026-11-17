@@ -1,9 +1,9 @@
 /**
  * yuanbao_xcard_send tool: send a self-contained A2UI v1.0 Inline Surface authored by AI.
  *
- * The model uses the installed xcard-generator Skill to author and statically validate JSONL;
- * this tool repeats the security/structure checks at runtime, assigns trusted routing metadata,
- * sends the card, and optionally waits for one of the card-declared renderer events.
+ * The model should prefer A2UI Express for newly authored cards. The tool compiles or validates
+ * the card, assigns trusted routing metadata, sends it, and optionally waits for one of the
+ * card-declared renderer events.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
@@ -11,7 +11,7 @@ import { getActiveWsClient } from "../../access/ws/runtime.js";
 import { resolveYuanbaoAccount } from "../../accounts.js";
 import { createLog } from "../../logger.js";
 import { DEFAULT_WAIT_TIMEOUT_SEC, MAX_WAIT_TIMEOUT_SEC } from "../xcard/constants.js";
-import { parseGeneratedMessages, validateGeneratedMessages } from "../xcard/generated.js";
+import { prepareGeneratedInput } from "../xcard/generated-input.js";
 import {
   hasConversationWaiter,
   waitForSurfaceAction,
@@ -31,13 +31,17 @@ const DESCRIPTION = [
   "适合主动使用的场景：让用户选择或投票、填写表单、确认操作、浏览结构化列表/详情、展示需要按钮交互的结果。",
   "当用户明确要求卡片，或卡片能明显减少来回追问、降低输入成本、提升结构化信息可读性时，优先使用本工具。",
   "简单问答、纯文本说明、单句通知以及没有结构化展示或交互收益的内容，不要使用 xCard，直接文本回复。",
-  "自由创作时必须先使用已安装的 xcard-design Skill 做视觉构图与审美复查，再使用 xcard-generator Skill 按元宝 Catalog/token 生成并校验 JSONL；最后把完整 JSONL 作为 messages 传入本工具。",
+  "一次性展示的自由卡片默认直接输出唯一的 <a2ui>...</a2ui> 最终正文块即可；需要 waitForAction、指定 mode/audience/title，或正文块失败后同轮重试时，调用本工具。",
+  "调用本工具时优先使用 express 参数，只传 Express 正文，不要包含 <a2ui> 标签、Markdown fence 或说明文字；不要创建、保存或提到 .json/.jsonl 文件。messages/JSONL 仅用于已有兼容产物。",
+  "最小正确 Express：$/title = \"标题\" 然后 root = Card(Text($/title))。必须定义 root，组件用 Card/Column/Row/Text/Button/Image/List 等构造函数。",
+  "动态列表正确写法：$/todo/items = [{label:\"A\"}]; item = Text($label); root = Card(List(_template($/todo/items, item)))。不要写 $/todo/items[0].label、List(items=[...])、ListItem(...) 或 Checkbox(...)。",
+  "文本样式用 variant=\"h4\" / \"h5\" / \"body\" / \"caption\"；不要写 Text(..., style=\"title\")。不要写自造 JSON schema，如 {\"type\":\"product_card\",\"layout\":\"left-image-right-text\"}。",
   "默认采用 Apple 式克制：内容优先、清晰层级、充足留白、精确对齐、克制配色；不要用不受支持的毛玻璃、渐变或阴影模拟。",
   "本工具会再次校验协议、xcard catalog、组件引用、事件及 10KB 线包上限，并由插件重写 surfaceId、注入可信绑定信息。",
   "只接受自包含卡片：不要使用 WebCard、xCardTemplate、tracking、@hostEnv 或宿主自定义函数。",
   "交互卡必须设计可见的操作后状态，不能只发送 action.event：在 DataModel 中预留 __openclaw，并提供绑定 /__openclaw/resultText 的结果 Text；把可操作区域的 enabled 设为 {call:\"not\",args:{value:{path:\"/__openclaw/completed\"}}}。",
   "每个 action.event.context 必须携带明确业务值和人类可读的 resultText（如 {date:\"10/16\",weekday:\"周五\",resultText:\"已选择：10/16 周五\"}），不要只把业务值编码进 event.name。",
-  "需要点击后立即反馈时，按 xcard-generator 规则使用 sequence，先 updateData 更新本地结果，再发送 event；服务端 103 update 也会覆盖 /__openclaw 为可信最终状态。",
+  "需要点击后立即反馈时，按 A2UI Express 动作规则使用 sequence，先 updateData 更新本地结果，再发送 event；服务端 103 update 也会覆盖 /__openclaw 为可信最终状态。",
   "卡片中的 action.event 会成为允许的交互事件；用户操作后，context 会原样返回给模型。",
   "必须根据业务语义显式选择 mode，不能省略。默认用 once；只有业务本身明确要求同一张卡被反复操作时才用 perRevision，不要因为“用户可能想改主意”就选 perRevision——改主意可以重新发一张卡或用文字处理。",
   "一律用 once 的典型场景：从一组选项中选一个（单选 ChoiceGroup、单选列表、投票只选一项、选题/选时间/选方案等）、单人单次授权、最终确认、一次性提交。这类“首个选择即产生最终结果”的卡误用 perRevision 是错误选择，没有例外。",
@@ -47,15 +51,19 @@ const DESCRIPTION = [
   "同一业务后续需要改变卡片内容时，使用 yuanbao_xcard_update 更新返回的 surfaceId；不要再次调用本工具创建替代卡片。",
   "如果当前任务必须等待用户操作，设置 waitForAction=true；否则用户之后操作会唤醒新一轮。",
   "工具返回 ok=true 表示卡片已直接展示给用户；后续只需简短确认已发送，不要再用文字复述卡片中的标题、列表、详情、选项或操作说明。",
-  "当前只开放自由创作发送能力；请直接按 xcard-generator 规则生成卡片。",
+  "标准选择、表单、列表、确认和信息卡也可使用 yuanbao_xcard_template。",
 ].join("\n");
 
 const PARAMETERS = {
   type: "object",
   properties: {
+    express: {
+      type: "string",
+      description: "首选。A2UI Express 正文（不含 <a2ui> 标签、Markdown fence 或说明文字）。与 messages 二选一。",
+    },
     messages: {
       type: "string",
-      description: "xcard-generator 产出的完整 JSONL，或等价的 JSON 消息数组文本。",
+      description: "兼容路径。已有完整 xCard JSONL 或等价 JSON 消息数组文本；新卡片不要优先生成 JSONL。",
     },
     title: {
       type: "string",
@@ -84,11 +92,12 @@ const PARAMETERS = {
       description: `等待超时秒数，默认 ${DEFAULT_WAIT_TIMEOUT_SEC}，最大 ${MAX_WAIT_TIMEOUT_SEC}。`,
     },
   },
-  required: ["messages", "title", "mode"],
+  required: ["title", "mode"],
 } as const;
 
 interface SendParams {
   messages?: unknown;
+  express?: unknown;
   title?: unknown;
   fallbackText?: unknown;
   audience?: unknown;
@@ -150,7 +159,7 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
     parameters: PARAMETERS,
     async execute(toolCallId: string, params: Record<string, unknown>, signal?: AbortSignal) {
       const p = params as SendParams;
-      log.debug("execute", { toolCallId, inputType: typeof p.messages });
+      log.debug("execute", { toolCallId, inputType: typeof p.messages, expressType: typeof p.express });
 
       const title = typeof p.title === "string" ? p.title.trim() : "";
       if (!title || title.length > 80) return json({ ok: false, error: "title 必须为 1–80 字符" });
@@ -167,18 +176,8 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
       }
       const mode: SurfaceMode = p.mode;
 
-      const parsed = parseGeneratedMessages(p.messages);
-      if ("error" in parsed) return json({ ok: false, error: parsed.error, retryable: true });
-      const checked = validateGeneratedMessages(parsed.messages);
-      if (!checked.ok) {
-        return json({
-          ok: false,
-          error: "xCard A2UI 校验失败",
-          errors: checked.errors.slice(0, 30),
-          retryable: true,
-          note: "按 errors 修正 JSONL，并用 xcard-generator 的 validate_xcard_bundle.py 复检后重试。",
-        });
-      }
+      const prepared = prepareGeneratedInput(p, "按 errors 修正 JSONL 后重试；新卡片优先改用 express 参数。");
+      if (!prepared.ok) return json(prepared.failure);
 
       const wsClient = getActiveWsClient(account.accountId);
       if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法发送卡片" });
@@ -199,7 +198,7 @@ function createYuanbaoXCardSendTool(ctx: OpenClawPluginToolContext) {
           mode,
           title,
           fallbackText,
-          messages: parsed.messages,
+          messages: prepared.messages,
         });
         const result: Record<string, unknown> = {
           ok: true,

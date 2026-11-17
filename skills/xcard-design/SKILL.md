@@ -1,16 +1,16 @@
 ---
 name: xcard-design
-description: 为元宝 XCard 自由创作提供视觉方向、移动端卡片构图和生成后审美复查。模型使用 xcard-generator、yuanbao_xcard_send 或 yuanbao_xcard_update 自由生成/更新卡片，用户要求更美观、更高级、更清晰，或已有 XCard 需要视觉优化时使用。只负责设计决策与视觉审查；协议、Catalog、token、JSONL 生成和校验始终以 xcard-generator 为准。
+description: 为元宝 XCard 提供视觉方向、移动端卡片构图和生成后审美复查。在 Yuanbao 对话里，自由业务卡片优先把 raw <a2ui>...</a2ui> A2UI Express 块直接嵌入最终正文，前后可有普通文案；不要用 Markdown 代码块包住它。yuanbao_xcard_template 和 send/update 工具只是标准卡片或高级修复路径。不要把 xcard-generator 当成 dispatch_action 可调用工具。
 ---
 
 # XCard Design
 
 ## 职责边界
 
-这是 `xcard-generator` 的平级设计 Skill：
+这是 XCard 的设计决策 Skill：
 
 - 本 Skill 决定视觉方向、信息层级、构图、密度、节奏和交互强调。
-- `xcard-generator` 把设计决策转换为合法的 XCard A2UI v1.0，并负责校验与预览。
+- 最终产物必须是合法的 XCard A2UI v1.0。自由业务卡片在 Yuanbao 对话里优先把唯一的裸露 `<a2ui>...</a2ui>` raw A2UI Express 块直接嵌入 final text；前后可以有普通文案，但不能用 Markdown/code fence 包住 `<a2ui>`。插件会截获并发送单张 xCard，用户不会看到 DSL。`yuanbao_xcard_template` 和 send/update 工具只是标准卡片或高级修复路径。
 - 不在本 Skill 中发明组件、属性、token、CSS、颜色值、图片或 renderer 能力。
 - 视觉优化不得改变业务字段、事件语义、权限、`mode` 或交互结果。
 
@@ -18,8 +18,14 @@ description: 为元宝 XCard 自由创作提供视觉方向、移动端卡片构
 轻量分层和稳定反馈。借鉴原则而不仿制平台控件；元宝 token、Catalog 和跨端行为始终优先。
 不把“Apple 风格”误解为大量毛玻璃、渐变、悬浮阴影、超大标题或纯黑白页面。
 
-自由创作卡片必须同时使用两个 Skill：先按本 Skill 完成设计决策，再按
-`xcard-generator` 生成和验证。内置固定模板只在用户明确要求重新设计模板时使用本 Skill。
+卡片先按本 Skill 完成设计决策，再把裸露 `<a2ui>` 包裹的自由 Express 直接嵌入正文。模板 data 是可选稳定路径，不限制自由生成。
+
+重要：`xcard-generator` 是规则资料，不是可通过 `dispatch_action` 调用的工具。不要输出
+`{"name":"dispatch_action","arguments":{"id":"xcard-generator"}}` 这类 JSON；这会被当成普通消息发送给用户。
+
+模板工具不可表达时才生成 A2UI Express DSL。写 Express 前读取官方快照开头的 Compact Express Quick Reference；不要写
+`{"type":"list"}`、`{"type":"product_card","layout":"left-image-right-text"}` 这类 JSON schema，也不要输出 Markdown 代码块或 `.json/.jsonl` 文件名。
+动态列表用 `item = Text($label)` 和 `List(_template($/items, item))`；不要用数组下标、`ListItem` 或 `Checkbox`。
 
 ## 三种工作模式
 
@@ -60,12 +66,12 @@ description: 为元宝 XCard 自由创作提供视觉方向、移动端卡片构
 
 1. 读取 [DESIGN.md](DESIGN.md)，先选择与业务匹配的交互模式和构图，不沿用上一张卡的
    默认布局。官方模板只作为模式与视觉节奏参考，不能照搬无关字段、图片或事件。
-2. 读取同级 `xcard-generator` 的 token、Catalog 和生成规则；它们是实现事实源。
+2. 读取同级生成规则中的 token、Catalog 和协议约束；它们是实现事实源。
 3. 对照组件决策检查一次：富选择、固定枚举、数量、对象联动、多步骤、轮播和动态列表是否
    使用了对应语义组件；若 Catalog 不支持则选择合法降级。
 4. 先形成第一版，再执行一次“减法改进”：删除至少一个不必要的视觉元素，或合并一组重复信息。
 5. 用 [REVIEW.md](REVIEW.md) 完成生成前检查。
-6. 交给 `xcard-generator` 生成 JSONL，并运行其校验器。
+6. 生成 A2UI Express 时，最终回复直接嵌入一个裸露 `<a2ui>...</a2ui>` 块，块内是 raw Express；前后可有普通文案，但不要把 `<a2ui>` 放进 Markdown/code fence。只在兼容旧链路时生成 JSONL，只有高级修复/更新场景才调用 `yuanbao_xcard_send` / `yuanbao_xcard_update`。
 7. 能预览时查看真实截图，再做一次视觉复查；修改后重新校验。
 
 ## 不可妥协
@@ -77,13 +83,13 @@ description: 为元宝 XCard 自由创作提供视觉方向、移动端卡片构
 - 普通卡片默认不超过三个主区块；信息过多时压缩、分页或分步，不做文章页。
 - 横向区域优先放短而稳定的内容；价格、日期、按钮和状态不得被挤成逐字换行。
 - 每个可点击区域都要看起来可点击；每个不可用状态都要可辨认。
-- 只用 `xcard-generator` 已确认的元宝 token、variant、组件和 style 字段。
+- 只用当前生成规则已确认的元宝 token、variant、组件和 style 字段。
 - 不使用 raw hex、CSS、渐变、任意阴影、绝对定位或不存在的组件来追求效果。
 - 美观不等于装饰更多：没有信息或交互作用的图标、标签、底色、分割线应删除。
 
 ## 输出契约
 
-与 `xcard-generator` 协作时，向它提供：
+生成前在内部确认：
 
 - 选定的构图模式和视觉焦点。
 - 三层信息层级。
@@ -91,4 +97,4 @@ description: 为元宝 XCard 自由创作提供视觉方向、移动端卡片构
 - 需要避免的视觉风险。
 - Polish/Audit 模式下按优先级排列的具体修改。
 
-最终仍交付 `xcard-generator` 生成并验证的 JSONL；本 Skill 不创建另一套卡片格式。
+最终在 Yuanbao 对话中通过裸露 `<a2ui>` 正文块交付可渲染的 xCard；不要把 Skill 名称包装成工具调用 JSON，也不要把 Express 正文放进 Markdown/code fence。

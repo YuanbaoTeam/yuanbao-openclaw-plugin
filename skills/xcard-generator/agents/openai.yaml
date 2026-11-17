@@ -1,4 +1,4 @@
 interface:
   display_name: "XCard Generator"
   short_description: "生成、粘贴预览并对比设计稿的 XCard A2UI 页面"
-  default_prompt: "Use $xcard-generator to generate and validate an XCard A2UI v1.0 page, then preview it in the iOS XCard debugger and compare it with my design when the runtime toolchain is ready."
+  default_prompt: "Generate and validate a Yuanbao XCard. In Yuanbao conversations, freeform business cards should directly embed exactly one raw <a2ui>...</a2ui> A2UI Express block in the final text. Plain prose may appear before or after the block when useful, but never wrap the block in Markdown/code fences; the plugin intercepts it and sends one xCard. Templates and send/update tools are optional advanced paths. Do not call xcard-generator via dispatch_action. When the runtime toolchain is ready, preview it in the iOS XCard debugger and compare it with my design."

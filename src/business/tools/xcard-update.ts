@@ -10,7 +10,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { getActiveWsClient } from "../../access/ws/runtime.js";
 import { resolveYuanbaoAccount } from "../../accounts.js";
 import { createLog } from "../../logger.js";
-import { parseGeneratedMessages, validateGeneratedMessages } from "../xcard/generated.js";
+import { prepareGeneratedInput } from "../xcard/generated-input.js";
 import { getSurface, withSurfaceLock } from "../xcard/registry.js";
 import { updateGeneratedCard, XCardSendError } from "../xcard/service.js";
 import { json, resolveYuanbaoConversation, type OpenClawPluginToolContext } from "../utils/utils.js";
@@ -20,8 +20,10 @@ const TOOL_NAME = "yuanbao_xcard_update";
 const DESCRIPTION = [
   "在元宝群聊或私聊中更新之前由 yuanbao_xcard_send 创建的 AI 自由创作 xCard；通过 103 修改原卡片，不会发送 101 新卡片。",
   "同一业务需要持续交互或展示最新状态时，收到操作回调后必须优先用本工具更新原 surfaceId，不要再次调用 yuanbao_xcard_send。",
-  "更新前使用 xcard-design 保持 Apple 式克制的视觉层级和原卡构图稳定，再使用 xcard-generator 生成并校验完整新快照；不要只改业务数据却重新套一套布局。",
-  "messages 必须是更新后的完整自包含 A2UI v1.0 JSONL/消息数组快照，仍需包含 createSurface、updateComponents 和所需 updateDataModel；工具会保留原 surfaceId，并在 103 中自动去掉 createSurface。",
+  "更新前保持 Apple 式克制的视觉层级和原卡构图稳定；优先使用 express 参数传入更新后的完整 A2UI Express 快照，不要只改业务数据却重新套一套布局。",
+  "messages 是兼容路径：传更新后的完整自包含 A2UI v1.0 JSONL/消息数组快照，仍需包含 createSurface、updateComponents 和所需 updateDataModel；工具会保留原 surfaceId，并在 103 中自动去掉 createSurface。",
+  "express 参数只传 Express 正文，不要包含 <a2ui> 标签、Markdown fence 或说明文字。必须定义 root，组件用官方构造函数。",
+  "动态列表正确写法：item = Text($label); List(_template($/items, item))。不要写 $/items[0].label、List(items=[...])、ListItem(...)、Checkbox(...) 或自造 JSON schema。",
   "先根据操作回调的 context 计算新业务状态，再生成完整新快照。卡片事件名与 context 必须继续携带明确业务值。",
   "只能更新当前会话中仍为 active 的 generated 卡片；mode、audience、owner 和路由绑定不能通过本工具修改。",
   "工具返回 ok=true 表示原卡已更新；不要再发送一张替代卡，也不要用文字复述卡片内容。",
@@ -36,7 +38,11 @@ const PARAMETERS = {
     },
     messages: {
       type: "string",
-      description: "更新后的完整 xCard JSONL，或等价 JSON 消息数组文本。",
+      description: "兼容路径。更新后的完整 xCard JSONL，或等价 JSON 消息数组文本；新更新优先使用 express。",
+    },
+    express: {
+      type: "string",
+      description: "首选。更新后的完整 A2UI Express 正文（不含 <a2ui> 标签、Markdown fence 或说明文字）。与 messages 二选一。",
     },
     title: {
       type: "string",
@@ -47,12 +53,13 @@ const PARAMETERS = {
       description: "可选的新纯文本降级内容（最长 2000 字符）；省略时保持原内容。",
     },
   },
-  required: ["surfaceId", "messages"],
+  required: ["surfaceId"],
 } as const;
 
 interface UpdateParams {
   surfaceId?: unknown;
   messages?: unknown;
+  express?: unknown;
   title?: unknown;
   fallbackText?: unknown;
 }
@@ -78,7 +85,7 @@ function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
     async execute(toolCallId: string, params: Record<string, unknown>) {
       const p = params as UpdateParams;
       const surfaceId = typeof p.surfaceId === "string" ? p.surfaceId.trim() : "";
-      log.debug("execute", { toolCallId, surfaceId, inputType: typeof p.messages });
+      log.debug("execute", { toolCallId, surfaceId, inputType: typeof p.messages, expressType: typeof p.express });
       if (!surfaceId) return json({ ok: false, error: "surfaceId 必须为非空字符串" });
       if (p.title !== undefined && (typeof p.title !== "string" || !p.title.trim() || p.title.trim().length > 80)) {
         return json({ ok: false, error: "title 必须为 1–80 字符" });
@@ -90,18 +97,8 @@ function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
         return json({ ok: false, error: "fallbackText 必须为 1–2000 字符" });
       }
 
-      const parsed = parseGeneratedMessages(p.messages);
-      if ("error" in parsed) return json({ ok: false, error: parsed.error, retryable: true });
-      const checked = validateGeneratedMessages(parsed.messages);
-      if (!checked.ok) {
-        return json({
-          ok: false,
-          error: "xCard A2UI 校验失败",
-          errors: checked.errors.slice(0, 30),
-          retryable: true,
-          note: "请生成包含 createSurface 的完整新快照，并按 errors 修正后重试。",
-        });
-      }
+      const prepared = prepareGeneratedInput(p, "请生成包含 createSurface 的完整新快照，并按 errors 修正后重试。");
+      if (!prepared.ok) return json(prepared.failure);
 
       const wsClient = getActiveWsClient(account.accountId);
       if (!wsClient) return json({ ok: false, error: "元宝连接不可用，无法更新卡片" });
@@ -123,7 +120,7 @@ function createYuanbaoXCardUpdateTool(ctx: OpenClawPluginToolContext) {
 
           const title = typeof p.title === "string" ? p.title.trim() : rec.title;
           const fallbackText = typeof p.fallbackText === "string" ? p.fallbackText.trim() : rec.fallbackText;
-          await updateGeneratedCard(rec, parsed.messages, title, fallbackText, account, wsClient);
+          await updateGeneratedCard(rec, prepared.messages, title, fallbackText, account, wsClient);
           return json({
             ok: true,
             surfaceId: rec.surfaceId,

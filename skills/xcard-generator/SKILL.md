@@ -1,11 +1,75 @@
 ---
 name: xcard-generator
-description: 根据自然语言、截图、Figma 或业务 JSON/DTO 生成和校验元宝 XCard A2UI v1.0 卡片、JSONL 与可复用模板。用于 XCard 页面生成、模板抽取和设计迭代；宿主工具链可用时支持运行态预览和设计比对。不用于普通前端页面或独立开发渲染器。
+description: 根据自然语言、截图、Figma 或业务 JSON/DTO 生成和校验元宝 XCard A2UI v1.0 卡片、JSONL 与可复用模板。在 Yuanbao 对话里，自由业务卡片优先把 raw <a2ui>...</a2ui> A2UI Express 块直接嵌入最终正文，前后可有普通文案；不要用 Markdown 代码块包住它。内置模板和工具仅作为标准卡片或高级修复路径。不用于普通前端页面或独立开发渲染器。注意：这是 Skill 规则文档，不是 dispatch_action 可调用工具。
 ---
 
 # XCard Generator
 
 ## 工作边界
+
+重要：不要输出 `{"name":"dispatch_action","arguments":{"id":"xcard-generator"}}` 这类 JSON。Skill 名称不是工具 id；这类内容会被当成普通文本发送给用户。
+
+在 Yuanbao 对话里先按交付形态分流：
+
+- 自由业务卡片：最终回复直接嵌入一个裸露的 `<a2ui>...</a2ui>` 块，块内是 raw A2UI Express。前后可以有普通文案，但 `<a2ui>` 块本身不能放进 Markdown/code fence。插件会截获并发送 xCard，用户不会看到 DSL。写 Express 前先看 [Express prompt snapshot](references/express-prompt.md) 开头的 Compact Express Quick Reference，再按官方签名生成；不要凭记忆发明 JSON schema。
+- 不要把 `<a2ui>` 放入 ```text / ```html / ```markdown 代码块；不要输出 `.json/.jsonl` 文件名。需要标题、数据和组件都写在 Express 正文里。
+- 工具 `yuanbao_xcard_send` / `yuanbao_xcard_update` 是高级修复路径；只有明确需要工具重试或更新已有 surface 时才用。工具失败时修正 `express` 参数并再次调用同一工具，不要把失败的 DSL 或错误详情发给用户。
+- 标准选择、表单、列表、确认、公告信息可以选择 `yuanbao_xcard_template`，但它只是可选稳定路径，不限制自由生成能力。
+
+Yuanbao 最终正文正例（裸露嵌入 `<a2ui>`，不要加 Markdown/code fence）：
+
+<a2ui>
+$/title = "任务清单"
+$/items = [{label: "整理记录"}, {label: "复核时间表"}]
+item = Text($label)
+root = Card(Column(children=[
+  Text($/title, variant="h4"),
+  List(_template($/items, item))
+]))
+</a2ui>
+
+Todo/list 带说明或优先级的正例（不要写 `{"type":"list"}`）：
+
+<a2ui>
+$/title = "Todo List"
+$/items = [
+  {label: "Task 1", value: "Review requirements"},
+  {label: "Task 2", value: "Update marketing strategy"}
+]
+item = Column(children=[
+  Text($label),
+  Text($value, variant="caption")
+])
+root = Card(Column(children=[
+  Text($/title, variant="h4"),
+  List(_template($/items, item))
+]))
+</a2ui>
+
+Express 速记：
+
+- `<a2ui>` 块内只写数据赋值、组件变量和一个 `root = ...` 入口；不要写 JSON UI schema。
+- 动态数组写 `item = ...` + `List(_template($/items, item))`，模板内部用 `$label`、`$value` 这类相对绑定；不要写 `$/items[0]`。
+- `Text.variant` 只允许 `h1`、`h2`、`h3`、`h4`、`h5`、`caption`、`footnote`、`body`；不要使用 `body1`、`body2`、`title`、`subtitle`、`headline`。
+- 不确定时优先用简单组件集：`Card`、`Column`、`Row`、`Text`、`Image`、`Button`、`List`、`_template`、`Event`。
+
+商品卡正例（左图右文；字段写成数据赋值，不要写 `{"type":"product","layout":...}` 这类 JSON；不要加 Markdown/code fence）：
+
+<a2ui>
+$/p = {title: "无线蓝牙耳机", subtitle: "降噪 · 长续航", price: "¥299", image: "https://example.com/p.jpg"}
+root = Card(Row(children=[
+  Image($/p/image),
+  Column(children=[
+    Text($/p/title, variant="h5"),
+    Text($/p/subtitle, variant="caption"),
+    Text($/p/price),
+    Button(Text("购买"), action=Event("buy", {resultText: "已选择购买"}))
+  ])
+]))
+</a2ui>
+
+Express 反例：不要写 `$/items[0].label`、`List(items=[...])`、`ListItem(...)`、`Checkbox(...)`、
+`Text(..., style="title")`、`{"type":"list"}`、`{"type":"product_card"}`、`createSurface` 或 `components`。
 
 生成目标宿主可消费的 A2UI v1.0 产物。默认交付文件并执行静态校验；用户要求接入 Demo/Gallery 时再修改客户端工程。协议或 renderer 扩展必须属于用户授权的任务范围。
 

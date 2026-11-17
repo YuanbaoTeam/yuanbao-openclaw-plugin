@@ -85,6 +85,12 @@ export function buildMessageToolHints(): string[] {
     "react = sticker = 发贴纸 (NOT a message reaction). Flow: sticker-search → pick sticker_id → call sticker/react with sticker_id. No bare Unicode emoji.",
     // ── File/image sending ──
     "File/image: use media/mediaUrls with real URLs or absolute paths (e.g. /tmp/file.md). Never use relative paths.",
+    // ── A2UI/xCard card output ──
+    "xCard: for A2UI/xCard requests, embed exactly one raw <a2ui>...</a2ui> block directly in final text. Plain prose may appear before/after it when useful, but never wrap the block in Markdown/code fences or .json/.jsonl.",
+    "xCard Express quick syntax: the <a2ui> body is not JSON. Use data lines plus one root: $/items=[{label:\"...\",value:\"...\"}]; item=Column(children=[Text($label),Text($value,variant=\"caption\")]); root=Card(Column(children=[List(_template($/items,item))])).",
+    "xCard Express bounds: root is required; repeated data uses List(_template($/items,item)) with relative bindings like $label; Text.variant only h1/h2/h3/h4/h5/caption/footnote/body. Full examples live in xcard-generator.",
+    "xCard forbidden: no JSON/JSONL, invented type/items schemas, createSurface/updateComponents/surfaceId/components, $/items[0], List(items=[...]), ListItem, Checkbox, Text(..., style=\"title\"), body1/body2/title/subtitle/headline variants.",
+    "xCard tools: use yuanbao_xcard_send/update only for waitForAction, explicit mode/audience/title, existing-card update, or same-turn retry; yuanbao_xcard_template is optional for standard cards.",
     // ── DM routing (only when user explicitly requests DM in group chat) ──
     'DM/私信: set `to="<userId>"` only when the user explicitly asks to send a DM/私信/direct message in a group chat. '
       + "To resolve a userId, call query_session_members first. If the recipient is ambiguous, ask for clarification.",

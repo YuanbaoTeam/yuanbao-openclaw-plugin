@@ -150,12 +150,14 @@ function sendToConversation(
 
 export const im1007Transport: XCardTransport = {
   kind: "im1007",
-  cardBody: (_title, messages) => elem1007(IM1007_EXTEND_TYPE.card, messages),
+  cardBody: (_title, messages) => {
+    return elem1007(IM1007_EXTEND_TYPE.card, messages);
+  },
   // The real client keys state by both the original card message and Surface. The IM id becomes
   // available when the client echoes it in its first 102 event.
   canUpdate: (rec) => Boolean(rec.cardMessageId),
-  updateBody: (rec: SurfaceRecord, messages: A2uiMessage[]) =>
-    elem1007(IM1007_EXTEND_TYPE.downEvent, {
+  updateBody: (rec: SurfaceRecord, messages: A2uiMessage[]) => {
+    return elem1007(IM1007_EXTEND_TYPE.downEvent, {
       protocol_version: DOWN_EVENT_PROTOCOL_VERSION,
       delivery_id: randomUUID(),
       card_message_id: rec.cardMessageId ?? "",
@@ -165,7 +167,8 @@ export const im1007Transport: XCardTransport = {
         operation: "snapshot",
         content: messages,
       },
-    }),
+    });
+  },
   sendUpdate: ({ account, wsClient }, rec, body) =>
     sendToConversation(account, wsClient, rec.isGroup, rec.groupCode, body),
   sendReceipt: ({ account, wsClient }, target, receipt: WsXCardReceipt) =>
