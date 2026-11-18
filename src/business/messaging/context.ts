@@ -5,6 +5,7 @@
 import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/core";
 import type { YuanbaoWsClient } from "../../access/ws/client.js";
 import type { ResolvedYuanbaoAccount } from "../../types.js";
+import { buildA2uiReplyHints } from "./xcard-hints.js";
 
 /** Message processing context */
 export type MessageHandlerContext = {
@@ -27,5 +28,8 @@ export type MessageHandlerContext = {
   abortSignal?: AbortSignal;
 };
 
-/** System prompt to prevent model from wrapping entire reply in markdown code block */
-export const YUANBAO_MARKDOWN_HINT = "⚠️ 格式规范（强制）：当回复内容包含 Markdown 表格时，禁止用 ```markdown 代码块包裹，直接输出表格内容即可，不需要外层 fence。";
+/** System prompt for Yuanbao's automatic source replies. */
+export const YUANBAO_MARKDOWN_HINT = [
+  "⚠️ 格式规范（强制）：当回复内容包含 Markdown 表格时，禁止用 ```markdown 代码块包裹，直接输出表格内容即可，不需要外层 fence。",
+  ...buildA2uiReplyHints(),
+].join("\n");

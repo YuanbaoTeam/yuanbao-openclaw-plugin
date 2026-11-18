@@ -20,8 +20,11 @@ void test("buildMessageToolHints returns the agent prompt hint lines", () => {
   assert.ok(Array.isArray(hints));
   assert.ok(hints.length >= 1);
   assert.ok(hints.some(h => h.includes("sticker")));
-  assert.ok(hints.some(h => h.includes("embed exactly one raw <a2ui>...</a2ui>") && h.includes("Plain prose may appear before/after") && h.includes("never wrap")));
+  assert.ok(hints.some(h => h.includes("Visual-first in Yuanbao") && h.includes("categorized recommendation") && h.includes("3+ structured items") && h.includes("MUST use an A2UI xCard")));
+  assert.ok(hints.some(h => h.includes("xCard trigger examples") && h.includes("有哪些") && h.includes("travel spots") && h.includes("do not answer as plain Markdown bullets")));
+  assert.ok(hints.some(h => h.includes("to visualize the answer") && h.includes("embed exactly one raw <a2ui>...</a2ui>") && h.includes("Plain prose may appear before/after") && h.includes("never wrap")));
   assert.ok(hints.some(h => h.includes("Express quick syntax") && h.includes("not JSON") && h.includes("_template($/items,item)")));
+  assert.ok(hints.some(h => h.includes("xCard few-shot") && h.includes("西安有哪些景点") && h.includes("<a2ui>") && h.includes("Do not output the same content as Markdown bullets")));
   assert.ok(hints.some(h => h.includes("root is required") && h.includes("Text.variant only") && h.includes("xcard-generator")));
   assert.ok(hints.some(h => h.includes("invented type/items schemas") && h.includes("ListItem") && h.includes("Checkbox") && h.includes("body2")));
   assert.ok(hints.some(h => h.includes("yuanbao_xcard_send/update") && h.includes("yuanbao_xcard_template")));

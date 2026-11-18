@@ -173,6 +173,28 @@ void test("build-context: UntrustedContext always contains system time", async (
   );
 });
 
+void test("build-context: automatic reply prompt includes a2ui guidance", async (t) => {
+  setupMocks(t);
+  const { buildContext } = await import("./build-context.js");
+
+  const { ctx, getFinalizedPayload } = createBuildCtx({
+    account: {
+      accountId: "bot-001",
+      botId: "bot-001",
+      historyLimit: 0,
+      markdownHintEnabled: true,
+    },
+  });
+  const { next } = createMockNext();
+
+  await buildContext.handler(ctx, next);
+
+  const prompt = String(getFinalizedPayload().GroupSystemPrompt ?? "");
+  assert.match(prompt, /Markdown 表格/);
+  assert.match(prompt, /embed exactly one raw <a2ui>\.\.\.<\/a2ui>/);
+  assert.match(prompt, /Do not output the same content as Markdown bullets/);
+});
+
 void test("build-context: uses raw.msg_time as envelope timestamp when available", async (t) => {
   setupMocks(t);
   const { buildContext } = await import("./build-context.js");

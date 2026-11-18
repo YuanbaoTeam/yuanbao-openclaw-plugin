@@ -46,8 +46,12 @@ export interface StreamingOutputSession {
   finalize(): Promise<boolean>;
   /** Abort: discard all buffered content */
   abort(): void;
+  /** Drop the current segment buffer without closing the session */
+  discardBufferedSegment(): void;
   /** Whether any onPartialReply updates have been received */
   hasReceivedPartial(): boolean;
+  /** Whether this segment has already emitted text to the transport */
+  hasSentContent(): boolean;
 }
 
 /** Fallback chunker: prefer breaking at newline boundaries; hard-split only for overlong lines. */
@@ -213,6 +217,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   let cumulativeText = "";
   let sentIndex = 0;
   let hasSentContent = false;
+  let segmentSentContent = false;
   let receivedPartial = false;
   let lastSendCompletedAt = 0;
 
@@ -221,6 +226,8 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
   function resetSegmentState(): void {
     sentIndex = 0;
     cumulativeText = "";
+    receivedPartial = false;
+    segmentSentContent = false;
     thinkingRepair.resetSegment();
   }
 
@@ -246,6 +253,7 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
         log.error(`[${sessionKey}] sendText 失败: ${result.error}`);
       } else {
         hasSentContent = true;
+        segmentSentContent = true;
       }
     });
     return sendTextChain;
@@ -329,8 +337,17 @@ export function createStreamingOutputSession(opts: StreamingOutputSessionOptions
       onComplete?.();
     },
 
+    discardBufferedSegment(): void {
+      if (aborted) return;
+      resetSegmentState();
+    },
+
     hasReceivedPartial(): boolean {
       return receivedPartial;
+    },
+
+    hasSentContent(): boolean {
+      return segmentSentContent;
     },
   };
 }

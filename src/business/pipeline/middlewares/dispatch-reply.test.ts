@@ -424,6 +424,50 @@ void test("dispatch-reply: suppresses streamed a2ui text when deliver sends card
   assert.equal(sentTexts.length, 0, "raw a2ui text should not be sent");
 });
 
+void test("dispatch-reply: holds chunked deliver text until a2ui closes", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+  const events: string[] = [];
+
+  mockSendA2uiReplyPart = async ({ part }) => {
+    assert.equal(part.textBefore, "按节奏安排：");
+    assert.match(part.content, /Day 1/);
+    assert.match(part.content, /Day 5/);
+    events.push("card");
+    return { ok: true, updated: false };
+  };
+
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (t: string) => t,
+          chunkMarkdownText: (t: string, _max: number) => [t],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: "按节奏安排：" });
+            await deliver?.({
+              text: '按节奏安排：\n\n<a2ui>$/items=[{day:"Day 1"}];\n',
+            }, { kind: "block" });
+            await deliver?.({
+              text: '{day:"Day 5"}]; root=Card(Text("done"))</a2ui>',
+            }, { kind: "final" });
+          }),
+        },
+      },
+    } as any,
+  });
+
+  await dispatchReply.handler(ctx, createMockNext().next);
+
+  assert.deepEqual(events, ["card"]);
+  assert.equal(sentTexts.length, 0, "chunked raw a2ui text should not be sent");
+});
+
 void test("dispatch-reply: held a2ui-like partial falls back to deliver text after an earlier segment", async (t) => {
   setupMocks(t);
   const { dispatchReply } = await import("./dispatch-reply.js");
@@ -494,16 +538,11 @@ void test("dispatch-reply: non-streaming sends surrounding text only with the ca
     });
     await dispatchReply.handler(ctx, createMockNext().next);
 
-    const rawA2ui = `<a2ui>\nroot = Card(Text("hi"))\n</a2ui>`;
-    const fallback = [scenario.prefix, "compile failed", "INVALID DEBUG PAYLOAD - DO NOT COPY:", rawA2ui, scenario.suffix].filter(Boolean).join("\n");
+    const fallback = [scenario.prefix, "compile failed", scenario.suffix].filter(Boolean).join("\n");
     const expected = ["card", ...(scenario.failed ? [`text:${fallback}`] : [])];
     assert.deepEqual(events, expected);
-    if (scenario.failed) {
-      assert.ok(sentTexts.some(value => value.includes(rawA2ui)));
-      assert.ok(sentTexts.some(value => value.includes("INVALID DEBUG PAYLOAD - DO NOT COPY")));
-    } else {
-      assert.ok(sentTexts.every(value => !value.includes("<a2ui>") && !value.includes("root =")));
-    }
+    assert.ok(sentTexts.every(value => !value.includes("<a2ui>") && !value.includes("root =")));
+    assert.ok(sentTexts.every(value => !value.includes("INVALID DEBUG PAYLOAD - DO NOT COPY")));
   }
 });
 
@@ -519,7 +558,7 @@ void test("dispatch-reply: inline fenced a2ui keeps prose and suppresses raw DSL
   };
   mockSendA2uiReplyPart = async ({ part }) => {
     assert.equal(part.content, 'root = Card(Text("hi"))');
-    assert.equal(part.textBefore, undefined, "streamed prefix is flushed before the card");
+    assert.equal(part.textBefore, prefix, "streamed prefix should stay with the card");
     assert.equal(part.textAfter, "这是一个简单清晰的多项待办列表模板。");
     events.push("card");
     return { ok: true, updated: false };
@@ -559,8 +598,94 @@ void test("dispatch-reply: inline fenced a2ui keeps prose and suppresses raw DSL
 
   await dispatchReply.handler(ctx, createMockNext().next);
 
-  assert.deepEqual(events, [`text:${prefix}`, "card"]);
+  assert.deepEqual(events, ["card"]);
   assert.ok(sentTexts.every(value => !value.includes("<a2ui>") && !value.includes("```")));
+});
+
+void test("dispatch-reply: already streamed a2ui prefix is not duplicated in card send", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+  const events: string[] = [];
+
+  mockSendA2uiReplyPart = async ({ part }) => {
+    assert.equal(part.content, 'root = Card(Text("hi"))');
+    assert.equal(part.textBefore, undefined);
+    events.push("card");
+    return { ok: true, updated: false };
+  };
+
+  const prefix = "已经流式发出的前缀\n".repeat(220);
+  const text = `${prefix}<a2ui>root = Card(Text("hi"))</a2ui>`;
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt.slice(0, 32), txt.slice(32)],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: prefix });
+            await deliver?.({ text }, { kind: "final" });
+          }),
+        },
+      },
+    } as any,
+  });
+
+  await dispatchReply.handler(ctx, createMockNext().next);
+
+  assert.equal(events.filter(value => value === "card").length, 1);
+  assert.ok(sentTexts.length > 0, "long prefix should have streamed before the card");
+  assert.ok(sentTexts.every(value => !value.includes("<a2ui>")));
+});
+
+void test("dispatch-reply: text delivered after an a2ui block sends as the next message", async (t) => {
+  setupMocks(t);
+  const { dispatchReply } = await import("./dispatch-reply.js");
+  const { sender, sentTexts } = createMockSender();
+  const events: string[] = [];
+  const prefix = "给你一版西安 5 天规划：";
+  const suffix = "小建议：第一次去西安，优先兵马俑、华清宫、陕历博、城墙和大唐不夜城。";
+
+  mockSendA2uiReplyPart = async ({ part }) => {
+    assert.equal(part.content, 'root = Card(Text("hi"))');
+    assert.equal(part.textBefore, prefix);
+    assert.equal(part.textAfter, undefined);
+    events.push("card");
+    return { ok: true, updated: false };
+  };
+
+  const first = `${prefix}\n\n<a2ui>root = Card(Text("hi"))</a2ui>`;
+  const second = `\n\n${suffix}`;
+  const ctx = createDispatchCtx({
+    sender,
+    core: {
+      channel: {
+        text: {
+          convertMarkdownTables: (txt: string) => txt,
+          chunkMarkdownText: (txt: string, _max: number) => [txt],
+        },
+        session: { recordInboundSession: async () => {} },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: makeDispatcher(async ({ deliver, replyOptions }) => {
+            await replyOptions?.onPartialReply?.({ text: prefix });
+            await deliver?.({ text: first }, { kind: "block" });
+            await deliver?.({ text: second }, { kind: "final" });
+          }),
+        },
+      },
+    } as any,
+  });
+
+  await dispatchReply.handler(ctx, createMockNext().next);
+
+  assert.deepEqual(events, ["card"]);
+  assert.ok(sentTexts.some(value => value.includes(suffix)), "second deliver text should be sent");
+  assert.ok(sentTexts.every(value => !value.includes("<a2ui>")));
 });
 
 void test("dispatch-reply: /status deliver fallback appends bot version suffix", async (t) => {

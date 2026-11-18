@@ -16,7 +16,12 @@ import { createReplyHeartbeatController } from "../../outbound/heartbeat.js";
 import { createStreamingOutputSession } from "../../outbound/streaming-output-session.js";
 import { mdAtomic } from "../../utils/markdown.js";
 import { runWithTraceContext } from "../../trace/context.js";
-import { extractA2uiReplyPart, mayBecomeA2uiReply, sendA2uiReplyPart } from "../../xcard/reply-part.js";
+import {
+  extractA2uiReplyPart,
+  mayBecomeA2uiReply,
+  sendA2uiReplyPart,
+  type A2uiReplyPart,
+} from "../../xcard/reply-part.js";
 import type { MiddlewareDescriptor } from "../types.js";
 
 const DELIVER_TEXT_CHUNK_LIMIT = 1200;
@@ -120,7 +125,42 @@ export const dispatchReply: MiddlewareDescriptor = {
     let hasSentContent = false;
     let statusVersionSuffixAppended = false;
     let a2uiHeld = false;
+    let heldA2uiDeliverText = "";
     let currentSegmentReceivedPartial = false;
+
+    const sendA2uiPart = async (a2uiPart: A2uiReplyPart) => {
+      a2uiHeld = false;
+      heldA2uiDeliverText = "";
+      let part = a2uiPart;
+      if (currentSegmentReceivedPartial) {
+        const alreadyStreamedText = session.hasSentContent();
+        session.discardBufferedSegment();
+        currentSegmentReceivedPartial = false;
+        if (alreadyStreamedText && a2uiPart.textBefore) {
+          const { textBefore: _textBefore, ...withoutTextBefore } = a2uiPart;
+          part = withoutTextBefore;
+        }
+      }
+      const targetId = isGroup ? groupCode : fromAccount;
+      const result = targetId
+        ? await sendA2uiReplyPart({
+          part,
+          account,
+          wsClient: ctx.wsClient,
+          isGroup,
+          targetId,
+          sessionKey,
+          ownerUserId: fromAccount,
+        })
+        : { ok: false as const, error: "missing conversation target" };
+      if (!result.ok) {
+        ctx.log.warn("[dispatch-reply] a2ui reply part 发送失败", { error: result.error });
+        const fallback = [part.textBefore, result.error, part.textAfter]
+          .filter(text => text?.trim()).join("\n");
+        await sender.sendText(fallback);
+      }
+      hasSentContent = true;
+    };
 
     try {
       await core.channel.session.recordInboundSession({
@@ -156,45 +196,33 @@ export const dispatchReply: MiddlewareDescriptor = {
 
             const a2uiPart = extractA2uiReplyPart(payload);
             if (a2uiPart) {
-              a2uiHeld = false;
-              let part = a2uiPart;
-              if (currentSegmentReceivedPartial) {
-                if (account.disableBlockStreaming) {
-                  session.abort();
-                } else {
-                  await session.flushNow();
-                  session.abort();
-                  if (a2uiPart.textBefore) {
-                    const { textBefore: _textBefore, ...withoutTextBefore } = a2uiPart;
-                    part = withoutTextBefore;
-                  }
-                }
-              }
-              if (account.disableBlockStreaming) session.beginNewSegment();
-              const targetId = isGroup ? groupCode : fromAccount;
-              const result = targetId
-                ? await sendA2uiReplyPart({
-                  part,
-                  account,
-                  wsClient: ctx.wsClient,
-                  isGroup,
-                  targetId,
-                  sessionKey,
-                  ownerUserId: fromAccount,
-                })
-                : { ok: false as const, error: "missing conversation target" };
-              if (!result.ok) {
-                ctx.log.warn("[dispatch-reply] a2ui reply part 发送失败", { error: result.error });
-                const rawA2ui = `<a2ui>\n${part.content}\n</a2ui>`;
-                const fallback = [part.textBefore, result.error, "INVALID DEBUG PAYLOAD - DO NOT COPY:", rawA2ui, part.textAfter]
-                  .filter(text => text?.trim()).join("\n");
-                await sender.sendText(fallback);
-              }
-              hasSentContent = true;
+              await sendA2uiPart(a2uiPart);
               return;
             }
 
             const normalized = normalizeOutboundReplyPayload(payload);
+            let deliverText = normalized.text ?? "";
+
+            const shouldHoldA2uiDeliver = Boolean(deliverText)
+              && (a2uiHeld
+                || heldA2uiDeliverText.length > 0
+                || mayBecomeA2uiReply(deliverText)
+                || containsInlineA2uiCandidate(deliverText));
+            if (shouldHoldA2uiDeliver) {
+              heldA2uiDeliverText += deliverText;
+              const heldPart = extractA2uiReplyPart({ text: heldA2uiDeliverText });
+              if (heldPart) {
+                await sendA2uiPart(heldPart);
+                return;
+              }
+              if (info.kind !== "final") {
+                a2uiHeld = true;
+                return;
+              }
+              deliverText = heldA2uiDeliverText;
+              heldA2uiDeliverText = "";
+              a2uiHeld = false;
+            }
 
             const mediaUrls = resolveOutboundMediaUrls(normalized);
             for (const url of mediaUrls) {
@@ -207,7 +235,7 @@ export const dispatchReply: MiddlewareDescriptor = {
             // Held a2ui-like partials never reached the session, so deliver owns this text.
             if (!session.hasReceivedPartial() || a2uiHeld) {
               a2uiHeld = false;
-              const text = normalized.text ?? "";
+              const text = deliverText;
               if (text.trim()) {
                 let outText = text;
                 if (ctx.rawBody.trim().startsWith("/status") && !statusVersionSuffixAppended) {
@@ -242,6 +270,7 @@ export const dispatchReply: MiddlewareDescriptor = {
           },
           onAssistantMessageStart: () => {
             a2uiHeld = false;
+            heldA2uiDeliverText = "";
             currentSegmentReceivedPartial = false;
             session.beginNewSegment();
             heartbeat.emit(WS_HEARTBEAT.RUNNING);
@@ -251,7 +280,7 @@ export const dispatchReply: MiddlewareDescriptor = {
             const text = typeof payload.text === "string" ? payload.text : "";
             if (!text) return;
             // Cumulative partials: hold while the reply may still be a whole <a2ui> block.
-            a2uiHeld = mayBecomeA2uiReply(text) || containsInlineA2uiCandidate(text);
+            a2uiHeld = a2uiHeld || mayBecomeA2uiReply(text) || containsInlineA2uiCandidate(text);
             if (a2uiHeld) return;
             currentSegmentReceivedPartial = true;
             await session.update(text);
